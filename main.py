@@ -25,7 +25,7 @@ class StockTradingEnvironment(gym.Env):
         return self.get_state()
 
     def get_state(self):
-        return self.data.iloc[self.current_step].values
+        return self.data.iloc[self.current_step][['close', '7-day', '14-day', '21-day']].values
 
     def step(self, action):
         self.current_step += 1
@@ -95,7 +95,7 @@ def q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.99, epsilon_start=1.0,
             state = next_state
 def main():
     # Load dataset
-    data = pd.read_csv('your_sp500_stock_data.csv')  # Replace with your S&P 500 stock data file
+    data = pd.read_csv('ford_activity.csv')  # Replace with your S&P 500 stock data file
 
     # Preprocess data
     data = preprocess_data(data)
