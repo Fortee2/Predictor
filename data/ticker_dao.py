@@ -27,6 +27,7 @@ class ticker_dao:
             cursor = self.currenct_connection.cursor()
             
             query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id order by in_portfolio desc, maxDate;'
+            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id  where tick.id = 177 order by in_portfolio desc, maxDate;'
 
             cursor.execute(query)
             df_ticks = pd.DataFrame(cursor.fetchall())
@@ -120,7 +121,7 @@ class ticker_dao:
             
             query = "SELECT ticker_id, activity_date, open, close, volume, updown, high, low FROM investing.activity  WHERE ticker_id = %s and activity_date = %s order by activity_date asc"
             
-            cursor.execute(query,(int(ticker_id), date(activity_date)))
+            cursor.execute(query,(int(ticker_id),  activity_date.strftime('%Y-%m-%d')))
             df = pd.DataFrame(cursor.fetchall(), columns= ['ticker_id', 'activity_date', 'open', 'close', 'volume', 'updown' ,'high', 'low'])
             df = df.set_index('activity_date')
 
