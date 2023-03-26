@@ -7,7 +7,7 @@ import gym
 from gym import spaces
 
 class StockTradingEnvironment(gym.Env):
-    def __init__(self, data, max_holding_period=20):
+    def __init__(self, data, max_holding_period=30):
         super(StockTradingEnvironment, self).__init__()
         self.data = data
         self.max_holding_period = max_holding_period
@@ -16,7 +16,8 @@ class StockTradingEnvironment(gym.Env):
         self.in_position = False
 
         self.action_space = spaces.Discrete(3)  # Buy, Sell, Hold
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(4,), dtype=np.float32)
+        #When adding new data points, make sure to update the shape of the observation space
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32)
 
     def reset(self):
         self.current_step = 0
@@ -25,7 +26,8 @@ class StockTradingEnvironment(gym.Env):
         return self.get_state()
 
     def get_state(self):
-        return self.data.iloc[self.current_step][['close', '7-day', '14-day', '21-day']].values
+        #when adding new data points, make sure to update the state
+        return self.data.iloc[self.current_step][['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']].values
 
     def step(self, action):
         self.current_step += 1
@@ -67,7 +69,8 @@ def preprocess_data(data):
     data['21-day'] = data['close'].rolling(window=21).mean()
     data.dropna(inplace=True)
     scaler = StandardScaler()
-    data[['close', '7-day', '14-day', '21-day']] = scaler.fit_transform(data[['close', '7-day', '14-day', '21-day']])
+    #when adding new data points add them to the list below
+    data[['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']] = scaler.fit_transform(data[['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']])
     return data
 
 def q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995):
