@@ -22,12 +22,11 @@ class ticker_dao:
     def close_connection(self):
        self.currenct_connection.close()
 
-    def retrieveTickerList(self):
+    def retrieve_ticker_list(self):
         try:
             cursor = self.currenct_connection.cursor()
             
-            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id order by in_portfolio desc, maxDate;'
-            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id  where tick.id = 177 order by in_portfolio desc, maxDate;'
+            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id order by maxDate;'
 
             cursor.execute(query)
             df_ticks = pd.DataFrame(cursor.fetchall())
@@ -39,11 +38,11 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
    
-    def insertStock(self, ticker, ticker_name):
+    def insert_stock(self, ticker, ticker_name):
         try:
             cursor = self.currenct_connection.cursor()
             
-            query = 'INSERT INTO tickers (ticker, ticker_name, trend, close, in_portfolio) values (%s,%s,%s,%s,%s)'
+            query = 'INSERT INTO tickers (ticker, ticker_name, trend, close) values (%s,%s,%s,%s)'
             cursor.execute(query, (ticker, ticker_name,'unknown', 0, False))
 
             self.currenct_connection.commit()
@@ -51,7 +50,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def updateStockTrend(self,trend, close, ticker):
+    def update_stock_trend(self,trend, close, ticker):
         try:
             cursor = self.currenct_connection.cursor()
             
@@ -63,7 +62,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def updateStock(self, symbol, name, industry, sector):
+    def update_stock(self, symbol, name, industry, sector):
         try:
             cursor = self.currenct_connection.cursor()
             
@@ -75,7 +74,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def updateTradeHistory(self, ticker_id, activity_date, open, close, volume, high, low):
+    def update_trade_history(self, ticker_id, activity_date, open, close, volume, high, low):
         try:
             rsi_state = '' #going to leave it blank if there is no change in price
             
@@ -99,7 +98,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def retrieveTickerActivity(self,ticker_id):
+    def retrieve_ticker_activity(self,ticker_id):
         try:
             cursor = self.currenct_connection.cursor()
             
@@ -131,7 +130,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def retrieveLastActivityDate(self,ticker_id):
+    def retrieve_last_activity_date(self,ticker_id):
         try:
             cursor = self.currenct_connection.cursor()
             
@@ -147,7 +146,7 @@ class ticker_dao:
         except mysql.connector.Error as err:
             print(err)
 
-    def retrieveLastRSI(self,ticker_id):
+    def retrieve_last_rsi(self,ticker_id):
         try:
             cursor = self.currenct_connection.cursor()
             

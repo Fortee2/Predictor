@@ -25,11 +25,11 @@ class StockActivity:
     def update_ticker_history(self, symbol, id):
         ticker = yf.Ticker(symbol)
 
-        #df_last_date = self.dao.retrieveLastActivityDate(id)
+        df_last_date = self.dao.retrieveLastActivityDate(id)
         start = date.today() - timedelta(weeks=520)  #create window with enough room for 50 day moving average
 
-        #if df_last_date.iloc[0,0] != None:
-        #    start = df_last_date.iloc[0,0] + timedelta(days=1)
+        if df_last_date.iloc[0,0] != None:
+            start = df_last_date.iloc[0,0] + timedelta(days=1)
         
         end = date.today() + timedelta(days=1) 
         try:
@@ -40,7 +40,8 @@ class StockActivity:
                 idx = hist.index[i]
 
                 self.dao.updateTradeHistory(id, idx, hist.loc[idx,'Open'], hist.loc[idx,'Close'], hist.loc[idx,'Volume'], hist.loc[idx,'High'], hist.loc[idx,'Low'])
-        except:
+        except Exception as e:
+            print(e)
             time.sleep(120)
             print('Sleeping from failure')
         
@@ -48,7 +49,7 @@ class StockActivity:
         return self.dao.retrieve_ticker_activity(ticker_id=id)
 
     def update_stock_activity(self):
-        df_ticker_list = self.dao.retrieveTickerList()
+        df_ticker_list = self.dao.retrieve_ticker_list()
         print(df_ticker_list)
         count = 0
 
