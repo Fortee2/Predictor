@@ -101,7 +101,7 @@ def q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.99, epsilon_start=1.0,
 
 def main():
     # Load dataset
-    data = pd.read_csv('ford_activity.csv')  # Replace with your S&P 500 stock data file
+    data = pd.read_csv('celanse_activity.csv')  # Replace with your S&P 500 stock data file
 
     # Preprocess data
     data = preprocess_data(data)
