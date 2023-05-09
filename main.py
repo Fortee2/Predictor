@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import random
+import pickle
 from sklearn.preprocessing import StandardScaler
 from collections import defaultdict
 import gym
@@ -17,7 +18,7 @@ class StockTradingEnvironment(gym.Env):
 
         self.action_space = spaces.Discrete(3)  # Buy, Sell, Hold
         #When adding new data points, make sure to update the shape of the observation space
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(8,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float32)
 
     def reset(self):
         self.current_step = 0
@@ -27,7 +28,7 @@ class StockTradingEnvironment(gym.Env):
 
     def get_state(self):
         #when adding new data points, make sure to update the state
-        return self.data.iloc[self.current_step][['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']].values
+        return self.data.iloc[self.current_step][[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']].values
 
     def step(self, action):
         self.current_step += 1
@@ -54,9 +55,9 @@ class StockTradingEnvironment(gym.Env):
         else:  # Hold
             pass
 
-        if self.in_position and self.current_holding_period >= self.max_holding_period:
-            self.in_position = False
-            self.current_holding_period = 0
+       # if self.in_position and self.current_holding_period >= self.max_holding_period:
+       #     self.in_position = False
+       #     self.current_holding_period = 0
 
         next_state = self.get_state()
 
@@ -64,22 +65,26 @@ class StockTradingEnvironment(gym.Env):
 
 def preprocess_data(data):
     data = data.copy()
-    data['7-day'] = data['close'].rolling(window=7).mean()
+    """data['7-day'] = data['close'].rolling(window=7).mean()
     data['14-day'] = data['close'].rolling(window=14).mean()
-    data['21-day'] = data['close'].rolling(window=21).mean()
-    data.dropna(inplace=True)
+    data['21-day'] = data['close'].rolling(window=21).mean()"""
+    
+    print(data.columns)
+    
+    data.dropna(inplace=True) 
     scaler = StandardScaler()
-    #when adding new data points add them to the list below
-    data[['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']] = scaler.fit_transform(data[['close', '7-day', '14-day', '21-day', 'volume', 'high', 'low', 'open']])
-    return data
+    data[[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']] = scaler.fit_transform(data[[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']])
+    
+    return data, scaler
 
-def q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995):
+def q_learning(env, num_episodes=1500, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995):
     q_table = defaultdict(lambda: np.zeros(env.action_space.n))
-    epsilon = epsilon_start
 
     for episode in range(num_episodes):
         state = env.reset()
         state = tuple(state)
+
+        epsilon = epsilon_start * (epsilon_decay ** episode)
 
         done = False
         while not done:
@@ -96,15 +101,100 @@ def q_learning(env, num_episodes=1000, alpha=0.1, gamma=0.99, epsilon_start=1.0,
             q_table[state][action] += alpha * (td_target - q_table[state][action])
 
             state = next_state
+
+        epsilon = max(epsilon * epsilon_decay, epsilon_end)
+
+    return q_table
+
+# Define the new function here
+def test_q_learning(q_table, env):
+    state = env.reset()
+    state = tuple(state)
+    done = False
+    total_reward = 0
+
+    while not done:
+        action = np.argmax(q_table[state])
+        next_state, reward, done, _ = env.step(action)
+        next_state = tuple(next_state)
+        state = next_state
+        total_reward += reward
     
-    return q_table  # Add this line
+    # Add the logic for returning a buy, sell, or hold recommendation
+    if action == 0:
+        return "Buy"
+    elif action == 1:
+        return "Sell"
+    else:
+        return "Hold"
+    
+def inverse_transform_close_price(scaler, value):
+    dummy_data = np.zeros((1, scaler.scale_.shape[0]))
+    dummy_data[0, 1] = value  # 'close' is the second column in the standardized data
+    return scaler.inverse_transform(dummy_data)[0, 1]
+
+def test_harness(historical_data, q_table, scaler, starting_capital=1000):
+    env = StockTradingEnvironment(historical_data)
+    state = env.reset()
+    state = tuple(state)
+
+    capital = starting_capital
+    num_shares = 0
+    actions_log = []
+
+    for _ in range(len(historical_data) - 1):
+        action = np.argmax(q_table[state])
+        actions_log.append((env.current_step, action))
+
+        if action == 0:  # Buy
+            if not env.in_position:
+                close_price = inverse_transform_close_price(scaler, env.data.iloc[env.current_step]['close'])
+                num_shares_to_buy = capital // close_price
+                if num_shares_to_buy > 0:
+                    num_shares += num_shares_to_buy
+                    capital -= num_shares_to_buy * close_price
+                    env.in_position = True
+                    env.current_holding_period = 0
+        elif action == 1:  # Sell
+            if env.in_position:
+                close_price = inverse_transform_close_price(scaler, env.data.iloc[env.current_step]['close'])
+                capital += num_shares * close_price
+                num_shares = 0
+                env.in_position = False
+                env.current_holding_period = 0
+
+        state, _, done, _ = env.step(action)
+        state = tuple(state)
+
+        if done:
+            break
+
+    # Sell any remaining shares at the end of the simulation
+    if env.in_position:
+        close_price = inverse_transform_close_price(scaler, env.data.iloc[env.current_step]['close'])
+        capital += num_shares * close_price
+        num_shares = 0
+
+    profit_or_loss = capital - starting_capital
+    return profit_or_loss, actions_log
+
+def save_q_table(q_table, file_name):
+    q_table_dict = dict(q_table)
+    with open(file_name, 'wb') as f:
+        pickle.dump(q_table_dict, f)
+
+def load_q_table(file_name):
+    with open(file_name, 'rb') as f:
+        q_table_dict = pickle.load(f)
+    q_table = defaultdict(lambda: np.zeros(len(q_table_dict[list(q_table_dict.keys())[0]])), q_table_dict)
+    return q_table
 
 def main():
     # Load dataset
-    data = pd.read_csv('ford_activity.csv')  # Replace with your S&P 500 stock data file
+    data = pd.read_csv('celanse_activity.csv')  # Replace with your S&P 500 stock data file
 
     # Preprocess data
-    data = preprocess_data(data)
+    data, scaler = preprocess_data(data)
 
     # Split data into training and testing
     train_data = data.iloc[:-252]  # Use all data except the last year for training
@@ -113,24 +203,25 @@ def main():
     # Create the environment
     train_env = StockTradingEnvironment(train_data)
     test_env = StockTradingEnvironment(test_data)
-
+    
     # Train the Q-learning model
     q_table = q_learning(train_env, num_episodes=1000)
 
+    # Save the Q-table
+    q_table_file = 'q_table.pkl'
+    save_q_table(q_table, q_table_file)
+
+    # Load the Q-table
+    #q_table = load_q_table(q_table_file)
+
     # Test the Q-learning model
-    state = test_env.reset()
-    state = tuple(state)
-    done = False
-    total_reward = 0
+    recommendation = test_q_learning(q_table, test_env)   
+    print(f'Recommended action: {recommendation}')
+    
+   # Test the Q-learning model using the test harness
+    profit_or_loss, actions_log = test_harness(test_data, q_table, scaler, starting_capital=1000)
 
-    while not done:
-        action = np.argmax(q_table[state])
-        next_state, reward, done, _ = test_env.step(action)
-        next_state = tuple(next_state)
-        state = next_state
-        total_reward += reward
-
-    print(f'Total reward: {total_reward}')
+    print(f'Profit or Loss: ${profit_or_loss:.2f}')
 
 if __name__ == "__main__":
     main()

@@ -25,7 +25,7 @@ class StockActivity:
     def update_ticker_history(self, symbol, id):
         ticker = yf.Ticker(symbol)
 
-        df_last_date = self.dao.retrieveLastActivityDate(id)
+        df_last_date = self.dao.retrieve_last_activity_date(id)
         start = date.today() - timedelta(weeks=520)  #create window with enough room for 50 day moving average
 
         if df_last_date.iloc[0,0] != None:
@@ -39,7 +39,7 @@ class StockActivity:
             for i in range(len(hist)):    
                 idx = hist.index[i]
 
-                self.dao.updateTradeHistory(id, idx, hist.loc[idx,'Open'], hist.loc[idx,'Close'], hist.loc[idx,'Volume'], hist.loc[idx,'High'], hist.loc[idx,'Low'])
+                self.dao.update_trade_history(id, idx, hist.loc[idx,'Open'], hist.loc[idx,'Close'], hist.loc[idx,'Volume'], hist.loc[idx,'High'], hist.loc[idx,'Low'])
         except Exception as e:
             print(e)
             time.sleep(120)
