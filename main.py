@@ -18,7 +18,7 @@ class StockTradingEnvironment(gym.Env):
 
         self.action_space = spaces.Discrete(3)  # Buy, Sell, Hold
         #When adding new data points, make sure to update the shape of the observation space
-        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(9,), dtype=np.float32)
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(18,), dtype=np.float32)
 
     def reset(self):
         self.current_step = 0
@@ -28,7 +28,7 @@ class StockTradingEnvironment(gym.Env):
 
     def get_state(self):
         #when adding new data points, make sure to update the state
-        return self.data.iloc[self.current_step][[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']].values
+        return self.data.iloc[self.current_step][[ 'open','close', 'volume', 'updown', 'high', 'low','MACD', 'Signal', 'rsi', 'market_open','market_close', 'market_volume', 'market_updown', 'market_high', 'market_low','market_MACD', 'market_Signal', 'market_rsi']].values
 
     def step(self, action):
         self.current_step += 1
@@ -73,11 +73,11 @@ def preprocess_data(data):
     
     data.dropna(inplace=True) 
     scaler = StandardScaler()
-    data[[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']] = scaler.fit_transform(data[[ 'open','close', 'volume', 'updown', 'high', 'low','macd', 'Signal', 'rsi']])
+    data[[ 'open','close', 'volume', 'updown', 'high', 'low','MACD', 'Signal', 'rsi', 'market_open','market_close', 'market_volume', 'market_updown', 'market_high', 'market_low','market_MACD', 'market_Signal', 'market_rsi']] = scaler.fit_transform(data[[  'open','close', 'volume', 'updown', 'high', 'low','MACD', 'Signal', 'rsi', 'market_open','market_close', 'market_volume', 'market_updown', 'market_high', 'market_low','market_MACD', 'market_Signal', 'market_rsi']])
     
     return data, scaler
 
-def q_learning(env, num_episodes=1500, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.01, epsilon_decay=0.995):
+def q_learning(env, num_episodes=1500, alpha=0.1, gamma=0.99, epsilon_start=1.0, epsilon_end=0.02, epsilon_decay=0.999):
     q_table = defaultdict(lambda: np.zeros(env.action_space.n))
 
     for episode in range(num_episodes):
@@ -199,13 +199,13 @@ def main():
     # Split data into training and testing
     train_data = data.iloc[:-252]  # Use all data except the last year for training
     test_data = data.iloc[-252:]  # Use the last year for testing
-
+ 
     # Create the environment
     train_env = StockTradingEnvironment(train_data)
     test_env = StockTradingEnvironment(test_data)
     
     # Train the Q-learning model
-    q_table = q_learning(train_env, num_episodes=1000)
+    q_table = q_learning(train_env, num_episodes=3000)
 
     # Save the Q-table
     q_table_file = 'q_table.pkl'
