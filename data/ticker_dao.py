@@ -14,24 +14,24 @@ class ticker_dao:
         self.current_connection = None
     
     def open_connection(self):
-        self.currenct_connection = mysql.connector.connect(user=self.db_user, 
+        self.current_connection = mysql.connector.connect(user=self.db_user, 
                       password=self.db_password,
                       host=self.db_host,
                       database=self.db_name)
 
     def close_connection(self):
-       self.currenct_connection.close()
+       self.current_connection.close()
 
     def retrieve_ticker_list(self):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
-            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id order by maxDate;'
+            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick INNER JOIN investing.portfolio port on port.ticker_id = tick.id left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id  where port.active = 1 order by maxDate;'
 
             cursor.execute(query)
             df_ticks = pd.DataFrame(cursor.fetchall())
         
-            self.currenct_connection.commit()
+            self.current_connection.commit()
             cursor.close()
             
             return df_ticks
@@ -40,39 +40,101 @@ class ticker_dao:
    
     def insert_stock(self, ticker, ticker_name):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = 'INSERT INTO tickers (ticker, ticker_name, trend, close) values (%s,%s,%s,%s)'
-            cursor.execute(query, (ticker, ticker_name,'unknown', 0, False))
+            cursor.execute(query, (ticker, ticker_name,'unknown', 0))
 
-            self.currenct_connection.commit()
+            self.current_connection.commit()
             cursor.close()
         except mysql.connector.Error as err:
             print(err)
 
     def update_stock_trend(self,trend, close, ticker):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = 'UPDATE tickers SET trend = %s, close =%s WHERE ticker = %s'
             cursor.execute(query, (trend, float(close), ticker))
 
-            self.currenct_connection.commit()
+            self.current_connection.commit()
+            cursor.close()
+        except mysql.connector.Error as err:
+            print(err)
+
+    def ticker_delisted(self, ticker):
+        """_summary_
+        Set a ticker to inactive in the database
+        Args:
+            ticker (_type_): _description_
+        """
+        try:
+            cursor = self.current_connection.cursor()
+            
+            query = 'UPDATE tickers SET active = 0 WHERE ticker = %s'
+            cursor.execute(query, (ticker))
+
+            self.current_connection.commit()
             cursor.close()
         except mysql.connector.Error as err:
             print(err)
 
     def update_stock(self, symbol, name, industry, sector):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = 'UPDATE tickers SET ticker_name = %s, industry =%s, sector=%s WHERE ticker = %s'
             cursor.execute(query, (name, industry, sector, symbol))
 
-            self.currenct_connection.commit()
+            self.current_connection.commit()
             cursor.close()
         except mysql.connector.Error as err:
             print(err)
+
+    def get_ticker_id(self, symbol):
+        try:
+            cursor = self.current_connection.cursor()
+            query = "SELECT id FROM tickers WHERE ticker = %s"
+            cursor.execute(query, (symbol,))
+            result = cursor.fetchone()
+            cursor.close()
+            if result:
+                return result[0]
+            else:
+                return None
+        except mysql.connector.Error as err:
+            print(err)
+            return None
+
+    def get_ticker_symbol(self, ticker_id):
+        try:
+            cursor = self.current_connection.cursor()
+            query = "SELECT ticker FROM tickers WHERE id = %s"
+            cursor.execute(query, (ticker_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            if result:
+                return result[0]
+            else:
+                return None
+        except mysql.connector.Error as err:
+            print(err)
+            return None
+
+    def get_ticker_industry(self, ticker_id):
+        try:
+            cursor = self.current_connection.cursor()
+            query = "SELECT industry FROM tickers WHERE id = %s"
+            cursor.execute(query, (ticker_id,))
+            result = cursor.fetchone()
+            cursor.close()
+            if result:
+                return result[0]
+            else:
+                return None
+        except mysql.connector.Error as err:
+            print(err)
+            return None
 
     def update_trade_history(self, ticker_id, activity_date, open, close, volume, high, low):
         try:
@@ -87,12 +149,12 @@ class ticker_dao:
             df = self.retrieve_ticker_activity_by_day(ticker_id, activity_date);
             
             if(df.empty):
-                cursor = self.currenct_connection.cursor(prepared=True)
+                cursor = self.current_connection.cursor(prepared=True)
             
                 query = 'INSERT INTO investing.activity (ticker_id,activity_date,open,close,volume,updown, high, low) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
                 cursor.execute(query, (int(ticker_id), str(activity_date), float(open), float(close), float(volume), rsi_state,  float(high), float(low)))
             
-                self.currenct_connection.commit()
+                self.current_connection.commit()
                 cursor.close()
                 
         except mysql.connector.Error as err:
@@ -100,7 +162,7 @@ class ticker_dao:
 
     def retrieve_ticker_activity(self,ticker_id):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = "SELECT ticker_id, activity_date, open, close, volume, updown, high, low FROM investing.activity  WHERE ticker_id = %s order by activity_date asc"
             
@@ -116,7 +178,7 @@ class ticker_dao:
             
     def retrieve_ticker_activity_by_day(self,ticker_id, activity_date):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = "SELECT ticker_id, activity_date, open, close, volume, updown, high, low FROM investing.activity  WHERE ticker_id = %s and activity_date = %s order by activity_date asc"
             
@@ -132,14 +194,14 @@ class ticker_dao:
 
     def retrieve_last_activity_date(self,ticker_id):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = "SELECT max(activity_date) FROM investing.activity  WHERE ticker_id = %s order by activity_date desc limit 1"
             
             cursor.execute(query,(int(ticker_id),))
             df_last = pd.DataFrame(cursor.fetchall())
         
-            self.currenct_connection.commit()
+            self.current_connection.commit()
             cursor.close()
             
             return df_last
@@ -148,7 +210,7 @@ class ticker_dao:
 
     def retrieve_last_rsi(self,ticker_id):
         try:
-            cursor = self.currenct_connection.cursor()
+            cursor = self.current_connection.cursor()
             
             query = "SELECT activity_date, rsi FROM investing.rsi  WHERE ticker_id = %s order by activity_date desc limit 10"
             
