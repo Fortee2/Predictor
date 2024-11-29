@@ -3,7 +3,7 @@ import mysql.connector
 from mysql.connector import errorcode
 import pandas as pd
 
-class ticker_dao:
+class TickerDao:
 
     def __init__(self, user, password, host, database):
         self.db_user = user

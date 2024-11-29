@@ -1,7 +1,6 @@
 import mysql.connector
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
 import datetime
-import os
 
 class PortfolioDAO:
     def __init__(self, db_user, db_password, db_host, db_name):
@@ -30,41 +29,26 @@ class PortfolioDAO:
             self.connection.close()
             self.transactions_dao.close_connection()
             
-    def create_portfolio(self, ticker_id):
+    def create_portfolio(self, name, description):
         try:
             cursor = self.connection.cursor()
-            query = "INSERT INTO portfolio (ticker_id, date_added) VALUES (%s, NOW())"
-            values = (ticker_id,)
+            query = "INSERT INTO portfolio (name, description, date_added) VALUES (%s, %s, NOW())"
+            values = (name, description)
             cursor.execute(query, values)
             self.connection.commit()
             portfolio_id = cursor.lastrowid
-            print(f"Added ticker {ticker_id} to portfolio {portfolio_id}")
+            print(f"Created new portfolio with ID {portfolio_id}")
             return portfolio_id
         except mysql.connector.Error as e:
-            print(f"Error creating portfolio entry: {e}")
+            print(f"Error creating portfolio: {e}")
             return None
             
-    def get_portfolio_id(self, ticker_id):
+    def read_portfolio(self, portfolio_id=None):
         try:
             cursor = self.connection.cursor()
-            query = "SELECT id FROM portfolio WHERE ticker_id = %s"
-            values = (ticker_id,)
-            cursor.execute(query, values)
-            result = cursor.fetchone()
-            if result:
-                return result[0]
-            else:
-                return None
-        except mysql.connector.Error as e:
-            print(f"Error retrieving portfolio ID: {e}")
-            return None
-            
-    def read_portfolio(self, ticker_id=None):
-        try:
-            cursor = self.connection.cursor()
-            if ticker_id:
-                query = "SELECT * FROM portfolio WHERE ticker_id = %s"
-                values = (ticker_id,)
+            if portfolio_id:
+                query = "SELECT * FROM portfolio WHERE id = %s"
+                values = (portfolio_id,)
             else:
                 query = "SELECT * FROM portfolio"
                 values = None
@@ -73,36 +57,47 @@ class PortfolioDAO:
         except mysql.connector.Error as e:
             print(f"Error reading portfolio: {e}")
             
-    def update_portfolio(self, id, active):
+    def update_portfolio(self, portfolio_id, name=None, description=None, active=None):
         try:
             cursor = self.connection.cursor()
-            query = "UPDATE portfolio SET active = %s WHERE id = %s"
-            values = (active, id)
+            query = "UPDATE portfolio SET "
+            values = []
+            if name:
+                query += "name = %s, "
+                values.append(name)
+            if description:
+                query += "description = %s, "
+                values.append(description)
+            if active is not None:
+                query += "active = %s, "
+                values.append(active)
+            query = query.rstrip(", ") + " WHERE id = %s"
+            values.append(portfolio_id)
             cursor.execute(query, values)
             self.connection.commit()
-            print(f"Updated portfolio entry {id} to active={active}")
+            print(f"Updated portfolio {portfolio_id}")
         except mysql.connector.Error as e:
             print(f"Error updating portfolio: {e}")
             
-    def delete_portfolio(self, id):
+    def delete_portfolio(self, portfolio_id):
         try:
             cursor = self.connection.cursor()
             query = "DELETE FROM portfolio WHERE id = %s"
-            values = (id,)
+            values = (portfolio_id,)
             cursor.execute(query, values)
             self.connection.commit()
-            print(f"Removed entry {id} from portfolio")
+            print(f"Deleted portfolio {portfolio_id}")
         except mysql.connector.Error as e:
-            print(f"Error deleting from portfolio: {e}")
+            print(f"Error deleting portfolio: {e}")
             
     def add_tickers_to_portfolio(self, portfolio_id, ticker_ids):
         try:
             cursor = self.connection.cursor()
-            query = "INSERT INTO portfolio (ticker_id, date_added) VALUES (%s, NOW())"
+            query = "INSERT INTO portfolio_securities (portfolio_id, ticker_id, date_added) VALUES (%s, %s, NOW())"
             for ticker_id in ticker_ids:
-                values = (ticker_id,)
+                values = (portfolio_id, ticker_id)
                 cursor.execute(query, values)
-                self.transactions_dao.insert_transaction(portfolio_id, 'buy', datetime.date.today())
+                self.transactions_dao.insert_transaction(portfolio_id, None, 'buy', datetime.date.today())
             self.connection.commit()
             print(f"Added {len(ticker_ids)} tickers to portfolio {portfolio_id}")
         except mysql.connector.Error as e:
@@ -111,18 +106,75 @@ class PortfolioDAO:
     def remove_tickers_from_portfolio(self, portfolio_id, ticker_ids):
         try:
             cursor = self.connection.cursor()
-            query = "DELETE FROM portfolio WHERE id = %s"
+            query = "DELETE FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s"
             for ticker_id in ticker_ids:
-                portfolio_entry_id = self.get_portfolio_id(ticker_id)
-                if portfolio_entry_id:
-                    values = (portfolio_entry_id,)
-                    cursor.execute(query, values)
-                    self.transactions_dao.insert_transaction(portfolio_id, 'sell', datetime.date.today())
+                values = (portfolio_id, ticker_id)
+                cursor.execute(query, values)
+                self.transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.date.today())
             self.connection.commit()
             print(f"Removed {len(ticker_ids)} tickers from portfolio {portfolio_id}")
         except mysql.connector.Error as e:
             print(f"Error removing tickers from portfolio: {e}")
             
-    def log_transaction(self, portfolio_id, transaction_type, transaction_date, shares=None, price=None, amount=None):
-        self.transactions_dao.insert_transaction(portfolio_id, transaction_type, transaction_date, shares, price, amount)
-        print(f"Logged {transaction_type} transaction for portfolio {portfolio_id} on {transaction_date}")
+    def get_tickers_in_portfolio(self, portfolio_id):
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT ticker_id FROM portfolio_securities WHERE portfolio_id = %s"
+            values = (portfolio_id,)
+            cursor.execute(query, values)
+            return [row[0] for row in cursor.fetchall()]
+        except mysql.connector.Error as e:
+            print(f"Error retrieving tickers in portfolio: {e}")
+            return []
+            
+    def is_ticker_in_portfolio(self, portfolio_id, ticker_id):
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT COUNT(*) FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s"
+            values = (portfolio_id, ticker_id)
+            cursor.execute(query, values)
+            count = cursor.fetchone()[0]
+            return count > 0
+        except mysql.connector.Error as e:
+            print(f"Error checking if ticker is in portfolio: {e}")
+            return False
+            
+    def get_portfolios_with_ticker(self, ticker_id):
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT portfolio_id FROM portfolio_securities WHERE ticker_id = %s"
+            values = (ticker_id,)
+            cursor.execute(query, values)
+            return [row[0] for row in cursor.fetchall()]
+        except mysql.connector.Error as e:
+            print(f"Error retrieving portfolios with ticker: {e}")
+            return []
+            
+    def get_security_id(self, portfolio_id, ticker_id):
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT id FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s"
+            values = (portfolio_id, ticker_id)
+            cursor.execute(query, values)
+            result = cursor.fetchone()
+            if result:
+                return result[0]
+            else:
+                return None
+        except mysql.connector.Error as e:
+            print(f"Error retrieving security ID: {e}")
+            return None
+            
+    def get_all_tickers_in_portfolios(self):
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT DISTINCT ticker_id FROM portfolio_securities"
+            cursor.execute(query)
+            return [row[0] for row in cursor.fetchall()]
+        except mysql.connector.Error as e:
+            print(f"Error retrieving all tickers in portfolios: {e}")
+            return []
+            
+    def log_transaction(self, portfolio_id, security_id, transaction_type, transaction_date, shares=None, price=None, amount=None):
+        self.transactions_dao.insert_transaction(portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount)
+        print(f"Logged {transaction_type} transaction for portfolio {portfolio_id} and security {security_id} on {transaction_date}")

@@ -1,6 +1,9 @@
 from datetime import date
+import os
 import mysql.connector
+from dotenv import load_dotenv
 from mysql.connector import errorcode
+from ticker_dao import TickerDao
 import pandas as pd
 
 class BollingerBandAnalyzer:
@@ -89,9 +92,12 @@ class BollingerBandAnalyzer:
         else:
             print(f"The Bollinger Band is in a neutral range, suggesting stability.")
 
-# Usage
-analyzer = BollingerBandAnalyzer(ticker_dao)
-data_points = analyzer.generate_bollinger_band_data('AAPL')
-print(data_points)
+if __name__ == '__main__':
+    load_dotenv()
+    
+    analyzer = BollingerBandAnalyzer(ticker_dao=TickerDao(os.getenv('DB_USER'), os.getenv('DB_PASSWORD'), os.getenv('DB_HOST'), os.getenv('DB_NAME')))
+    data_points = analyzer.generate_bollinger_band_data('AAPL')
+    print(data_points)
 
-analyzer.generate_interpretation('AAPL')
+    analyzer.generate_interpretation('AAPL')
+

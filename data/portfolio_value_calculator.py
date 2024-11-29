@@ -31,9 +31,10 @@ class PortfolioValueCalculator:
             cursor = self.connection.cursor()
 
             # Retrieve transaction history for the portfolio
-            query = "SELECT pt.transaction_type, pt.transaction_date, pt.shares, pt.price, pt.amount " \
+            query = "SELECT pt.transaction_type, pt.transaction_date, pt.shares, pt.price, pt.amount, t.id AS ticker_id " \
                     "FROM portfolio_transactions pt " \
                     "JOIN portfolio p ON pt.portfolio_id = p.id " \
+                    "JOIN ticker t ON pt.ticker_id = t.id " \
                     "WHERE p.id = %s AND pt.transaction_date <= %s"
             values = (portfolio_id, calculation_date)
             cursor.execute(query, values)
@@ -42,15 +43,13 @@ class PortfolioValueCalculator:
             # Calculate the number of shares held for each stock
             shares_held = {}
             for transaction in transactions:
-                transaction_type, transaction_date, shares, price, amount = transaction
+                transaction_type, transaction_date, shares, price, amount, ticker_id = transaction
                 if transaction_type == 'buy':
-                    ticker_id = self.get_ticker_id_from_portfolio(portfolio_id)
                     if ticker_id in shares_held:
                         shares_held[ticker_id] += shares
                     else:
                         shares_held[ticker_id] = shares
                 elif transaction_type == 'sell':
-                    ticker_id = self.get_ticker_id_from_portfolio(portfolio_id)
                     if ticker_id in shares_held:
                         shares_held[ticker_id] -= shares
                     else:
@@ -90,21 +89,6 @@ class PortfolioValueCalculator:
 
         except mysql.connector.Error as e:
             print(f"Error calculating portfolio value: {e}")
-            return None
-
-    def get_ticker_id_from_portfolio(self, portfolio_id):
-        try:
-            cursor = self.connection.cursor()
-            query = "SELECT ticker_id FROM portfolio WHERE id = %s"
-            values = (portfolio_id,)
-            cursor.execute(query, values)
-            result = cursor.fetchone()
-            if result:
-                return result[0]
-            else:
-                return None
-        except mysql.connector.Error as e:
-            print(f"Error retrieving ticker ID from portfolio: {e}")
             return None
 
     def get_ticker_symbol(self, ticker_id):
