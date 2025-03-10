@@ -437,6 +437,96 @@ class PortfolioCLI:
         except Exception as e:
             print(f"Error analyzing Moving Averages: {str(e)}")
 
+    def display_dashboard(self, args):
+        """Display a comprehensive dashboard for the portfolio"""
+        try:
+            # Validate portfolio exists and get details
+            portfolio_details = self.portfolio_dao.read_portfolio(args.portfolio_id)
+            if not portfolio_details:
+                print(f"Error: Portfolio {args.portfolio_id} does not exist.")
+                return
+                
+            portfolio_details = portfolio_details[0]
+            portfolio_id, name, description, active, date_added = portfolio_details
+            
+            # Get all tickers in portfolio
+            tickers = self.portfolio_dao.get_tickers_in_portfolio(args.portfolio_id)
+            if not tickers:
+                print("\nNo tickers in portfolio to display.")
+                return
+
+            # Print dashboard header
+            print("\n" + "=" * 80)
+            print(f"{'Portfolio Dashboard':^80}")
+            print("=" * 80)
+            print(f"\nPortfolio: {name} (ID: {portfolio_id})")
+            print(f"Status: {'Active' if active else 'Inactive'}")
+            print("-" * 80)
+
+            # Process each ticker
+            for ticker_id in tickers:
+                symbol = self.ticker_dao.get_ticker_symbol(ticker_id)
+                print(f"\n{'╔' + '═' * 78 + '╗'}")
+                print(f"║{f' {symbol} Analysis ':^78}║")
+                print(f"{'╠' + '═' * 78 + '╣'}")
+
+                # Technical Indicators Section
+                print(f"║{' Technical Indicators ':^78}║")
+                print(f"{'╟' + '─' * 78 + '╢'}")
+                
+                # RSI
+                cursor = self.rsi_calculator.current_connection.cursor()
+                cursor.execute("""
+                    SELECT r.rsi, r.activity_date 
+                    FROM investing.rsi r 
+                    WHERE r.ticker_id = %s 
+                    ORDER BY r.activity_date DESC 
+                    LIMIT 1
+                """, (ticker_id,))
+                rsi_result = cursor.fetchone()
+                cursor.close()
+                
+                if rsi_result:
+                    rsi_value, rsi_date = rsi_result
+                    rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
+                    print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
+
+                # Moving Average
+                ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
+                if not ma_data.empty:
+                    latest_ma = ma_data.iloc[-1]
+                    print(f"║ 20-day MA: {latest_ma[0]:.2f}{' ' * 57}║")
+
+                # Fundamental Data Section
+                print(f"{'╟' + '─' * 78 + '╢'}")
+                print(f"║{' Fundamental Data ':^78}║")
+                print(f"{'╟' + '─' * 78 + '╢'}")
+                
+                fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                if fund_data:
+                    print(f"║ P/E Ratio: {fund_data['pe_ratio'] or 'N/A':<20} "
+                          f"Market Cap: ${fund_data['market_cap']:,.0f if fund_data['market_cap'] else 'N/A':<15}║")
+                    print(f"║ Dividend Yield: {(fund_data['dividend_yield']*100 if fund_data['dividend_yield'] else 'N/A'):<16} "
+                          f"EPS (TTM): ${fund_data['eps_ttm'] or 'N/A':<20}║")
+
+                # News Sentiment Section
+                print(f"{'╟' + '─' * 78 + '╢'}")
+                print(f"║{' Recent News Sentiment ':^78}║")
+                print(f"{'╟' + '─' * 78 + '╢'}")
+                
+                summary = self.sentiment_analyzer.get_sentiment_summary(ticker_id, symbol)
+                if summary:
+                    print(f"║ Overall: {summary['status']:<20} "
+                          f"Score: {summary['average_sentiment']:.4f}{' ' * 35}║")
+                    if summary['articles']:
+                        latest = summary['articles'][0]
+                        print(f"║ Latest: {latest['headline'][:65]:<65} ║")
+                
+                print(f"{'╚' + '═' * 78 + '╝'}")
+
+        except Exception as e:
+            print(f"Error displaying dashboard: {str(e)}")
+
     def analyze_bb(self, args):
         """Analyze Bollinger Bands for specified portfolio/ticker"""
         try:
@@ -525,9 +615,15 @@ def main():
     sentiment_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
     sentiment_parser.add_argument('--update', action='store_true', help='Fetch and analyze latest news before showing results')
 
+    # Add dashboard parser
+    dashboard_parser = subparsers.add_parser('dashboard', help='Display portfolio dashboard')
+    dashboard_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+
     args = parser.parse_args()
 
-    if args.command == 'create-portfolio':
+    if args.command == 'dashboard':
+        portfolio_tool.display_dashboard(args)
+    elif args.command == 'create-portfolio':
         portfolio_tool.create_portfolio(args)
     elif args.command == 'add-tickers':
         portfolio_tool.add_tickers(args)
