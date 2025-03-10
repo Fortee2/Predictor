@@ -20,6 +20,8 @@ This project is a comprehensive stock portfolio management and analysis system t
 - Implement Moving Averages for trend analysis
 - Generate Bollinger Bands for volatility analysis
 - Store historical price data for analysis
+- Analyze news sentiment using FinBERT model
+- Track and store news article sentiment scores
 
 ## System Architecture
 
@@ -36,6 +38,7 @@ This project is a comprehensive stock portfolio management and analysis system t
 - `rsi_calculations.py`: Calculates Relative Strength Index (momentum indicator)
 - `moving_averages.py`: Implements different moving average calculations
 - `bollinger_bands.py`: Calculates volatility bands around moving averages
+- `news_sentiment_analyzer.py`: Analyzes news sentiment using FinBERT
 
 ### Utilities
 - `utility.py`: Helper functions for API calls
@@ -63,6 +66,8 @@ This project is a comprehensive stock portfolio management and analysis system t
   - yfinance
   - python-dotenv
   - requests
+  - transformers
+  - torch
 
 ## Environment Setup
 
@@ -231,7 +236,7 @@ Warning: The following tickers were not found in the portfolio:
 
 ### Technical Analysis Commands
 
-The system provides powerful technical analysis capabilities through three main indicators:
+The system provides powerful technical analysis capabilities through three main indicators, fundamental data analysis, and news sentiment analysis:
 
 1. **Analyze RSI (Relative Strength Index)**
 ```bash
@@ -274,12 +279,74 @@ AAPL is above its 20-day moving average, indicating a strong uptrend.
 The Bollinger Band is relatively narrow, indicating high volatility.
 ```
 
+4. **View Fundamental Data**
+```bash
+python portfolio_cli.py view-fundamentals [portfolio_id] [--ticker_id TICKER_ID]
+```
+- Displays comprehensive fundamental data for stocks
+- Includes valuation metrics, dividend info, growth rates, and financial health
+- Example output:
+```
+Fundamental Analysis for AAPL (ID: 1):
+--------------------------------------------------
+Data as of: 2025-03-10
+
+Valuation Metrics:
+P/E Ratio:      25.50
+Forward P/E:     22.30
+PEG Ratio:       1.85
+Price/Book:      35.20
+
+Dividend Information:
+Dividend Yield:  0.65%
+Dividend Rate:   $0.92
+
+Growth & Profitability:
+EPS (TTM):       $6.15
+EPS Growth:      15.20%
+Revenue Growth:  8.50%
+Profit Margin:   25.30%
+
+Financial Health:
+Debt/Equity:     1.50
+Market Cap:      $2,750,000,000,000.00
+```
+
+5. **Analyze News Sentiment**
+```bash
+python portfolio_cli.py analyze-news [portfolio_id] [--ticker_id TICKER_ID] [--update]
+```
+- Analyzes sentiment of recent news articles using FinBERT model
+- Provides sentiment scores and confidence levels for each article
+- Optional --update flag to fetch and analyze latest news
+- Example output:
+```
+News Sentiment Analysis for AAPL:
+--------------------------------------------------
+Overall Sentiment: Positive
+Average Score: 0.3245
+Articles Analyzed: 5
+
+Recent Headlines:
+Apple Reports Record Quarter, Exceeds Expectations
+Publisher: Reuters
+Date: 2025-03-10 14:30:00
+Sentiment: 0.8750 (Confidence: 0.9120)
+Link: https://reuters.com/article/...
+
+Apple Announces New Product Line
+Publisher: Bloomberg
+Date: 2025-03-10 10:15:00
+Sentiment: 0.6540 (Confidence: 0.8830)
+Link: https://bloomberg.com/news/...
+```
+
 ### Usage Options
 
-For all technical analysis commands:
+For all technical analysis and fundamental data commands:
 - Analyze a specific ticker by providing the `--ticker_id` parameter
 - Analyze all tickers in a portfolio by omitting the `--ticker_id` parameter
-- View historical data and current signals for informed decision-making
+- View historical data, current signals, and fundamental metrics for informed decision-making
 
 ### Best Practices
 
@@ -303,5 +370,20 @@ For all technical analysis commands:
    - Compare different moving average periods
    - Use Bollinger Bands to gauge volatility
    - Consider market context when interpreting signals
+   - Combine technical signals with fundamental data for comprehensive analysis
+
+5. **Fundamental Analysis**
+   - Review valuation metrics relative to industry averages
+   - Monitor dividend metrics for income potential
+   - Track growth rates and profitability trends
+   - Assess financial health through leverage ratios
+   - Consider market cap for size and liquidity context
+
+6. **News Sentiment Analysis**
+   - Use --update flag to ensure latest news is analyzed
+   - Consider sentiment trends over time
+   - Look for correlation between sentiment and price movements
+   - Pay attention to confidence scores for reliability
+   - Cross-reference news sentiment with technical indicators
 
 This tool is designed for investors who want to track their investments, analyze performance, and make data-driven decisions based on technical indicators. The addition of technical analysis capabilities provides deeper insights into market trends and potential trading opportunities.

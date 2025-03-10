@@ -1,0 +1,20 @@
+CREATE TABLE IF NOT EXISTS `fundamental_data` (
+  `id` int NOT NULL AUTO_INCREMENT,
+  `ticker_id` int NOT NULL,
+  `date` date NOT NULL,
+  `pe_ratio` decimal(10,2) DEFAULT NULL,
+  `forward_pe` decimal(10,2) DEFAULT NULL,
+  `peg_ratio` decimal(10,2) DEFAULT NULL,
+  `price_to_book` decimal(10,2) DEFAULT NULL,
+  `dividend_yield` decimal(10,4) DEFAULT NULL,
+  `dividend_rate` decimal(10,2) DEFAULT NULL,
+  `eps_ttm` decimal(10,2) DEFAULT NULL,
+  `eps_growth` decimal(10,4) DEFAULT NULL,
+  `revenue_growth` decimal(10,4) DEFAULT NULL,
+  `profit_margin` decimal(10,4) DEFAULT NULL,
+  `debt_to_equity` decimal(10,2) DEFAULT NULL,
+  `market_cap` bigint DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `ticker_id` (`ticker_id`),
+  CONSTRAINT `fundamental_data_ibfk_1` FOREIGN KEY (`ticker_id`) REFERENCES `tickers` (`id`)
+);

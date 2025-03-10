@@ -6,6 +6,8 @@ from data.ticker_dao import TickerDao
 from data.rsi_calculations import rsi_calculations
 from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
+from data.fundamental_data_dao import FundamentalDataDAO
+from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 import datetime
 from dotenv import load_dotenv
 
@@ -24,6 +26,9 @@ class PortfolioCLI:
         self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
         self.moving_avg.open_connection()
         self.bollinger = BollingerBandAnalyzer(self.ticker_dao)
+        self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
+        self.fundamental_dao.open_connection()
+        self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         
     def create_portfolio(self, args):
         try:
@@ -236,6 +241,109 @@ class PortfolioCLI:
         self.ticker_dao.close_connection()
         self.rsi_calculator.close_connection()
         self.moving_avg.close_connection()
+        self.fundamental_dao.close_connection()
+        self.sentiment_analyzer.close_connection()
+
+    def analyze_news_sentiment(self, args):
+        """Analyze news sentiment for specified portfolio/ticker"""
+        try:
+            # Validate portfolio exists
+            if not self.portfolio_dao.read_portfolio(args.portfolio_id):
+                print(f"Error: Portfolio {args.portfolio_id} does not exist.")
+                return
+
+            # Get tickers to analyze
+            if args.ticker_id:
+                if not self.portfolio_dao.is_ticker_in_portfolio(args.portfolio_id, args.ticker_id):
+                    print(f"Error: Ticker ID {args.ticker_id} not found in portfolio {args.portfolio_id}")
+                    return
+                tickers = [args.ticker_id]
+            else:
+                tickers = self.portfolio_dao.get_tickers_in_portfolio(args.portfolio_id)
+
+            # Analyze each ticker
+            for ticker_id in tickers:
+                symbol = self.ticker_dao.get_ticker_symbol(ticker_id)
+                
+                # Fetch and analyze latest news if requested
+                if args.update:
+                    print(f"\nFetching latest news for {symbol}...")
+                    self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+                
+                # Get sentiment summary
+                summary = self.sentiment_analyzer.get_sentiment_summary(ticker_id, symbol)
+                
+                if summary:
+                    print(f"\nNews Sentiment Analysis for {summary['symbol']}:")
+                    print("-" * 50)
+                    print(f"Overall Sentiment: {summary['status']}")
+                    print(f"Average Score: {summary['average_sentiment']:.4f}")
+                    print(f"Articles Analyzed: {summary['article_count']}")
+                    
+                    if summary['articles']:
+                        print("\nRecent Headlines:")
+                        for article in summary['articles'][:5]:  # Show 5 most recent
+                            print(f"\n{article['headline']}")
+                            print(f"Publisher: {article['publisher']}")
+                            print(f"Date: {article['date']}")
+                            print(f"Sentiment: {article['sentiment']:.4f} (Confidence: {article['confidence']:.4f})")
+                            print(f"Link: {article['link']}")
+                else:
+                    print(f"\nNo sentiment data available for {symbol}")
+
+        except Exception as e:
+            print(f"Error analyzing news sentiment: {str(e)}")
+
+    def view_fundamentals(self, args):
+        """View fundamental data for specified portfolio/ticker"""
+        try:
+            # Validate portfolio exists
+            if not self.portfolio_dao.read_portfolio(args.portfolio_id):
+                print(f"Error: Portfolio {args.portfolio_id} does not exist.")
+                return
+
+            # Get tickers to analyze
+            if args.ticker_id:
+                if not self.portfolio_dao.is_ticker_in_portfolio(args.portfolio_id, args.ticker_id):
+                    print(f"Error: Ticker ID {args.ticker_id} not found in portfolio {args.portfolio_id}")
+                    return
+                tickers = [args.ticker_id]
+            else:
+                tickers = self.portfolio_dao.get_tickers_in_portfolio(args.portfolio_id)
+
+            # Analyze each ticker
+            for ticker_id in tickers:
+                symbol = self.ticker_dao.get_ticker_symbol(ticker_id)
+                print(f"\nFundamental Analysis for {symbol} (ID: {ticker_id}):")
+                print("-" * 50)
+                
+                data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                if data:
+                    print(f"Data as of: {data['date'].strftime('%Y-%m-%d')}")
+                    print("\nValuation Metrics:")
+                    print(f"P/E Ratio:      {data['pe_ratio'] or 'N/A'}")
+                    print(f"Forward P/E:     {data['forward_pe'] or 'N/A'}")
+                    print(f"PEG Ratio:       {data['peg_ratio'] or 'N/A'}")
+                    print(f"Price/Book:      {data['price_to_book'] or 'N/A'}")
+                    
+                    print("\nDividend Information:")
+                    print(f"Dividend Yield:  {(data['dividend_yield']*100 if data['dividend_yield'] else 'N/A')}%")
+                    print(f"Dividend Rate:   ${data['dividend_rate'] or 'N/A'}")
+                    
+                    print("\nGrowth & Profitability:")
+                    print(f"EPS (TTM):       ${data['eps_ttm'] or 'N/A'}")
+                    print(f"EPS Growth:      {(data['eps_growth']*100 if data['eps_growth'] else 'N/A')}%")
+                    print(f"Revenue Growth:  {(data['revenue_growth']*100 if data['revenue_growth'] else 'N/A')}%")
+                    print(f"Profit Margin:   {(data['profit_margin']*100 if data['profit_margin'] else 'N/A')}%")
+                    
+                    print("\nFinancial Health:")
+                    print(f"Debt/Equity:     {data['debt_to_equity'] or 'N/A'}")
+                    print(f"Market Cap:      ${data['market_cap']:,.2f}" if data['market_cap'] else "Market Cap:      N/A")
+                else:
+                    print("No fundamental data available")
+
+        except Exception as e:
+            print(f"Error viewing fundamental data: {str(e)}")
 
     def analyze_rsi(self, args):
         """Analyze RSI for specified portfolio/ticker"""
@@ -392,7 +500,7 @@ def main():
     view_portfolio_parser = subparsers.add_parser('view-portfolio', help='View details of a portfolio')
     view_portfolio_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
 
-    # Add new technical analysis parsers
+    # Add technical analysis parsers
     rsi_parser = subparsers.add_parser('analyze-rsi', help='Analyze RSI for portfolio/ticker')
     rsi_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
     rsi_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
@@ -405,6 +513,17 @@ def main():
     bb_parser = subparsers.add_parser('analyze-bb', help='Analyze Bollinger Bands for portfolio/ticker')
     bb_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
     bb_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
+
+    # Add fundamental data parser
+    fundamental_parser = subparsers.add_parser('view-fundamentals', help='View fundamental data for portfolio/ticker')
+    fundamental_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    fundamental_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
+
+    # Add news sentiment parser
+    sentiment_parser = subparsers.add_parser('analyze-news', help='Analyze news sentiment for portfolio/ticker')
+    sentiment_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    sentiment_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
+    sentiment_parser.add_argument('--update', action='store_true', help='Fetch and analyze latest news before showing results')
 
     args = parser.parse_args()
 
@@ -426,6 +545,10 @@ def main():
         portfolio_tool.analyze_ma(args)
     elif args.command == 'analyze-bb':
         portfolio_tool.analyze_bb(args)
+    elif args.command == 'view-fundamentals':
+        portfolio_tool.view_fundamentals(args)
+    elif args.command == 'analyze-news':
+        portfolio_tool.analyze_news_sentiment(args)
     else:
         parser.print_help()
         

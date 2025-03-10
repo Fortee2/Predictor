@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 
 from data.portfolio_dao import PortfolioDAO
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
+from data.fundamental_data_dao import FundamentalDataDAO
+from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 
 class DataRetrieval:
     def __init__(self, db_user, db_password, db_host, db_name):
@@ -22,10 +24,54 @@ class DataRetrieval:
         self.portfolio_dao.open_connection()
         self.portfolio_transactions_dao = PortfolioTransactionsDAO(db_user, db_password, db_host, db_name)
         self.portfolio_transactions_dao.open_connection()
+        self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
+        self.fundamental_dao.open_connection()
+        self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
 
     def update_ticker_data(self, symbol):
         ticker = yf.Ticker(symbol)
-        self.dao.update_stock(symbol, ticker.info["shortName"], ticker.info["industry"], ticker.info["sector"])
+        info = ticker.info
+        
+        # Update basic ticker info
+        self.dao.update_stock(symbol, info.get("shortName"), info.get("industry"), info.get("sector"))
+        
+        # Update fundamental data
+        self.update_fundamental_data(ticker, symbol)
+        
+        # Update news sentiment
+        ticker_id = self.dao.get_ticker_id(symbol)
+        if ticker_id:
+            self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+
+    def update_fundamental_data(self, ticker, symbol):
+        """Updates fundamental data for a given ticker"""
+        try:
+            info = ticker.info
+            ticker_id = self.dao.get_ticker_id(symbol)
+            
+            if not ticker_id:
+                print(f"Error: Could not find ticker ID for {symbol}")
+                return
+            
+            # Extract fundamental data
+            self.fundamental_dao.save_fundamental_data(
+                ticker_id=ticker_id,
+                pe_ratio=info.get('trailingPE'),
+                forward_pe=info.get('forwardPE'),
+                peg_ratio=info.get('pegRatio'),
+                price_to_book=info.get('priceToBook'),
+                dividend_yield=info.get('dividendYield'),
+                dividend_rate=info.get('dividendRate'),
+                eps_ttm=info.get('trailingEps'),
+                eps_growth=info.get('earningsGrowth'),
+                revenue_growth=info.get('revenueGrowth'),
+                profit_margin=info.get('profitMargins'),
+                debt_to_equity=info.get('debtToEquity'),
+                market_cap=info.get('marketCap')
+            )
+            
+        except Exception as e:
+            print(f"Error updating fundamental data for {symbol}: {str(e)}")
 
     def update_ticker_history(self, symbol, ticker_id):
         try:
