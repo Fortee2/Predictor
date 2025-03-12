@@ -77,7 +77,7 @@ class rsi_calculations:
 
         sql= "insert into investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) values (%s, %s, %s, %s, %s, %s);"
 
-        cursor.execute(sql, ( str(activity_date),  int(ticker_id), float(avg_gain), float(avg_loss), float(rs), float(rsi)))
+        cursor.execute(sql, (activity_date, int(ticker_id), float(avg_gain), float(avg_loss), float(rs), float(rsi)))
         df = pd.DataFrame(cursor.fetchall())
     
         self.current_connection.commit()
@@ -143,5 +143,3 @@ class rsi_calculations:
 
             #Save the data so we have it for next time
             self.createAverages(idx, ticker_id, df_rs.iloc[rsi, avgGain_idx], df_rs.iloc[rsi, avgLoss_idx] , df_rs.iloc[rsi, rs_idx],  df_rs.iloc[rsi, rsi_idx])
-
-

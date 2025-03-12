@@ -15,13 +15,13 @@ class moving_averages:
         self.current_connection = None
 
     def open_connection(self):
-        self.currenct_connection = mysql.connector.connect(user=self.db_user, 
+        self.current_connection = mysql.connector.connect(user=self.db_user, 
                       password=self.db_password,
                       host=self.db_host,
                       database=self.db_name)
 
     def close_connection(self):
-       self.currenct_connection.close()
+       self.current_connection.close()
 
     def calculateAverage(self, resultColumn, columnToAvg, interval, avgDataFrame):  
         ma_idx = avgDataFrame.columns.get_loc(resultColumn)
@@ -31,7 +31,7 @@ class moving_averages:
             avgDataFrame.iloc[i,ma_idx] = avgDataFrame.iloc[i-interval:i,close_idx].mean()  # np.round(np.average(avgDataFrame.iloc[i-interval:i,close_idx]),2)s
 
     def loadAveragesFromDB(self, ticker_id, averageType):
-        cursor = self.currenct_connection.cursor()
+        cursor = self.current_connection.cursor()
 
         sql= """
             select activity_date, value 
@@ -106,4 +106,3 @@ class moving_averages:
         
         # Return the updated moving averages from the database
         return self.loadAveragesFromDB(ticker_id, period)
-   

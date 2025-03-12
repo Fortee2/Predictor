@@ -136,7 +136,7 @@ class TickerDao:
             print(err)
             return None
 
-    def update_trade_history(self, ticker_id, activity_date, open, close, volume, high, low):
+    def update_activity(self, ticker_id, activity_date, open, close, volume, high, low):
         try:
             rsi_state = '' #going to leave it blank if there is no change in price
             

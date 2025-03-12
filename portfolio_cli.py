@@ -8,6 +8,7 @@ from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
+from data.data_retrival import DataRetrieval
 import datetime
 from dotenv import load_dotenv
 
@@ -20,14 +21,17 @@ class PortfolioCLI:
         self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
         self.ticker_dao.open_connection()
         
+        # Initialize tools with credentials but don't open connections yet
+        self.db_user = db_user
+        self.db_password = db_password
+        self.db_host = db_host
+        self.db_name = db_name
+        
         # Initialize technical analysis tools
         self.rsi_calculator = rsi_calculations(db_user, db_password, db_host, db_name)
-        self.rsi_calculator.open_connection()
         self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
-        self.moving_avg.open_connection()
         self.bollinger = BollingerBandAnalyzer(self.ticker_dao)
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
-        self.fundamental_dao.open_connection()
         self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         
     def create_portfolio(self, args):
@@ -189,7 +193,7 @@ class PortfolioCLI:
 
             # Print transactions in a formatted table
             for transaction in transactions:
-                date = transaction[3].strftime('%Y-%m-%d')
+                date = datetime.datetime.strptime(str(transaction[3]), '%Y-%m-%d').strftime('%Y-%m-%d')
                 trans_type = transaction[2]
                 security_id = transaction[1]
                 symbol = self.ticker_dao.get_ticker_symbol(security_id) if security_id else 'N/A'
@@ -219,7 +223,7 @@ class PortfolioCLI:
             print(f"Name:         {name}")
             print(f"Description:  {description}")
             print(f"Status:       {'Active' if active else 'Inactive'}")
-            print(f"Date Added:   {date_added.strftime('%Y-%m-%d')}")
+            print(f"Date Added:   {datetime.datetime.strptime(str(date_added), '%Y-%m-%d').strftime('%Y-%m-%d')}")
             
             tickers = self.portfolio_dao.get_tickers_in_portfolio(args.portfolio_id)
             
@@ -236,13 +240,24 @@ class PortfolioCLI:
             print(f"Error viewing portfolio: {str(e)}")
 
     def close_connection(self):
-        self.portfolio_dao.close_connection()
-        self.portfolio_transactions_dao.close_connection()
-        self.ticker_dao.close_connection()
-        self.rsi_calculator.close_connection()
-        self.moving_avg.close_connection()
-        self.fundamental_dao.close_connection()
-        self.sentiment_analyzer.close_connection()
+        """Close all open database connections"""
+        try:
+            if hasattr(self.portfolio_dao, 'current_connection') and self.portfolio_dao.current_connection:
+                self.portfolio_dao.close_connection()
+            if hasattr(self.portfolio_transactions_dao, 'current_connection') and self.portfolio_transactions_dao.current_connection:
+                self.portfolio_transactions_dao.close_connection()
+            if hasattr(self.ticker_dao, 'current_connection') and self.ticker_dao.current_connection:
+                self.ticker_dao.close_connection()
+            if hasattr(self.rsi_calculator, 'current_connection') and self.rsi_calculator.current_connection:
+                self.rsi_calculator.close_connection()
+            if hasattr(self.moving_avg, 'current_connection') and self.moving_avg.current_connection:
+                self.moving_avg.close_connection()
+            if hasattr(self.fundamental_dao, 'current_connection') and self.fundamental_dao.current_connection:
+                self.fundamental_dao.close_connection()
+            if hasattr(self.sentiment_analyzer, 'current_connection') and self.sentiment_analyzer.current_connection:
+                self.sentiment_analyzer.close_connection()
+        except Exception as e:
+            print(f"Warning: Error while closing connections: {str(e)}")
 
     def analyze_news_sentiment(self, args):
         """Analyze news sentiment for specified portfolio/ticker"""
@@ -319,7 +334,7 @@ class PortfolioCLI:
                 
                 data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
                 if data:
-                    print(f"Data as of: {data['date'].strftime('%Y-%m-%d')}")
+                    print(f"Data as of: {datetime.datetime.strptime(str(data['date']), '%Y-%m-%d').strftime('%Y-%m-%d')}")
                     print("\nValuation Metrics:")
                     print(f"P/E Ratio:      {data['pe_ratio'] or 'N/A'}")
                     print(f"Forward P/E:     {data['forward_pe'] or 'N/A'}")
@@ -368,24 +383,28 @@ class PortfolioCLI:
                 print(f"\nRSI Analysis for {symbol} (ID: {ticker_id}):")
                 print("-" * 50)
                 
-                # Calculate RSI
-                self.rsi_calculator.calculateRSI(ticker_id)
-                
-                # Get latest RSI value
-                cursor = self.rsi_calculator.current_connection.cursor()
-                cursor.execute("""
-                    SELECT r.rsi, r.activity_date 
-                    FROM investing.rsi r 
-                    WHERE r.ticker_id = %s 
-                    ORDER BY r.activity_date DESC 
-                    LIMIT 1
-                """, (ticker_id,))
-                result = cursor.fetchone()
-                cursor.close()
+                # Ensure connection is open and calculate RSI
+                self.rsi_calculator.open_connection()
+                try:
+                    self.rsi_calculator.calculateRSI(ticker_id)
+                    
+                    # Get latest RSI value
+                    cursor = self.rsi_calculator.current_connection.cursor()
+                    cursor.execute("""
+                        SELECT r.rsi, r.activity_date
+                        FROM investing.rsi r 
+                        WHERE r.ticker_id = %s 
+                        ORDER BY r.activity_date DESC 
+                        LIMIT 1
+                    """, (ticker_id,))
+                    result = cursor.fetchone()
+                    cursor.close()
+                finally:
+                    self.rsi_calculator.close_connection()
                 
                 if result:
                     rsi_value, date = result
-                    print(f"Latest RSI ({date.strftime('%Y-%m-%d')}): {rsi_value}")
+                    print(f"Latest RSI ({datetime.datetime.strptime(str(date), '%Y-%m-%d').strftime('%Y-%m-%d')}): {rsi_value}")
                     
                     # Interpret RSI
                     if rsi_value > 70:
@@ -430,7 +449,7 @@ class PortfolioCLI:
                 
                 if not ma_data.empty:
                     latest_ma = ma_data.iloc[-1]
-                    print(f"{period}-day Moving Average ({ma_data.index[-1].strftime('%Y-%m-%d')}): {latest_ma[0]:.2f}")
+                    print(f"{period}-day Moving Average ({datetime.datetime.strptime(str(ma_data.index[-1]), '%Y-%m-%d').strftime('%Y-%m-%d')}): {latest_ma[0]:.2f}")
                 else:
                     print("No moving average data available")
 
@@ -456,11 +475,41 @@ class PortfolioCLI:
                 return
 
             # Print dashboard header
+            # Get last update time from trade history
+            last_update = None
+            for ticker_id in tickers:
+                cursor = self.ticker_dao.current_connection.cursor()
+                cursor.execute("""
+                    SELECT CAST(MAX(activity_date) AS CHAR) 
+                    FROM investing.activity 
+                    WHERE ticker_id = %s
+                """, (ticker_id,))
+                result = cursor.fetchone()
+                cursor.close()
+                if result[0]:
+                    if not last_update or result[0] > last_update:
+                        last_update = result[0]
+
+            # Print dashboard header
             print("\n" + "=" * 80)
             print(f"{'Portfolio Dashboard':^80}")
             print("=" * 80)
             print(f"\nPortfolio: {name} (ID: {portfolio_id})")
             print(f"Status: {'Active' if active else 'Inactive'}")
+            if last_update:
+                # Clean up and parse the date string
+                date_str = str(last_update)
+                if '.' in date_str:  # Remove microseconds if present
+                    date_str = date_str.split('.')[0]
+                if ' 00:00:00' in date_str:  # Remove time if it's just zeros
+                    date_str = date_str.replace(' 00:00:00', '')
+                try:
+                    # Try parsing with time first
+                    dt = datetime.datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                except ValueError:
+                    # If that fails, try just the date
+                    dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
+                print(f"Last Data Update: {dt.strftime('%Y-%m-%d %H:%M:%S')}")
             print("-" * 80)
 
             # Process each ticker
@@ -475,39 +524,50 @@ class PortfolioCLI:
                 print(f"{'╟' + '─' * 78 + '╢'}")
                 
                 # RSI
-                cursor = self.rsi_calculator.current_connection.cursor()
-                cursor.execute("""
-                    SELECT r.rsi, r.activity_date 
-                    FROM investing.rsi r 
-                    WHERE r.ticker_id = %s 
-                    ORDER BY r.activity_date DESC 
-                    LIMIT 1
-                """, (ticker_id,))
-                rsi_result = cursor.fetchone()
-                cursor.close()
+                self.rsi_calculator.open_connection()  # Ensure connection is open
+                try:
+                    cursor = self.rsi_calculator.current_connection.cursor()
+                    cursor.execute("""
+                        SELECT r.rsi, r.activity_date
+                        FROM investing.rsi r 
+                        WHERE r.ticker_id = %s 
+                        ORDER BY r.activity_date DESC 
+                        LIMIT 1
+                    """, (ticker_id,))
+                    rsi_result = cursor.fetchone()
+                    cursor.close()
+                finally:
+                    self.rsi_calculator.close_connection()
                 
                 if rsi_result:
                     rsi_value, rsi_date = rsi_result
                     rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
-                    print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
+                    print(f"║ RSI ({datetime.datetime.strptime(str(rsi_date), '%Y-%m-%d').strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
 
                 # Moving Average
                 ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
                 if not ma_data.empty:
                     latest_ma = ma_data.iloc[-1]
-                    print(f"║ 20-day MA: {latest_ma[0]:.2f}{' ' * 57}║")
+                    print(f"║ 20-day MA: {latest_ma.iloc[0]:.2f}{' ' * 57}║")
 
                 # Fundamental Data Section
                 print(f"{'╟' + '─' * 78 + '╢'}")
                 print(f"║{' Fundamental Data ':^78}║")
                 print(f"{'╟' + '─' * 78 + '╢'}")
                 
-                fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                # Ensure fundamental data connection is open
+                self.fundamental_dao.open_connection()
+                try:
+                    fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                finally:
+                    self.fundamental_dao.close_connection()
                 if fund_data:
                     print(f"║ P/E Ratio: {fund_data['pe_ratio'] or 'N/A':<20} "
                           f"Market Cap: ${fund_data['market_cap']:,.0f if fund_data['market_cap'] else 'N/A':<15}║")
                     print(f"║ Dividend Yield: {(fund_data['dividend_yield']*100 if fund_data['dividend_yield'] else 'N/A'):<16} "
                           f"EPS (TTM): ${fund_data['eps_ttm'] or 'N/A':<20}║")
+                else:
+                    print(f"║ No fundamental data available{' ' * 52}║")
 
                 # News Sentiment Section
                 print(f"{'╟' + '─' * 78 + '╢'}")
@@ -515,17 +575,29 @@ class PortfolioCLI:
                 print(f"{'╟' + '─' * 78 + '╢'}")
                 
                 summary = self.sentiment_analyzer.get_sentiment_summary(ticker_id, symbol)
-                if summary:
+                if summary and 'average_sentiment' in summary:
                     print(f"║ Overall: {summary['status']:<20} "
                           f"Score: {summary['average_sentiment']:.4f}{' ' * 35}║")
-                    if summary['articles']:
+                    if summary.get('articles'):
                         latest = summary['articles'][0]
                         print(f"║ Latest: {latest['headline'][:65]:<65} ║")
+                else:
+                    print(f"║ No sentiment data available{' ' * 48}║")
                 
                 print(f"{'╚' + '═' * 78 + '╝'}")
 
         except Exception as e:
             print(f"Error displaying dashboard: {str(e)}")
+
+    def update_data(self, args):
+        """Update stock data from yFinance for all stocks in portfolios"""
+        try:
+            print("\nUpdating stock data from yFinance...")
+            data_retriever = DataRetrieval(self.db_user, self.db_password, self.db_host, self.db_name)
+            data_retriever.update_stock_activity()
+            print("\nStock data update complete.")
+        except Exception as e:
+            print(f"Error updating stock data: {str(e)}")
 
     def analyze_bb(self, args):
         """Analyze Bollinger Bands for specified portfolio/ticker"""
@@ -556,8 +628,22 @@ class PortfolioCLI:
             print(f"Error analyzing Bollinger Bands: {str(e)}")
 
 def main():
-    load_dotenv()
-    portfolio_tool = PortfolioCLI(os.environ.get('DB_USER'), os.environ.get('DB_PASSWORD'), os.environ.get('DB_HOST'), os.environ.get('DB_NAME'))
+    print("Current environment before load_dotenv:")
+    print(f"DB_USER={os.environ.get('DB_USER')}")
+    
+    load_dotenv(override=True)  # Force override existing environment variables
+    print("\nEnvironment variables after load_dotenv:")
+    print(f"DB_USER={os.environ.get('DB_USER')}")
+    print(f"DB_HOST={os.environ.get('DB_HOST')}")
+    print(f"DB_NAME={os.environ.get('DB_NAME')}")
+    
+    db_user = os.environ.get('DB_USER')
+    db_password = os.environ.get('DB_PASSWORD')
+    db_host = os.environ.get('DB_HOST')
+    db_name = os.environ.get('DB_NAME')
+    
+    print(f"\nConnecting with: user={db_user}, host={db_host}, database={db_name}")
+    portfolio_tool = PortfolioCLI(db_user, db_password, db_host, db_name)
     
     parser = argparse.ArgumentParser(description='Portfolio Management CLI')
     subparsers = parser.add_subparsers(dest='command')
@@ -615,13 +701,18 @@ def main():
     sentiment_parser.add_argument('--ticker_id', type=int, help='Ticker ID (optional)')
     sentiment_parser.add_argument('--update', action='store_true', help='Fetch and analyze latest news before showing results')
 
+    # Add update data parser
+    update_parser = subparsers.add_parser('update-data', help='Update stock data from yFinance')
+
     # Add dashboard parser
     dashboard_parser = subparsers.add_parser('dashboard', help='Display portfolio dashboard')
     dashboard_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
 
     args = parser.parse_args()
 
-    if args.command == 'dashboard':
+    if args.command == 'update-data':
+        portfolio_tool.update_data(args)
+    elif args.command == 'dashboard':
         portfolio_tool.display_dashboard(args)
     elif args.command == 'create-portfolio':
         portfolio_tool.create_portfolio(args)

@@ -3,7 +3,7 @@ import os
 import mysql.connector
 from dotenv import load_dotenv
 from mysql.connector import errorcode
-from ticker_dao import TickerDao
+from data.ticker_dao import TickerDao
 import pandas as pd
 
 class BollingerBandAnalyzer:
@@ -100,4 +100,3 @@ if __name__ == '__main__':
     print(data_points)
 
     analyzer.generate_interpretation('AAPL')
-

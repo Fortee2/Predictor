@@ -2,9 +2,9 @@ import os
 import time
 from datetime import datetime, timedelta
 
-import rsi_calculations as rsi_calc
-import ticker_dao
-import utility
+from data import rsi_calculations as rsi_calc
+from data import ticker_dao
+from data import utility
 import yfinance as yf
 from dotenv import load_dotenv
 
@@ -84,7 +84,7 @@ class DataRetrieval:
                 portfolio_ids = self.portfolio_dao.get_portfolios_with_ticker(ticker_id)
                 for portfolio_id in portfolio_ids:
                     self.portfolio_dao.remove_tickers_from_portfolio(portfolio_id, [ticker_id])
-                    self.portfolio_transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.date.today())
+                    self.portfolio_transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.today().date())
                 return
 
             print(info.get('fiftyTwoWeekLow', None))
@@ -100,7 +100,7 @@ class DataRetrieval:
 
             for i in range(len(hist)):
                 idx = hist.index[i]
-                self.dao.update_trade_history(ticker_id, idx, hist.loc[idx, 'Open'], hist.loc[idx, 'Close'], hist.loc[idx, 'Volume'], hist.loc[idx, 'High'], hist.loc[idx, 'Low'])
+                self.dao.update_activity(ticker_id, idx, hist.loc[idx, 'Open'], hist.loc[idx, 'Close'], hist.loc[idx, 'Volume'], hist.loc[idx, 'High'], hist.loc[idx, 'Low'])
 
                 # Check if the stock paid dividends on this date
                 if hist.loc[idx, 'Dividends'] > 0:
