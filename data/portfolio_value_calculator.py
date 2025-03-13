@@ -34,7 +34,8 @@ class PortfolioValueCalculator:
             query = "SELECT pt.transaction_type, pt.transaction_date, pt.shares, pt.price, pt.amount, t.id AS ticker_id " \
                     "FROM portfolio_transactions pt " \
                     "JOIN portfolio p ON pt.portfolio_id = p.id " \
-                    "JOIN ticker t ON pt.ticker_id = t.id " \
+                    "JOIN portfolio_securities ps ON ps.id = pt.security_id " \
+                    "JOIN tickers t ON t.id = ps.ticker_id " \
                     "WHERE p.id = %s AND pt.transaction_date <= %s"
             values = (portfolio_id, calculation_date)
             cursor.execute(query, values)
@@ -63,10 +64,12 @@ class PortfolioValueCalculator:
                 stock_prices[ticker_id] = stock.info['regularMarketPrice']
 
             # Calculate the portfolio value
-            portfolio_value = 0
+            portfolio_value = 0.0  # Initialize as float
             for ticker_id, shares in shares_held.items():
                 if shares > 0:
-                    portfolio_value += shares * stock_prices[ticker_id]
+                    # Convert Decimal to float for calculation
+                    share_count = float(shares)
+                    portfolio_value += share_count * stock_prices[ticker_id]
 
             # Add any dividend amounts received
             query = "SELECT SUM(amount) AS total_dividends " \
@@ -76,7 +79,7 @@ class PortfolioValueCalculator:
             values = (portfolio_id, calculation_date)
             cursor.execute(query, values)
             result = cursor.fetchone()
-            total_dividends = result[0] if result[0] else 0
+            total_dividends = float(result[0]) if result[0] else 0.0
             portfolio_value += total_dividends
 
             # Store the calculated portfolio value in the database
@@ -94,7 +97,7 @@ class PortfolioValueCalculator:
     def get_ticker_symbol(self, ticker_id):
         try:
             cursor = self.connection.cursor()
-            query = "SELECT symbol FROM ticker WHERE id = %s"
+            query = "SELECT ticker FROM tickers WHERE id = %s"
             values = (ticker_id,)
             cursor.execute(query, values)
             result = cursor.fetchone()

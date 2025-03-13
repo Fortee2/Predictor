@@ -25,8 +25,77 @@ This project is a comprehensive stock portfolio management and analysis system t
 
 ## System Architecture
 
-### Command-line Interface
+### Command-line Interfaces
 - `portfolio_cli.py`: Main CLI tool for portfolio management operations
+- `ticker_cli.py`: CLI tool for ticker management and data updates
+
+### Ticker Management Guide
+
+1. **Add a New Ticker**
+```bash
+python ticker_cli.py add AAPL "Apple Inc."
+```
+- Adds a new ticker to the system
+- Example output:
+```
+Successfully added new ticker:
+Symbol: AAPL
+Name: Apple Inc.
+```
+
+2. **Update Ticker Data**
+```bash
+python ticker_cli.py update-data AAPL
+```
+- Automatically fetches and updates ticker data using Yahoo Finance
+- Updates company info (name, industry, sector)
+- Updates fundamental data (PE ratio, market cap, etc.)
+- Updates price history and activity data
+- Updates news sentiment
+- Calculates RSI
+- Example output:
+```
+Updating data for AAPL...
+Successfully updated AAPL data
+```
+
+3. **Update Ticker Details Manually**
+```bash
+python ticker_cli.py update AAPL "Apple Inc." "Technology" "Consumer Electronics"
+```
+- Manually update ticker details
+- Example output:
+```
+Successfully updated ticker AAPL:
+Name: Apple Inc.
+Industry: Technology
+Sector: Consumer Electronics
+```
+
+4. **Mark Ticker as Delisted**
+```bash
+python ticker_cli.py delist AAPL
+```
+- Marks a ticker as delisted
+- Example output:
+```
+Successfully marked ticker AAPL as inactive
+```
+
+5. **List All Tickers**
+```bash
+python ticker_cli.py list
+```
+- Shows all tickers with their details
+- Example output:
+```
+Ticker List:
+====================================================================================================
+Symbol    Name              ID    Industry                                  Sector
+AAPL     Apple Inc.        1     Technology                               Consumer Electronics
+MSFT     Microsoft Corp    2     Software                                 Technology
+...
+```
 
 ### Data Access Layer
 - `portfolio_dao.py`: Portfolio creation and management
@@ -114,18 +183,18 @@ Date Added:   2025-03-10
 
 Tickers in Portfolio:
 --------------------------------------------------
-Symbol: AAPL   (ID: 1)
-Symbol: MSFT   (ID: 2)
-Symbol: GOOGL  (ID: 3)
+Symbol: AAPL
+Symbol: MSFT
+Symbol: GOOGL
 ```
 
 ### Managing Tickers
 
 1. **Add Tickers to Portfolio**
 ```bash
-python portfolio_cli.py add-tickers 1 1 2 3
+python portfolio_cli.py add-tickers 1 AAPL MSFT GOOGL
 ```
-- Adds one or more tickers to a portfolio using ticker IDs
+- Adds one or more tickers to a portfolio using ticker symbols
 - Validates ticker existence before adding
 - Shows success/failure for each ticker
 - Example output:
@@ -133,14 +202,14 @@ python portfolio_cli.py add-tickers 1 1 2 3
 Successfully added 3 ticker(s) to portfolio 1
 
 Added tickers:
-- AAPL (ID: 1)
-- MSFT (ID: 2)
-- GOOGL (ID: 3)
+- AAPL
+- MSFT
+- GOOGL
 ```
 
 2. **Remove Tickers from Portfolio**
 ```bash
-python portfolio_cli.py remove-tickers 1 2
+python portfolio_cli.py remove-tickers 1 MSFT
 ```
 - Removes one or more tickers from a portfolio
 - Validates ticker presence in portfolio
@@ -149,7 +218,7 @@ python portfolio_cli.py remove-tickers 1 2
 Successfully removed 1 ticker(s) from portfolio 1
 
 Removed tickers:
-- MSFT (ID: 2)
+- MSFT
 ```
 
 ### Managing Transactions
@@ -157,10 +226,10 @@ Removed tickers:
 1. **Log Buy/Sell Transactions**
 ```bash
 # Buy transaction
-python portfolio_cli.py log-transaction 1 buy 2025-03-10 1 --shares 100 --price 150.50
+python portfolio_cli.py log-transaction 1 buy 2025-03-10 AAPL --shares 100 --price 150.50
 
 # Sell transaction
-python portfolio_cli.py log-transaction 1 sell 2025-03-10 1 --shares 50 --price 175.25
+python portfolio_cli.py log-transaction 1 sell 2025-03-10 AAPL --shares 50 --price 175.25
 ```
 - Records buy/sell transactions for tickers in a portfolio
 - Requires shares and price parameters
@@ -172,7 +241,7 @@ Successfully logged buy transactions:
 
 2. **Log Dividend Transactions**
 ```bash
-python portfolio_cli.py log-transaction 1 dividend 2025-03-10 1 --amount 125.50
+python portfolio_cli.py log-transaction 1 dividend 2025-03-10 AAPL --amount 125.50
 ```
 - Records dividend payments for tickers
 - Requires amount parameter
@@ -187,8 +256,8 @@ Successfully logged dividend transactions:
 # View all transactions
 python portfolio_cli.py view-transactions 1
 
-# View transactions for specific security
-python portfolio_cli.py view-transactions 1 --security_id 1
+# View transactions for specific ticker
+python portfolio_cli.py view-transactions 1 --ticker_symbol AAPL
 ```
 - Displays formatted transaction history
 - Can filter by specific security
@@ -224,14 +293,12 @@ Error: Invalid date format. Please use YYYY-MM-DD format.
 
 4. **Invalid Tickers**
 ```
-Warning: The following ticker IDs were not found and were skipped:
-- Ticker ID 999
+Warning: Ticker symbol XYZ not found
 ```
 
 5. **Tickers Not in Portfolio**
 ```
-Warning: The following tickers were not found in the portfolio:
-- Ticker ID 888
+Warning: Ticker AAPL not found in portfolio 1
 ```
 
 ### Technical Analysis Commands
@@ -240,13 +307,13 @@ The system provides powerful technical analysis capabilities through three main 
 
 1. **Analyze RSI (Relative Strength Index)**
 ```bash
-python portfolio_cli.py analyze-rsi [portfolio_id] [--ticker_id TICKER_ID]
+python portfolio_cli.py analyze-rsi [portfolio_id] [--ticker_symbol SYMBOL]
 ```
 - Calculates and interprets the RSI indicator
 - Provides overbought/oversold signals
 - Example output:
 ```
-RSI Analysis for AAPL (ID: 1):
+RSI Analysis for AAPL:
 --------------------------------------------------
 Latest RSI (2025-03-10): 65.5
 Status: Neutral
@@ -254,26 +321,26 @@ Status: Neutral
 
 2. **Analyze Moving Averages**
 ```bash
-python portfolio_cli.py analyze-ma [portfolio_id] [--ticker_id TICKER_ID] [--period PERIOD]
+python portfolio_cli.py analyze-ma [portfolio_id] [--ticker_symbol SYMBOL] [--period PERIOD]
 ```
 - Calculates moving averages for specified period (default: 20 days)
 - Shows trend direction and strength
 - Example output:
 ```
-Moving Average Analysis for AAPL (ID: 1):
+Moving Average Analysis for AAPL:
 --------------------------------------------------
 20-day Moving Average (2025-03-10): 175.50
 ```
 
 3. **Analyze Bollinger Bands**
 ```bash
-python portfolio_cli.py analyze-bb [portfolio_id] [--ticker_id TICKER_ID]
+python portfolio_cli.py analyze-bb [portfolio_id] [--ticker_symbol SYMBOL]
 ```
 - Generates Bollinger Bands analysis
 - Provides volatility insights and potential price reversals
 - Example output:
 ```
-Bollinger Bands Analysis for AAPL (ID: 1):
+Bollinger Bands Analysis for AAPL:
 --------------------------------------------------
 AAPL is above its 20-day moving average, indicating a strong uptrend.
 The Bollinger Band is relatively narrow, indicating high volatility.
@@ -281,13 +348,13 @@ The Bollinger Band is relatively narrow, indicating high volatility.
 
 4. **View Fundamental Data**
 ```bash
-python portfolio_cli.py view-fundamentals [portfolio_id] [--ticker_id TICKER_ID]
+python portfolio_cli.py view-fundamentals [portfolio_id] [--ticker_symbol SYMBOL]
 ```
 - Displays comprehensive fundamental data for stocks
 - Includes valuation metrics, dividend info, growth rates, and financial health
 - Example output:
 ```
-Fundamental Analysis for AAPL (ID: 1):
+Fundamental Analysis for AAPL:
 --------------------------------------------------
 Data as of: 2025-03-10
 
@@ -314,7 +381,7 @@ Market Cap:      $2,750,000,000,000.00
 
 5. **Analyze News Sentiment**
 ```bash
-python portfolio_cli.py analyze-news [portfolio_id] [--ticker_id TICKER_ID] [--update]
+python portfolio_cli.py analyze-news [portfolio_id] [--ticker_symbol SYMBOL] [--update]
 ```
 - Analyzes sentiment of recent news articles using FinBERT model
 - Provides sentiment scores and confidence levels for each article
@@ -344,8 +411,8 @@ Link: https://bloomberg.com/news/...
 ### Usage Options
 
 For all technical analysis and fundamental data commands:
-- Analyze a specific ticker by providing the `--ticker_id` parameter
-- Analyze all tickers in a portfolio by omitting the `--ticker_id` parameter
+- Analyze a specific ticker by providing the `--ticker_symbol` parameter
+- Analyze all tickers in a portfolio by omitting the `--ticker_symbol` parameter
 - View historical data, current signals, and fundamental metrics for informed decision-making
 
 ### Best Practices
@@ -385,5 +452,12 @@ For all technical analysis and fundamental data commands:
    - Look for correlation between sentiment and price movements
    - Pay attention to confidence scores for reliability
    - Cross-reference news sentiment with technical indicators
+   - Status Categories:
+         Very Positive (>= 0.5)
+         Positive (>= 0.1)
+         Neutral (-0.1 to 0.1)
+         Negative (-0.5 to -0.1)
+         Very Negative (<= -0.5)
+         No recent news (when no articles available)
 
 This tool is designed for investors who want to track their investments, analyze performance, and make data-driven decisions based on technical indicators. The addition of technical analysis capabilities provides deeper insights into market trends and potential trading opportunities.

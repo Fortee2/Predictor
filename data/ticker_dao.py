@@ -26,10 +26,14 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = 'SELECT ticker, ticker_name, tick.id, industry, sector FROM investing.tickers tick INNER JOIN investing.portfolio port on port.ticker_id = tick.id left join (select ticker_id, max(activity_date) as maxDate from investing.activity group by ticker_id) act on tick.id = act.ticker_id  where port.active = 1 order by maxDate;'
+            query = 'SELECT ticker, ticker_name, id, industry, sector FROM investing.tickers ORDER BY ticker;'
 
             cursor.execute(query)
-            df_ticks = pd.DataFrame(cursor.fetchall())
+            results = cursor.fetchall()
+            if not results:
+                return pd.DataFrame()
+            
+            df_ticks = pd.DataFrame(results, columns=['ticker', 'ticker_name', 'id', 'industry', 'sector'])
         
             self.current_connection.commit()
             cursor.close()
@@ -42,8 +46,10 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = 'INSERT INTO tickers (ticker, ticker_name, trend, close) values (%s,%s,%s,%s)'
-            cursor.execute(query, (ticker, ticker_name,'unknown', 0))
+            query = '''INSERT INTO investing.tickers 
+                      (ticker, ticker_name, industry, sector) 
+                      VALUES (%s, %s, %s, %s)'''
+            cursor.execute(query, (ticker, ticker_name, None, None))
 
             self.current_connection.commit()
             cursor.close()
@@ -54,7 +60,7 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = 'UPDATE tickers SET trend = %s, close =%s WHERE ticker = %s'
+            query = 'UPDATE investing.tickers SET trend = %s, close =%s WHERE ticker = %s'
             cursor.execute(query, (trend, float(close), ticker))
 
             self.current_connection.commit()
@@ -71,8 +77,8 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = 'UPDATE tickers SET active = 0 WHERE ticker = %s'
-            cursor.execute(query, (ticker))
+            query = 'UPDATE investing.tickers SET trend = %s WHERE ticker = %s'
+            cursor.execute(query, ('delisted', ticker))
 
             self.current_connection.commit()
             cursor.close()
@@ -83,7 +89,7 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = 'UPDATE tickers SET ticker_name = %s, industry =%s, sector=%s WHERE ticker = %s'
+            query = 'UPDATE investing.tickers SET ticker_name = %s, industry =%s, sector=%s WHERE ticker = %s'
             cursor.execute(query, (name, industry, sector, symbol))
 
             self.current_connection.commit()
@@ -94,7 +100,7 @@ class TickerDao:
     def get_ticker_id(self, symbol):
         try:
             cursor = self.current_connection.cursor()
-            query = "SELECT id FROM tickers WHERE ticker = %s"
+            query = "SELECT id FROM investing.tickers WHERE ticker = %s"
             cursor.execute(query, (symbol,))
             result = cursor.fetchone()
             cursor.close()
@@ -109,7 +115,7 @@ class TickerDao:
     def get_ticker_symbol(self, ticker_id):
         try:
             cursor = self.current_connection.cursor()
-            query = "SELECT ticker FROM tickers WHERE id = %s"
+            query = "SELECT ticker FROM investing.tickers WHERE id = %s"
             cursor.execute(query, (ticker_id,))
             result = cursor.fetchone()
             cursor.close()
@@ -124,7 +130,7 @@ class TickerDao:
     def get_ticker_industry(self, ticker_id):
         try:
             cursor = self.current_connection.cursor()
-            query = "SELECT industry FROM tickers WHERE id = %s"
+            query = "SELECT industry FROM investing.tickers WHERE id = %s"
             cursor.execute(query, (ticker_id,))
             result = cursor.fetchone()
             cursor.close()
@@ -196,10 +202,16 @@ class TickerDao:
         try:
             cursor = self.current_connection.cursor()
             
-            query = "SELECT max(activity_date) FROM investing.activity  WHERE ticker_id = %s order by activity_date desc limit 1"
+            query = """
+                SELECT activity_date, open, close, volume, updown, high, low 
+                FROM investing.activity 
+                WHERE ticker_id = %s 
+                ORDER BY activity_date DESC 
+                LIMIT 1
+            """
             
             cursor.execute(query,(int(ticker_id),))
-            df_last = pd.DataFrame(cursor.fetchall())
+            df_last = pd.DataFrame(cursor.fetchall(), columns=['activity_date', 'open', 'close', 'volume', 'updown', 'high', 'low'])
         
             self.current_connection.commit()
             cursor.close()

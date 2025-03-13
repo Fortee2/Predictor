@@ -132,9 +132,8 @@ class DataRetrieval:
             print(symbol)
             print(industry)
 
-            if industry is None:
-                self.update_ticker_data(symbol)
-
+            # Update all data for the ticker, including news sentiment
+            self.update_ticker_data(symbol)
             self.update_ticker_history(symbol, ticker_id)
 
             count += 1

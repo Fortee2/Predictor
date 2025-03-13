@@ -25,12 +25,24 @@ class PortfolioTransactionsDAO:
 
     def get_transaction_history(self, portfolio_id, security_id=None):
         try:
-            cursor = self.connection.cursor()
+            cursor = self.connection.cursor(dictionary=True)
             if security_id:
-                query = "SELECT * FROM portfolio_transactions WHERE portfolio_id = %s AND security_id = %s"
+                query = """
+                    SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                    FROM portfolio_transactions t
+                    JOIN portfolio_securities s ON t.security_id = s.id
+                    JOIN tickers tk ON s.ticker_id = tk.id
+                    WHERE t.portfolio_id = %s AND t.security_id = %s
+                """
                 cursor.execute(query, (portfolio_id, security_id))
             else:
-                query = "SELECT * FROM portfolio_transactions WHERE portfolio_id = %s"
+                query = """
+                    SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                    FROM portfolio_transactions t
+                    JOIN portfolio_securities s ON t.security_id = s.id
+                    JOIN tickers tk ON s.ticker_id = tk.id
+                    WHERE t.portfolio_id = %s
+                """
                 cursor.execute(query, (portfolio_id,))
             return cursor.fetchall()
         except mysql.connector.Error as e:
@@ -46,4 +58,15 @@ class PortfolioTransactionsDAO:
             self.connection.commit()
         except mysql.connector.Error as e:
             print(f"Error inserting transaction: {e}")
+            self.connection.rollback()
+
+    def delete_transactions_for_security(self, portfolio_id, security_id):
+        try:
+            cursor = self.connection.cursor()
+            query = "DELETE FROM portfolio_transactions WHERE portfolio_id = %s AND security_id = %s"
+            values = (portfolio_id, security_id)
+            cursor.execute(query, values)
+            self.connection.commit()
+        except mysql.connector.Error as e:
+            print(f"Error deleting transactions: {e}")
             self.connection.rollback()

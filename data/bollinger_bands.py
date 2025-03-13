@@ -13,29 +13,34 @@ class BollingerBandAnalyzer:
         self.tickers = {}
         self.data_points = {}
 
-    def generate_bollinger_band_data(self, symbol):
+    def generate_bollinger_band_data(self, ticker_id):
         """Generate data points for a Bollinger Band chart"""
         
+        # Get symbol for the ticker_id
+        symbol = self.ticker_dao.get_ticker_symbol(ticker_id)
+        if not symbol:
+            return None
+            
         if symbol not in self.tickers:
             self.tickers[symbol] = []
             
         # Retrieve the latest tickers and activity history
-        last_activity_date = self.ticker_dao.retrieve_last_activity_date(symbol)
+        last_activity_date = self.ticker_dao.retrieve_last_activity_date(ticker_id)
         if not last_activity_date.empty:
             self.data_points[symbol] = {
                 'last_activity': pd.to_datetime(last_activity_date['activity_date']),
-                'open': float(last_activity_date['open']),
-                'close': float(last_activity_date['close']),
-                'high': float(last_activity_date['high']),
-                'low': float(last_activity_date['low'])
+                'open': float(last_activity_date.iloc[0]['open']),
+                'close': float(last_activity_date.iloc[0]['close']),
+                'high': float(last_activity_date.iloc[0]['high']),
+                'low': float(last_activity_date.iloc[0]['low'])
             }
         
         # Retrieve the latest activity history for the Bollinger Band
-        last_bollinger_band_activity = self.ticker_dao.retrieve_last_rsi(symbol)
+        last_bollinger_band_activity = self.ticker_dao.retrieve_last_rsi(ticker_id)
         if not last_bollinger_band_activity.empty:
             self.data_points[symbol]['bollinger_bands'] = {
-                'mean': float(last_bollinger_band_activity['rsi']),
-                'stddev': float(last_bollinger_band_activity['delta'])
+                'mean': float(last_bollinger_band_activity.iloc[0]['rsi']),
+                'stddev': 0.0  # Delta column doesn't exist, using default value
             }
         
         # Calculate the previous day's data
@@ -49,7 +54,7 @@ class BollingerBandAnalyzer:
             # Retrieve the previous day's data points
             for i, (activity_date, value) in enumerate(self.data_points[ticker].items()):
                 next_activity_date = activity_date + pd.DateOffset(days=i+1)
-                if not self.ticker_dao.retrieve_ticker_activity_by_day(ticker, next_activity_date):
+                if not self.ticker_dao.retrieve_ticker_activity_by_day(ticker_id, next_activity_date):
                     continue
                 
                 prev_data_points[next_activity_date] = {'open': float(value['open']), 'close': float(value['close']), 'high': float(value['high']), 'low': float(value['low'])}
@@ -65,14 +70,16 @@ class BollingerBandAnalyzer:
             }
         }
 
-    def generate_interpretation(self, symbol):
+    def generate_interpretation(self, ticker_id):
         """Generate an interpretation of the Bollinger Band"""
         
-        if symbol not in self.tickers:
-            print(f"No data available for {symbol}")
+        # Get symbol for the ticker_id
+        symbol = self.ticker_dao.get_ticker_symbol(ticker_id)
+        if not symbol:
+            print(f"No data available for ticker ID {ticker_id}")
             return
         
-        bollinger_band = self.generate_bollinger_band_data(symbol)
+        bollinger_band = self.generate_bollinger_band_data(ticker_id)
         
         mean = bollinger_band['bollinger_bands']['mean']
         stddev = bollinger_band['bollinger_bands']['stddev']
