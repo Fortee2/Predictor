@@ -29,46 +29,77 @@ class DataRetrieval:
         self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
 
     def update_ticker_data(self, symbol):
-        ticker = yf.Ticker(symbol)
-        info = ticker.info
-        
-        # Update basic ticker info
-        self.dao.update_stock(symbol, info.get("shortName"), info.get("industry"), info.get("sector"))
-        
-        # Update fundamental data
-        self.update_fundamental_data(ticker, symbol)
-        
-        # Update news sentiment
-        ticker_id = self.dao.get_ticker_id(symbol)
-        if ticker_id:
-            self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+        try:
+            ticker = yf.Ticker(symbol)
+            info = ticker.info if hasattr(ticker, 'info') else {}
+            
+            if not info:
+                print(f"Warning: No info available for {symbol}")
+                info = {}
+            
+            # Update basic ticker info with safe defaults for None values
+            try:
+                name = info.get("shortName") or info.get("longName") or symbol
+                industry = info.get("industry") or "Unknown"
+                sector = info.get("sector") or "Unknown"
+                self.dao.update_stock(symbol, name, industry, sector)
+                print(f"Updated basic info for {symbol}")
+            except Exception as e:
+                print(f"Error updating basic info for {symbol}: {str(e)}")
+            
+            # Update fundamental data
+            try:
+                self.update_fundamental_data(ticker, symbol)
+                print(f"Updated fundamental data for {symbol}")
+            except Exception as e:
+                print(f"Error updating fundamental data for {symbol}: {str(e)}")
+            
+            # Update news sentiment
+            try:
+                ticker_id = self.dao.get_ticker_id(symbol)
+                if ticker_id:
+                    self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+                    print(f"Updated news sentiment for {symbol}")
+            except Exception as e:
+                print(f"Error updating news sentiment for {symbol}: {str(e)}")
+                
+        except Exception as e:
+            print(f"Error in update_ticker_data for {symbol}: {str(e)}")
 
     def update_fundamental_data(self, ticker, symbol):
         """Updates fundamental data for a given ticker"""
         try:
-            info = ticker.info
-            ticker_id = self.dao.get_ticker_id(symbol)
+            info = ticker.info if hasattr(ticker, 'info') else {}
             
+            if not info:
+                print(f"Warning: No fundamental data available for {symbol}")
+                return
+            
+            ticker_id = self.dao.get_ticker_id(symbol)
             if not ticker_id:
                 print(f"Error: Could not find ticker ID for {symbol}")
                 return
             
-            # Extract fundamental data
-            self.fundamental_dao.save_fundamental_data(
-                ticker_id=ticker_id,
-                pe_ratio=info.get('trailingPE'),
-                forward_pe=info.get('forwardPE'),
-                peg_ratio=info.get('pegRatio'),
-                price_to_book=info.get('priceToBook'),
-                dividend_yield=info.get('dividendYield'),
-                dividend_rate=info.get('dividendRate'),
-                eps_ttm=info.get('trailingEps'),
-                eps_growth=info.get('earningsGrowth'),
-                revenue_growth=info.get('revenueGrowth'),
-                profit_margin=info.get('profitMargins'),
-                debt_to_equity=info.get('debtToEquity'),
-                market_cap=info.get('marketCap')
-            )
+            # Convert None values to appropriate defaults
+            try:
+                # Extract fundamental data with safe type conversion
+                self.fundamental_dao.save_fundamental_data(
+                    ticker_id=ticker_id,
+                    pe_ratio=float(info.get('trailingPE')) if info.get('trailingPE') is not None else None,
+                    forward_pe=float(info.get('forwardPE')) if info.get('forwardPE') is not None else None,
+                    peg_ratio=float(info.get('pegRatio')) if info.get('pegRatio') is not None else None,
+                    price_to_book=float(info.get('priceToBook')) if info.get('priceToBook') is not None else None,
+                    dividend_yield=float(info.get('dividendYield')) if info.get('dividendYield') is not None else None,
+                    dividend_rate=float(info.get('dividendRate')) if info.get('dividendRate') is not None else None,
+                    eps_ttm=float(info.get('trailingEps')) if info.get('trailingEps') is not None else None,
+                    eps_growth=float(info.get('earningsGrowth')) if info.get('earningsGrowth') is not None else None,
+                    revenue_growth=float(info.get('revenueGrowth')) if info.get('revenueGrowth') is not None else None,
+                    profit_margin=float(info.get('profitMargins')) if info.get('profitMargins') is not None else None,
+                    debt_to_equity=float(info.get('debtToEquity')) if info.get('debtToEquity') is not None else None,
+                    market_cap=float(info.get('marketCap')) if info.get('marketCap') is not None else None
+                )
+            except (ValueError, TypeError) as e:
+                print(f"Error converting fundamental data for {symbol}: {str(e)}")
             
         except Exception as e:
             print(f"Error updating fundamental data for {symbol}: {str(e)}")
@@ -76,39 +107,66 @@ class DataRetrieval:
     def update_ticker_history(self, symbol, ticker_id):
         try:
             ticker = yf.Ticker(symbol)
-            info = ticker.info
+            info = ticker.info if hasattr(ticker, 'info') else {}
+            
+            if not info:
+                print(f"Warning: No info available for {symbol}")
+                info = {}
 
-            if info.get('regularMarketPrice', None) is None and info.get('financialCurrency', None) is None:
+            # Check if ticker is delisted or unavailable
+            if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
                 print(f"{symbol} might be delisted or not available.")
-                self.dao.ticker_delisted(symbol)
-                portfolio_ids = self.portfolio_dao.get_portfolios_with_ticker(ticker_id)
-                for portfolio_id in portfolio_ids:
-                    self.portfolio_dao.remove_tickers_from_portfolio(portfolio_id, [ticker_id])
-                    self.portfolio_transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.today().date())
-                return
+                try:
+                    self.dao.ticker_delisted(symbol)
+                    portfolio_ids = self.portfolio_dao.get_portfolios_with_ticker(ticker_id)
+                    for portfolio_id in portfolio_ids:
+                        self.portfolio_dao.remove_tickers_from_portfolio(portfolio_id, [ticker_id])
+                        self.portfolio_transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.today().date())
+                    return
+                except Exception as e:
+                    print(f"Error handling delisted ticker {symbol}: {str(e)}")
+                    return
 
-            print(info.get('fiftyTwoWeekLow', None))
+            try:
+                df_last_date = self.dao.retrieve_last_activity_date(ticker_id)
+                start = datetime.today() - timedelta(weeks=520)  # create window with enough room for 50 day moving average
 
-            df_last_date = self.dao.retrieve_last_activity_date(ticker_id)
-            start = datetime.today() - timedelta(weeks=520)  # create window with enough room for 50 day moving average
+                if df_last_date is not None and not df_last_date.empty and df_last_date.iloc[0, 0] is not None:
+                    start = df_last_date.iloc[0, 0] + timedelta(days=1)
 
-            if df_last_date.iloc[0, 0] != None:
-                start = df_last_date.iloc[0, 0] + timedelta(days=1)
+                end = datetime.today() + timedelta(days=1)
+                hist = ticker.history(interval="1d", start=start, end=end)
 
-            end = datetime.today() + timedelta(days=1)
-            hist = ticker.history(interval="1d", start=start, end=end)
+                if hist.empty:
+                    print(f"No historical data available for {symbol}")
+                    return
 
-            for i in range(len(hist)):
-                idx = hist.index[i]
-                self.dao.update_activity(ticker_id, idx, hist.loc[idx, 'Open'], hist.loc[idx, 'Close'], hist.loc[idx, 'Volume'], hist.loc[idx, 'High'], hist.loc[idx, 'Low'])
+                for i in range(len(hist)):
+                    try:
+                        idx = hist.index[i]
+                        self.dao.update_activity(
+                            ticker_id, 
+                            idx,
+                            float(hist.loc[idx, 'Open']),
+                            float(hist.loc[idx, 'Close']),
+                            float(hist.loc[idx, 'Volume']),
+                            float(hist.loc[idx, 'High']),
+                            float(hist.loc[idx, 'Low'])
+                        )
 
-                # Check if the stock paid dividends on this date
-                if hist.loc[idx, 'Dividends'] > 0:
-                    self.log_dividend_transactions(ticker_id, idx, hist.loc[idx, 'Dividends'])
+                        # Check if the stock paid dividends on this date
+                        if hist.loc[idx, 'Dividends'] > 0:
+                            self.log_dividend_transactions(ticker_id, idx, float(hist.loc[idx, 'Dividends']))
+                    except Exception as e:
+                        print(f"Error updating activity for {symbol} on {idx}: {str(e)}")
+                        continue
+
+            except Exception as e:
+                print(f"Error retrieving history for {symbol}: {str(e)}")
 
         except Exception as e:
-            print(e)
-            time.sleep(120)
+            print(f"Error in update_ticker_history for {symbol}: {str(e)}")
+            time.sleep(120)  # Sleep on failure to respect rate limits
             print('Sleeping from failure')
 
     def log_dividend_transactions(self, ticker_id, activity_date, amount):
@@ -121,29 +179,56 @@ class DataRetrieval:
         return self.dao.retrieve_ticker_activity(ticker_id=ticker_id)
 
     def update_stock_activity(self):
-        portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
-        print(portfolio_tickers)
-        count = 0
+        try:
+            portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
+            if not portfolio_tickers:
+                print("No tickers found in portfolios")
+                return
+            
+            print("Found tickers:", portfolio_tickers)
+            count = 0
 
-        for ticker_id in portfolio_tickers:
-            symbol = self.dao.get_ticker_symbol(ticker_id)
-            industry = self.dao.get_ticker_industry(ticker_id)
+            for symbol in portfolio_tickers:
+                try:
+                    ticker_id = self.dao.get_ticker_id(symbol)
+                    if not ticker_id:
+                        print(f"Error: Could not get ticker_id for symbol {symbol}")
+                        continue
 
-            print(symbol)
-            print(industry)
+                    print(f"\nProcessing {symbol} (ID: {ticker_id})")
+                    
+                    try:
+                        self.update_ticker_data(symbol)
+                        print(f"Updated ticker data for {symbol}")
+                    except Exception as e:
+                        print(f"Error updating ticker data for {symbol}: {str(e)}")
+                    
+                    try:
+                        self.update_ticker_history(symbol, ticker_id)
+                        print(f"Updated ticker history for {symbol}")
+                    except Exception as e:
+                        print(f"Error updating ticker history for {symbol}: {str(e)}")
+                    
+                    try:
+                        self.rsi.calculateRSI(ticker_id)
+                        print(f"Updated RSI for {symbol}")
+                    except Exception as e:
+                        print(f"Error calculating RSI for {symbol}: {str(e)}")
 
-            # Update all data for the ticker, including news sentiment
-            self.update_ticker_data(symbol)
-            self.update_ticker_history(symbol, ticker_id)
+                    count += 1
+                    if count == 3:
+                        print("Pausing for rate limit...")
+                        time.sleep(120)
+                        count = 0
+                        print("Resuming updates")
 
-            count += 1
+                except Exception as e:
+                    print(f"Error processing ticker_id {ticker_id}: {str(e)}")
+                    continue
 
-            if count == 3:
-                time.sleep(120)
-                print('Sleeping')
-                count = 0
-
-            self.rsi.calculateRSI(ticker_id)
+        except Exception as e:
+            print(f"Error in update_stock_activity: {str(e)}")
+            raise
 
 def main():
     load_dotenv()

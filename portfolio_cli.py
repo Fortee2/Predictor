@@ -330,6 +330,15 @@ class PortfolioCLI:
         except Exception as e:
             print(f"Error viewing transactions: {str(e)}")
 
+    def update_data(self):
+        """Updates all data for securities in portfolios including price history, fundamentals, and news sentiment."""
+        try:
+            print("Updating data for all securities in portfolios...")
+            self.data_retrieval.update_stock_activity()
+            print("Data update complete.")
+        except Exception as e:
+            print(f"Error updating data: {str(e)}")
+
 def main():
     parser = argparse.ArgumentParser(description='Portfolio Management CLI')
     subparsers = parser.add_subparsers(dest='command', help='Commands')
@@ -373,6 +382,9 @@ def main():
     analyze_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
     analyze_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
 
+    # Update Data
+    update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
+
     args = parser.parse_args()
     cli = PortfolioCLI()
 
@@ -393,6 +405,8 @@ def main():
         cli.view_transactions(args.portfolio_id, args.ticker_symbol)
     elif args.command == 'analyze-portfolio':
         cli.analyze_portfolio(args.portfolio_id, args.ticker_symbol)
+    elif args.command == 'update-data':
+        cli.update_data()
     else:
         parser.print_help()
 
