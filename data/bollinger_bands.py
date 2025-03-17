@@ -21,52 +21,23 @@ class BollingerBandAnalyzer:
         if not symbol:
             return None
             
-        if symbol not in self.tickers:
-            self.tickers[symbol] = []
+        # Retrieve historical price data
+        df = self.ticker_dao.retrieve_ticker_activity(ticker_id)
+        if df.empty:
+            return None
             
-        # Retrieve the latest tickers and activity history
-        last_activity_date = self.ticker_dao.retrieve_last_activity_date(ticker_id)
-        if not last_activity_date.empty:
-            self.data_points[symbol] = {
-                'last_activity': pd.to_datetime(last_activity_date['activity_date']),
-                'open': float(last_activity_date.iloc[0]['open']),
-                'close': float(last_activity_date.iloc[0]['close']),
-                'high': float(last_activity_date.iloc[0]['high']),
-                'low': float(last_activity_date.iloc[0]['low'])
-            }
+        # Calculate 20-day moving average and standard deviation
+        window = 20
+        df['sma'] = df['close'].rolling(window=window).mean()
+        df['stddev'] = df['close'].rolling(window=window).std()
         
-        # Retrieve the latest activity history for the Bollinger Band
-        last_bollinger_band_activity = self.ticker_dao.retrieve_last_rsi(ticker_id)
-        if not last_bollinger_band_activity.empty:
-            self.data_points[symbol]['bollinger_bands'] = {
-                'mean': float(last_bollinger_band_activity.iloc[0]['rsi']),
-                'stddev': 0.0  # Delta column doesn't exist, using default value
-            }
-        
-        # Calculate the previous day's data
-        last_day = date.today() - pd.DateOffset(days=1)
-        for ticker in self.tickers:
-            if symbol not in self.tickers[ticker]:
-                continue
-            
-            prev_data_points = {}
-            
-            # Retrieve the previous day's data points
-            for i, (activity_date, value) in enumerate(self.data_points[ticker].items()):
-                next_activity_date = activity_date + pd.DateOffset(days=i+1)
-                if not self.ticker_dao.retrieve_ticker_activity_by_day(ticker_id, next_activity_date):
-                    continue
-                
-                prev_data_points[next_activity_date] = {'open': float(value['open']), 'close': float(value['close']), 'high': float(value['high']), 'low': float(value['low'])}
-            
-            # Update the last day's data
-            if len(prev_data_points) > 1:
-                self.data_points[ticker][last_day] = prev_data_points[last_day]
+        # Get the latest values
+        latest = df.iloc[-1]
         
         return {
             'bollinger_bands': {
-                'mean': self.data_points[symbol]['bollinger_bands']['mean'],
-                'stddev': self.data_points[symbol]['bollinger_bands']['stddev']
+                'mean': float(latest['sma']),
+                'stddev': float(latest['stddev'])
             }
         }
 
@@ -84,20 +55,32 @@ class BollingerBandAnalyzer:
         mean = bollinger_band['bollinger_bands']['mean']
         stddev = bollinger_band['bollinger_bands']['stddev']
         
-        # Interpret the Bollinger Band
-        if mean >= 50:
-            print(f"{symbol} is above its 20-day moving average, indicating a strong uptrend.")
-        elif mean <= 30:
-            print(f"{symbol} is below its 20-day moving average, indicating a weak downtrend.")
-        else:
-            print(f"{symbol} has a neutral Bollinger Band, suggesting a balanced market.")
+        # Get the latest close price
+        latest_close = self.ticker_dao.retrieve_last_activity_date(ticker_id)
+        if latest_close.empty:
+            return
+        close_price = float(latest_close.iloc[0]['close'])
         
-        if stddev < 10:
-            print(f"The Bollinger Band is relatively narrow, indicating high volatility.")
-        elif stddev > 30:
-            print(f"The Bollinger Band is wide, indicating low volatility.")
+        # Calculate upper and lower bands (typically 2 standard deviations)
+        upper_band = mean + (2 * stddev)
+        lower_band = mean - (2 * stddev)
+        
+        # Interpret the Bollinger Band
+        if close_price > upper_band:
+            print(f"{symbol} is trading above the upper Bollinger Band (${upper_band:.2f}), suggesting overbought conditions.")
+        elif close_price < lower_band:
+            print(f"{symbol} is trading below the lower Bollinger Band (${lower_band:.2f}), suggesting oversold conditions.")
         else:
-            print(f"The Bollinger Band is in a neutral range, suggesting stability.")
+            print(f"{symbol} is trading within the Bollinger Bands (${lower_band:.2f} - ${upper_band:.2f}).")
+        
+        if stddev == 0:
+            print("Warning: Standard deviation is 0, indicating insufficient price variation in the calculation period.")
+        elif stddev < mean * 0.01:  # Less than 1% of mean
+            print(f"The Bollinger Bands are narrow (stddev: ${stddev:.2f}), indicating low volatility.")
+        elif stddev > mean * 0.04:  # More than 4% of mean
+            print(f"The Bollinger Bands are wide (stddev: ${stddev:.2f}), indicating high volatility.")
+        else:
+            print(f"The Bollinger Bands show normal volatility (stddev: ${stddev:.2f}).")
 
 if __name__ == '__main__':
     load_dotenv()
