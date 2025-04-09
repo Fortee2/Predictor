@@ -30,6 +30,12 @@ class NewsSentimentDAO:
         Saves news sentiment data for a ticker to the database
         """
         try:
+            sentiment_data = self.search_headlines(headline, ticker_id)
+            
+            if sentiment_data:
+                print(f"Duplicate headline found: {headline}")
+                return False
+            
             cursor = self.current_connection.cursor()
             
             sql = """
@@ -119,4 +125,52 @@ class NewsSentimentDAO:
             
         except mysql.connector.Error as err:
             print(f"Error retrieving sentiment history: {err}")
+            return None
+            
+    def search_headlines(self, search_term, ticker_id=None):
+        """
+        Searches for headlines containing the specified search term
+        
+        Parameters:
+        - search_term: The text to search for in headlines
+        - ticker_id: Optional ticker ID to restrict search to a specific ticker
+        
+        Returns:
+        - A list of matching sentiment records
+        """
+        try:
+            cursor = self.current_connection.cursor(dictionary=True)
+            
+            if ticker_id:
+                sql = """
+                SELECT 
+                    ns.headline, ns.publisher, ns.publish_date,
+                    ns.sentiment_score, ns.confidence, ns.article_link,
+                    t.ticker
+                FROM news_sentiment ns
+                JOIN tickers t ON ns.ticker_id = t.id
+                WHERE ns.headline LIKE %s AND ns.ticker_id = %s
+                ORDER BY ns.publish_date DESC
+                """
+                cursor.execute(sql, (f"%{search_term}%", ticker_id))
+            else:
+                sql = """
+                SELECT 
+                    ns.headline, ns.publisher, ns.publish_date,
+                    ns.sentiment_score, ns.confidence, ns.article_link,
+                    t.ticker
+                FROM news_sentiment ns
+                JOIN tickers t ON ns.ticker_id = t.id
+                WHERE ns.headline LIKE %s
+                ORDER BY ns.publish_date DESC
+                """
+                cursor.execute(sql, (f"%{search_term}%",))
+            
+            results = cursor.fetchall()
+            cursor.close()
+            
+            return results
+            
+        except mysql.connector.Error as err:
+            print(f"Error searching headlines: {err}")
             return None

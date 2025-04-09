@@ -7,9 +7,11 @@ from data.rsi_calculations import rsi_calculations
 from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
+from data.macd import MACD
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 from data.data_retrival import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
+from data.options_data import OptionsData
 import datetime
 from dotenv import load_dotenv
 
@@ -33,9 +35,11 @@ class PortfolioCLI:
         self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
         self.bb_analyzer = BollingerBandAnalyzer(self.ticker_dao)  # Pass ticker_dao instance
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
+        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
         self.news_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
         self.value_calculator = PortfolioValueCalculator(db_user, db_password, db_host, db_name)
+        self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
         
         # Open database connections for classes that need it
         self.portfolio_dao.open_connection()
@@ -45,6 +49,7 @@ class PortfolioCLI:
         self.moving_avg.open_connection()
         self.fundamental_dao.open_connection()
         self.value_calculator.open_connection()
+        self.macd_analyzer.open_connection()
 
     def create_portfolio(self, name, description):
         try:
@@ -201,6 +206,22 @@ class PortfolioCLI:
                     print(f"║   Mean: {bb_mean:.2f}{' ' * 49}║")
                     print(f"║   StdDev: {bb_stddev:.2f}{' ' * 47}║")
 
+                # MACD Analysis
+                macd_data = self.macd_analyzer.calculate_macd(ticker_id)
+                if macd_data is not None and not macd_data.empty:
+                    latest_macd = macd_data.iloc[-1]
+                    macd_date = macd_data.index[-1]
+                    print(f"║ MACD ({macd_date.strftime('%Y-%m-%d')}):                                ║")
+                    print(f"║   MACD Line: {latest_macd['macd']:.2f}{' ' * 44}║")
+                    print(f"║   Signal Line: {latest_macd['signal_line']:.2f}{' ' * 42}║")
+                    print(f"║   Histogram: {latest_macd['histogram']:.2f}{' ' * 44}║")
+
+                # Get MACD signals
+                macd_signals = self.macd_analyzer.get_macd_signals(ticker_id)
+                if macd_signals and len(macd_signals) > 0:
+                    latest_signal = macd_signals[-1]
+                    print(f"║ Latest MACD Signal ({latest_signal['date'].strftime('%Y-%m-%d')}): {latest_signal['signal']:<27}║")
+
                 # Fundamental Data
                 fundamental_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
                 if fundamental_data:
@@ -221,6 +242,34 @@ class PortfolioCLI:
                     print(f"║   Articles Analyzed: {sentiment_data['article_count']}{' ' * 39}║")
                 else:
                     print("║ News Sentiment: No data available                              ║")
+
+                print("════════════════════════════════════════════════════════════════")
+
+                # Options Data
+                options_summary = self.options_analyzer.get_options_summary(symbol)
+                if options_summary:
+                    print("║ Options Data:                                                  ║")
+                    print(f"║   Available Expirations: {options_summary['num_expirations']}{' ' * 37}║")
+                    print(f"║   Nearest Expiry: {options_summary['nearest_expiration']}{' ' * 35}║")
+                    if 'calls_volume' in options_summary:
+                        calls_volume = options_summary['calls_volume']
+                        puts_volume = options_summary['puts_volume']
+                        put_call_ratio = puts_volume / calls_volume if calls_volume > 0 else 0
+                        
+                        print(f"║   Total Calls Volume: {calls_volume:,}{' ' * (37 - len(str(calls_volume)))}║")
+                        print(f"║   Total Puts Volume: {puts_volume:,}{' ' * (38 - len(str(puts_volume)))}║")
+                        print(f"║   Put/Call Ratio: {put_call_ratio:.2f}{' ' * 42}║")
+                        sentiment = "Bearish" if put_call_ratio > 1 else "Bullish" if put_call_ratio < 1 else "Neutral"
+                        print(f"║   Volume Sentiment: {sentiment}{' ' * (42 - len(sentiment))}║")
+                        
+                        print("║   Implied Volatility Range:                                  ║")
+                        print(f"║     Calls: {options_summary['calls_iv_range']['min']:.2%} - {options_summary['calls_iv_range']['max']:.2%}{' ' * 35}║")
+                        print(f"║     Puts: {options_summary['puts_iv_range']['min']:.2%} - {options_summary['puts_iv_range']['max']:.2%}{' ' * 36}║")
+                        
+                        avg_call_iv = (options_summary['calls_iv_range']['min'] + options_summary['calls_iv_range']['max']) / 2
+                        print(f"║   Market Expectation: {'High Volatility' if avg_call_iv > 0.5 else 'Moderate Volatility' if avg_call_iv > 0.2 else 'Low Volatility':<42}║")
+                else:
+                    print("║ Options Data: Not available                                   ║")
 
                 print("════════════════════════════════════════════════════════════════")
 

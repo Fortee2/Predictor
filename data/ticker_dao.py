@@ -162,6 +162,15 @@ class TickerDao:
             
                 self.current_connection.commit()
                 cursor.close()
+            else:
+                if(df['close'].values[0] != close):
+                    cursor = self.current_connection.cursor(prepared=True)
+            
+                    query = 'UPDATE investing.activity SET open = ?, close = ?, volume = ?, updown = ?, high = ?, low = ? WHERE ticker_id = ? and activity_date = ?'
+                    cursor.execute(query, (float(open), float(close), float(volume), rsi_state, float(high), float(low), int(ticker_id), str(activity_date)))
+            
+                    self.current_connection.commit()
+                    cursor.close()
                 
         except mysql.connector.Error as err:
             print(err)
