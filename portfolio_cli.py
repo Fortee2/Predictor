@@ -12,6 +12,7 @@ from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 from data.data_retrival import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
 from data.options_data import OptionsData
+from data.trend_analyzer import TrendAnalyzer
 import datetime
 from dotenv import load_dotenv
 
@@ -40,6 +41,7 @@ class PortfolioCLI:
         self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
         self.value_calculator = PortfolioValueCalculator(db_user, db_password, db_host, db_name)
         self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
+        self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
         
         # Open database connections for classes that need it
         self.portfolio_dao.open_connection()
@@ -50,6 +52,7 @@ class PortfolioCLI:
         self.fundamental_dao.open_connection()
         self.value_calculator.open_connection()
         self.macd_analyzer.open_connection()
+        self.trend_analyzer.open_connection()
 
     def create_portfolio(self, name, description):
         try:
@@ -188,7 +191,7 @@ class PortfolioCLI:
                     rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
                     print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
 
-                # Moving Average
+                # Moving Average with Trend Analysis
                 ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
                 if not ma_data.empty:
                     latest_ma = ma_data.iloc[-1]
@@ -196,6 +199,20 @@ class PortfolioCLI:
                     date_str = str(ma_data.index[-1]).split()[0]
                     dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
                     print(f"║ 20-day MA ({dt.strftime('%Y-%m-%d')}): {latest_ma.iloc[0]:.2f}{' ' * 45}║")
+                    
+                    # Get MA trend analysis
+                    ma_trend = self.trend_analyzer.analyze_ma_trend(ticker_id, 20)
+                    direction_emoji = "↗️" if ma_trend["direction"] == "UP" else "↘️" if ma_trend["direction"] == "DOWN" else "➡️"
+                    print(f"║ MA Trend: {direction_emoji} {ma_trend['direction']} ({ma_trend['strength']}){' ' * 34}║")
+                    if ma_trend["percent_change"] is not None:
+                        print(f"║   Rate of Change: {ma_trend['percent_change']:.2f}%{' ' * 39}║")
+                    
+                    # Get price vs MA analysis
+                    price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(ticker_id, 20)
+                    if price_vs_ma["position"] != "UNKNOWN":
+                        position_text = "Above MA" if price_vs_ma["position"] == "ABOVE_MA" else "Below MA" if price_vs_ma["position"] == "BELOW_MA" else "At MA"
+                        distance_formatted = f"{price_vs_ma['distance_percent']:.2f}"
+                        print(f"║ Price Position: {position_text} ({distance_formatted}% from MA){' ' * (29 - len(distance_formatted))}║")
 
                 # Bollinger Bands
                 bb_data = self.bb_analyzer.generate_bollinger_band_data(ticker_id)
@@ -430,6 +447,8 @@ def main():
     analyze_parser = subparsers.add_parser('analyze-portfolio', help='Analyze portfolio')
     analyze_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
     analyze_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
+    analyze_parser.add_argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
+    analyze_parser.add_argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
 
     # Update Data
     update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
