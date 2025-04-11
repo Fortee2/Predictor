@@ -7,9 +7,12 @@ from data.rsi_calculations import rsi_calculations
 from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
+from data.macd import MACD
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 from data.data_retrival import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
+from data.options_data import OptionsData
+from data.trend_analyzer import TrendAnalyzer
 import datetime
 from dotenv import load_dotenv
 
@@ -33,9 +36,12 @@ class PortfolioCLI:
         self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
         self.bb_analyzer = BollingerBandAnalyzer(self.ticker_dao)  # Pass ticker_dao instance
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
+        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
         self.news_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
         self.value_calculator = PortfolioValueCalculator(db_user, db_password, db_host, db_name)
+        self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
+        self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
         
         # Open database connections for classes that need it
         self.portfolio_dao.open_connection()
@@ -45,6 +51,8 @@ class PortfolioCLI:
         self.moving_avg.open_connection()
         self.fundamental_dao.open_connection()
         self.value_calculator.open_connection()
+        self.macd_analyzer.open_connection()
+        self.trend_analyzer.open_connection()
 
     def create_portfolio(self, name, description):
         try:
@@ -183,7 +191,7 @@ class PortfolioCLI:
                     rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
                     print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
 
-                # Moving Average
+                # Moving Average with Trend Analysis
                 ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
                 if not ma_data.empty:
                     latest_ma = ma_data.iloc[-1]
@@ -191,6 +199,20 @@ class PortfolioCLI:
                     date_str = str(ma_data.index[-1]).split()[0]
                     dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
                     print(f"║ 20-day MA ({dt.strftime('%Y-%m-%d')}): {latest_ma.iloc[0]:.2f}{' ' * 45}║")
+                    
+                    # Get MA trend analysis
+                    ma_trend = self.trend_analyzer.analyze_ma_trend(ticker_id, 20)
+                    direction_emoji = "↗️" if ma_trend["direction"] == "UP" else "↘️" if ma_trend["direction"] == "DOWN" else "➡️"
+                    print(f"║ MA Trend: {direction_emoji} {ma_trend['direction']} ({ma_trend['strength']}){' ' * 34}║")
+                    if ma_trend["percent_change"] is not None:
+                        print(f"║   Rate of Change: {ma_trend['percent_change']:.2f}%{' ' * 39}║")
+                    
+                    # Get price vs MA analysis
+                    price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(ticker_id, 20)
+                    if price_vs_ma["position"] != "UNKNOWN":
+                        position_text = "Above MA" if price_vs_ma["position"] == "ABOVE_MA" else "Below MA" if price_vs_ma["position"] == "BELOW_MA" else "At MA"
+                        distance_formatted = f"{price_vs_ma['distance_percent']:.2f}"
+                        print(f"║ Price Position: {position_text} ({distance_formatted}% from MA){' ' * (29 - len(distance_formatted))}║")
 
                 # Bollinger Bands
                 bb_data = self.bb_analyzer.generate_bollinger_band_data(ticker_id)
@@ -200,6 +222,22 @@ class PortfolioCLI:
                     print(f"║ Bollinger Bands:                                             ║")
                     print(f"║   Mean: {bb_mean:.2f}{' ' * 49}║")
                     print(f"║   StdDev: {bb_stddev:.2f}{' ' * 47}║")
+
+                # MACD Analysis
+                macd_data = self.macd_analyzer.calculate_macd(ticker_id)
+                if macd_data is not None and not macd_data.empty:
+                    latest_macd = macd_data.iloc[-1]
+                    macd_date = macd_data.index[-1]
+                    print(f"║ MACD ({macd_date.strftime('%Y-%m-%d')}):                                ║")
+                    print(f"║   MACD Line: {latest_macd['macd']:.2f}{' ' * 44}║")
+                    print(f"║   Signal Line: {latest_macd['signal_line']:.2f}{' ' * 42}║")
+                    print(f"║   Histogram: {latest_macd['histogram']:.2f}{' ' * 44}║")
+
+                # Get MACD signals
+                macd_signals = self.macd_analyzer.get_macd_signals(ticker_id)
+                if macd_signals and len(macd_signals) > 0:
+                    latest_signal = macd_signals[-1]
+                    print(f"║ Latest MACD Signal ({latest_signal['date'].strftime('%Y-%m-%d')}): {latest_signal['signal']:<27}║")
 
                 # Fundamental Data
                 fundamental_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
@@ -221,6 +259,34 @@ class PortfolioCLI:
                     print(f"║   Articles Analyzed: {sentiment_data['article_count']}{' ' * 39}║")
                 else:
                     print("║ News Sentiment: No data available                              ║")
+
+                print("════════════════════════════════════════════════════════════════")
+
+                # Options Data
+                options_summary = self.options_analyzer.get_options_summary(symbol)
+                if options_summary:
+                    print("║ Options Data:                                                  ║")
+                    print(f"║   Available Expirations: {options_summary['num_expirations']}{' ' * 37}║")
+                    print(f"║   Nearest Expiry: {options_summary['nearest_expiration']}{' ' * 35}║")
+                    if 'calls_volume' in options_summary:
+                        calls_volume = options_summary['calls_volume']
+                        puts_volume = options_summary['puts_volume']
+                        put_call_ratio = puts_volume / calls_volume if calls_volume > 0 else 0
+                        
+                        print(f"║   Total Calls Volume: {calls_volume:,}{' ' * (37 - len(str(calls_volume)))}║")
+                        print(f"║   Total Puts Volume: {puts_volume:,}{' ' * (38 - len(str(puts_volume)))}║")
+                        print(f"║   Put/Call Ratio: {put_call_ratio:.2f}{' ' * 42}║")
+                        sentiment = "Bearish" if put_call_ratio > 1 else "Bullish" if put_call_ratio < 1 else "Neutral"
+                        print(f"║   Volume Sentiment: {sentiment}{' ' * (42 - len(sentiment))}║")
+                        
+                        print("║   Implied Volatility Range:                                  ║")
+                        print(f"║     Calls: {options_summary['calls_iv_range']['min']:.2%} - {options_summary['calls_iv_range']['max']:.2%}{' ' * 35}║")
+                        print(f"║     Puts: {options_summary['puts_iv_range']['min']:.2%} - {options_summary['puts_iv_range']['max']:.2%}{' ' * 36}║")
+                        
+                        avg_call_iv = (options_summary['calls_iv_range']['min'] + options_summary['calls_iv_range']['max']) / 2
+                        print(f"║   Market Expectation: {'High Volatility' if avg_call_iv > 0.5 else 'Moderate Volatility' if avg_call_iv > 0.2 else 'Low Volatility':<42}║")
+                else:
+                    print("║ Options Data: Not available                                   ║")
 
                 print("════════════════════════════════════════════════════════════════")
 
@@ -381,6 +447,8 @@ def main():
     analyze_parser = subparsers.add_parser('analyze-portfolio', help='Analyze portfolio')
     analyze_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
     analyze_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
+    analyze_parser.add_argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
+    analyze_parser.add_argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
 
     # Update Data
     update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
