@@ -404,6 +404,122 @@ class PortfolioCLI:
             print("Data update complete.")
         except Exception as e:
             print(f"Error updating data: {str(e)}")
+            
+    def recalculate_portfolio_history(self, portfolio_id, from_date=None):
+        """
+        Recalculate portfolio historical values after adding/modifying historical transactions.
+        
+        This method will delete all portfolio value entries from the from_date forward
+        and recalculate them based on the current transaction data.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            from_date (str, optional): Date in YYYY-MM-DD format to start recalculation from.
+                                      If not provided, will use earliest transaction date.
+        """
+        try:
+            # Verify portfolio exists
+            portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
+            if not portfolio:
+                print(f"Error: Portfolio {portfolio_id} does not exist.")
+                return
+
+            print(f"\nRecalculating historical values for portfolio: {portfolio['name']}")
+            if from_date:
+                print(f"Starting from: {from_date}")
+            else:
+                print("Starting from earliest transaction date")
+
+            # Call the recalculate method
+            result = self.value_calculator.recalculate_historical_values(portfolio_id, from_date)
+            
+            if result:
+                print("\nPortfolio historical values have been successfully recalculated.")
+            else:
+                print("\nFailed to recalculate portfolio historical values.")
+                
+        except Exception as e:
+            print(f"Error recalculating portfolio history: {str(e)}")
+    
+    def view_portfolio_performance(self, portfolio_id, days=30, start_date=None, end_date=None, generate_chart=False):
+        """
+        Display portfolio performance over time.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            days (int): Number of days of historical data to show/generate
+            start_date (str, optional): Start date in YYYY-MM-DD format
+            end_date (str, optional): End date in YYYY-MM-DD format
+            generate_chart (bool): Whether to generate a performance chart
+        """
+        try:
+            # Verify portfolio exists
+            portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
+            if not portfolio:
+                print(f"Error: Portfolio {portfolio_id} does not exist.")
+                return
+
+            print(f"\nPerformance for Portfolio: {portfolio['name']}")
+            print("--------------------------------------------------")
+            
+            # If no performance data exists yet, generate it
+            # First check if any records exist
+            cursor = self.value_calculator.connection.cursor()
+            cursor.execute("SELECT COUNT(*) FROM portfolio_value WHERE portfolio_id = %s", (portfolio_id,))
+            count = cursor.fetchone()[0]
+            
+            if count == 0:
+                print(f"Generating {days} days of performance history...")
+                self.value_calculator.update_portfolio_value_history(portfolio_id, days)
+                print("Performance history generation complete.")
+            
+            # Get performance metrics
+            metrics = self.value_calculator.calculate_performance_metrics(
+                portfolio_id, start_date, end_date)
+                
+            if metrics['initial_value'] is None:
+                print("No performance data available for the specified period.")
+                return
+                
+            # Display performance metrics
+            print(f"\nPerformance Metrics:")
+            print(f"Initial Value: ${metrics['initial_value']:.2f}")
+            print(f"Final Value: ${metrics['final_value']:.2f}")
+            print(f"Total Return: {metrics['total_return']:.2f}%")
+            
+            if metrics['annualized_return'] is not None:
+                print(f"Annualized Return: {metrics['annualized_return']:.2f}%")
+            
+            print(f"Period: {metrics['period_days']} days")
+            
+            # Get and display performance data
+            df = self.value_calculator.get_portfolio_performance(portfolio_id, start_date, end_date)
+            if not df.empty:
+                print("\nPortfolio Value History:")
+                print("--------------------------------------------------")
+                for date, row in df.iterrows():
+                    print(f"{date.strftime('%Y-%m-%d')}: ${row['value']:.2f}")
+            
+            # Generate chart if requested
+            if generate_chart:
+                chart_path = self.value_calculator.generate_performance_chart(portfolio_id, start_date, end_date)
+                if chart_path:
+                    print(f"\nPerformance chart saved to: {chart_path}")
+                    # Try to open the chart with the default image viewer if on a desktop system
+                    try:
+                        import platform
+                        system = platform.system()
+                        if system == "Darwin":  # macOS
+                            os.system(f"open {chart_path}")
+                        elif system == "Windows":
+                            os.system(f"start {chart_path}")
+                        elif system == "Linux":
+                            os.system(f"xdg-open {chart_path}")
+                    except Exception as e:
+                        print(f"Note: Could not automatically open the chart: {e}")
+            
+        except Exception as e:
+            print(f"Error viewing portfolio performance: {str(e)}")
 
 def main():
     parser = argparse.ArgumentParser(description='Portfolio Management CLI')
@@ -452,6 +568,19 @@ def main():
 
     # Update Data
     update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
+    
+    # View Portfolio Performance
+    performance_parser = subparsers.add_parser('view-performance', help='View portfolio performance over time')
+    performance_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    performance_parser.add_argument('--days', type=int, default=30, help='Number of days of history to generate if none exists')
+    performance_parser.add_argument('--start_date', help='Start date in YYYY-MM-DD format')
+    performance_parser.add_argument('--end_date', help='End date in YYYY-MM-DD format')
+    performance_parser.add_argument('--chart', action='store_true', help='Generate performance chart')
+    
+    # Recalculate Portfolio History
+    recalc_parser = subparsers.add_parser('recalculate-history', help='Recalculate portfolio historical values')
+    recalc_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    recalc_parser.add_argument('--from_date', help='Date from which to start recalculation (YYYY-MM-DD format)')
 
     args = parser.parse_args()
     cli = PortfolioCLI()
@@ -475,6 +604,12 @@ def main():
         cli.analyze_portfolio(args.portfolio_id, args.ticker_symbol)
     elif args.command == 'update-data':
         cli.update_data()
+    elif args.command == 'view-performance':
+        cli.view_portfolio_performance(
+            args.portfolio_id, args.days, args.start_date, args.end_date, args.chart
+        )
+    elif args.command == 'recalculate-history':
+        cli.recalculate_portfolio_history(args.portfolio_id, args.from_date)
     else:
         parser.print_help()
 

@@ -265,11 +265,49 @@ python portfolio_cli.py view-transactions 1 --ticker_symbol AAPL
 ```
 Transaction History:
 --------------------------------------------------------------------------------
-Date         Type       Symbol   Shares    Price      Amount    
+Date         Type       Symbol   Shares    Price      Amount
 --------------------------------------------------------------------------------
-2025-03-10   buy        AAPL     100      $150.50    N/A       
-2025-03-10   sell       AAPL     50       $175.25    N/A       
-2025-03-10   dividend   AAPL     N/A      N/A        $125.50   
+2025-03-10   buy        AAPL     100      $150.50    N/A
+2025-03-10   sell       AAPL     50       $175.25    N/A
+2025-03-10   dividend   AAPL     N/A      N/A        $125.50
+```
+
+### Portfolio Performance Tracking
+
+1. **View Portfolio Performance**
+```bash
+# View basic performance metrics
+python portfolio_cli.py view-performance 1
+
+# View performance with custom date range
+python portfolio_cli.py view-performance 1 --start_date 2025-01-01 --end_date 2025-03-31
+
+# View performance with visual chart
+python portfolio_cli.py view-performance 1 --chart
+```
+- Displays portfolio performance over time
+- Calculates key metrics like total return and annualized return
+- Generates visual performance charts when requested
+- Example output:
+```
+Performance for Portfolio: My Tech Portfolio
+--------------------------------------------------
+
+Performance Metrics:
+Initial Value: $15,000.00
+Final Value: $18,750.00
+Total Return: 25.00%
+Annualized Return: 98.24%
+Period: 90 days
+
+Portfolio Value History:
+--------------------------------------------------
+2025-01-01: $15,000.00
+2025-02-01: $16,250.00
+2025-03-01: $17,500.00
+2025-03-31: $18,750.00
+
+Performance chart saved to: /Users/username/portfolio_1_performance.png
 ```
 
 ### Error Handling
