@@ -1,0 +1,33 @@
+{
+    "database": {
+        "pool_size": 5,
+        "timeout": 30,
+        "retry_attempts": 3
+    },
+    "ui": {
+        "theme": "default",
+        "date_format": "%Y-%m-%d",
+        "currency_symbol": "$"
+    },
+    "analysis": {
+        "default_ma_period": 20,
+        "default_rsi_period": 14,
+        "macd_fast": 12,
+        "macd_slow": 26,
+        "macd_signal": 9
+    },
+    "watchlist": {
+        "auto_refresh": true,
+        "refresh_interval_minutes": 30
+    },
+    "logging": {
+        "level": "INFO",
+        "log_to_file": true,
+        "log_path": "logs"
+    },
+    "chart": {
+        "default_theme": "dark",
+        "auto_save": true,
+        "save_path": "charts"
+    }
+}

@@ -22,6 +22,80 @@ class TickerDao:
     def close_connection(self):
        self.current_connection.close()
 
+    # Cash balance tracking methods
+    def get_cash_balance(self, portfolio_id):
+        """
+        Get the current cash balance available for trading in a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID to check
+            
+        Returns:
+            float: The available cash balance
+        """
+        try:
+            cursor = self.current_connection.cursor()
+            
+            query = 'SELECT cash_balance FROM portfolio WHERE id = %s'
+            cursor.execute(query, (portfolio_id,))
+            result = cursor.fetchone()
+            
+            cursor.close()
+            
+            if result:
+                return float(result[0]) if result[0] is not None else 0.0
+            else:
+                return 0.0
+        except mysql.connector.Error as err:
+            print(f"Error retrieving cash balance: {err}")
+            return 0.0
+    
+    def update_cash_balance(self, portfolio_id, new_balance):
+        """
+        Update the cash balance for a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            new_balance (float): The new cash balance
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            cursor = self.current_connection.cursor()
+            
+            query = 'UPDATE portfolio SET cash_balance = %s WHERE id = %s'
+            cursor.execute(query, (new_balance, portfolio_id))
+            
+            self.current_connection.commit()
+            cursor.close()
+            return True
+        except mysql.connector.Error as err:
+            print(f"Error updating cash balance: {err}")
+            return False
+    
+    def adjust_cash_balance(self, portfolio_id, amount):
+        """
+        Adjust the cash balance by adding or subtracting an amount.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            amount (float): Amount to adjust (positive to add, negative to subtract)
+            
+        Returns:
+            float: The new balance after adjustment, or None if failed
+        """
+        try:
+            current_balance = self.get_cash_balance(portfolio_id)
+            new_balance = current_balance + amount
+            
+            if self.update_cash_balance(portfolio_id, new_balance):
+                return new_balance
+            return None
+        except Exception as err:
+            print(f"Error adjusting cash balance: {err}")
+            return None
+
     def retrieve_ticker_list(self):
         try:
             cursor = self.current_connection.cursor()
@@ -243,3 +317,76 @@ class TickerDao:
             return df_last
         except mysql.connector.Error as err:
             print(err)
+
+    def get_ticker_data(self, ticker_id):
+        """
+        Get comprehensive data for a specific ticker including latest price.
+        
+        Args:
+            ticker_id (int): The ID of the ticker to retrieve data for
+            
+        Returns:
+            dict: A dictionary containing ticker data including last_price and other details
+        """
+        try:
+            # First get basic ticker information
+            cursor = self.current_connection.cursor(dictionary=True)
+            
+            # Start with a basic query that should work regardless of schema changes
+            ticker_query = """
+                SELECT id, ticker, ticker_name, industry, sector
+                FROM investing.tickers 
+                WHERE id = %s
+            """
+            cursor.execute(ticker_query, (ticker_id,))
+            ticker_info = cursor.fetchone()
+            
+            if not ticker_info:
+                return None
+            
+            # Set a default trend value
+            ticker_info['trend'] = None
+            
+            # Now try to get the trend column if it exists
+            try:
+                trend_query = "SELECT trend FROM investing.tickers WHERE id = %s"
+                cursor.execute(trend_query, (ticker_id,))
+                trend_result = cursor.fetchone()
+                if trend_result and 'trend' in trend_result:
+                    ticker_info['trend'] = trend_result['trend']
+            except mysql.connector.Error as column_err:
+                # If trend column doesn't exist or other error, we already have a default value
+                if column_err.errno != 1054:  # If it's not just an unknown column error
+                    print(f"Warning: Error retrieving trend data: {column_err}")
+                
+            # Get the latest activity data
+            latest_activity_query = """
+                SELECT activity_date, open, close, high, low, volume
+                FROM investing.activity 
+                WHERE ticker_id = %s 
+                ORDER BY activity_date DESC 
+                LIMIT 1
+            """
+            cursor.execute(latest_activity_query, (ticker_id,))
+            latest_activity = cursor.fetchone()
+            
+            cursor.close()
+            
+            # Combine the data
+            result = ticker_info
+            if latest_activity:
+                result['last_price'] = float(latest_activity['close'])
+                result['last_update'] = latest_activity['activity_date']
+            else:
+                # Fall back to a default price if no activity data is available
+                result['last_price'] = 0.0
+                result['last_update'] = None
+                
+            return result
+            
+        except mysql.connector.Error as err:
+            print(f"Database error in get_ticker_data: {err}")
+            return None
+        except Exception as e:
+            print(f"Error in get_ticker_data: {str(e)}")
+            return None

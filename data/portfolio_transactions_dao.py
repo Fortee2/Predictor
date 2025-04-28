@@ -70,3 +70,40 @@ class PortfolioTransactionsDAO:
         except mysql.connector.Error as e:
             print(f"Error deleting transactions: {e}")
             self.connection.rollback()
+            
+    def get_current_positions(self, portfolio_id):
+        """
+        Calculate the current positions in a portfolio based on transaction history.
+        Returns a dictionary mapping ticker_id to shares held.
+        """
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            query = """
+                SELECT 
+                    s.ticker_id, 
+                    tk.ticker as symbol,
+                    SUM(CASE WHEN t.transaction_type = 'buy' THEN t.shares ELSE 0 END) as total_bought,
+                    SUM(CASE WHEN t.transaction_type = 'sell' THEN t.shares ELSE 0 END) as total_sold
+                FROM portfolio_transactions t
+                JOIN portfolio_securities s ON t.security_id = s.id
+                JOIN tickers tk ON s.ticker_id = tk.id
+                WHERE t.portfolio_id = %s
+                GROUP BY s.ticker_id, tk.ticker
+            """
+            cursor.execute(query, (portfolio_id,))
+            results = cursor.fetchall()
+            
+            positions = {}
+            for row in results:
+                shares_held = (row['total_bought'] or 0) - (row['total_sold'] or 0)
+                # Only include positions with positive shares
+                if shares_held > 0:
+                    positions[row['ticker_id']] = {
+                        'symbol': row['symbol'],
+                        'shares': shares_held
+                    }
+                    
+            return positions
+        except mysql.connector.Error as e:
+            print(f"Error calculating current positions: {e}")
+            return {}

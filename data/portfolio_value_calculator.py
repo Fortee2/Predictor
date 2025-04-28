@@ -105,19 +105,20 @@ class PortfolioValueCalculator:
                 try:
                     # Try to get historical price from database first
                     hist_query = """
-                        SELECT price_date, close_price 
+                        SELECT activity_date, close
                         FROM investing.activity 
-                        WHERE ticker = %s AND price_date <= %s
-                        ORDER BY price_date DESC
+                        INNER JOIN tickers ON investing.activity.ticker_id = tickers.id
+                        WHERE tickers.ticker = %s AND activity_date <= %s
+                        ORDER BY activity_date DESC
                         LIMIT 1
                     """
                     cursor.execute(hist_query, (symbol, calculation_date))
                     hist_result = cursor.fetchone()
                     
                     if hist_result:
-                        price_date, close_price = hist_result
-                        stock_prices[ticker_id] = float(close_price)
-                        print(f"  {symbol}: Using price from database ({price_date}): ${close_price:.2f}")
+                        activity_date, close = hist_result
+                        stock_prices[ticker_id] = float(close)
+                        print(f"  {symbol}: Using price from database ({activity_date}): ${close:.2f}")
                         continue
                     else:
                         print(f"  {symbol}: No historical price data found in database, trying yfinance")

@@ -33,11 +33,11 @@ class PortfolioDAO:
             self.transactions_dao.close_connection()
             self.ticker_dao.close_connection()
             
-    def create_portfolio(self, name, description):
+    def create_portfolio(self, name, description, initial_cash=0.0):
         try:
             cursor = self.connection.cursor()
-            query = "INSERT INTO portfolio (name, description, date_added) VALUES (%s, %s, NOW())"
-            values = (name, description)
+            query = "INSERT INTO portfolio (name, description, date_added, cash_balance) VALUES (%s, %s, NOW(), %s)"
+            values = (name, description, initial_cash)
             cursor.execute(query, values)
             self.connection.commit()
             portfolio_id = cursor.lastrowid
@@ -47,6 +47,97 @@ class PortfolioDAO:
             print(f"Error creating portfolio: {e}")
             return None
             
+    # Cash management methods
+    def get_cash_balance(self, portfolio_id):
+        """
+        Get the current cash balance for a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            
+        Returns:
+            float: The cash balance
+        """
+        try:
+            cursor = self.connection.cursor()
+            query = "SELECT cash_balance FROM portfolio WHERE id = %s"
+            cursor.execute(query, (portfolio_id,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                return float(result[0])
+            return 0.0
+        except mysql.connector.Error as e:
+            print(f"Error retrieving cash balance: {e}")
+            return 0.0
+    
+    def update_cash_balance(self, portfolio_id, new_balance):
+        """
+        Update the cash balance for a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            new_balance (float): The new cash balance
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            cursor = self.connection.cursor()
+            query = "UPDATE portfolio SET cash_balance = %s WHERE id = %s"
+            cursor.execute(query, (new_balance, portfolio_id))
+            self.connection.commit()
+            return True
+        except mysql.connector.Error as e:
+            print(f"Error updating cash balance: {e}")
+            self.connection.rollback()
+            return False
+    
+    def add_cash(self, portfolio_id, amount):
+        """
+        Add cash to a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            amount (float): The amount to add
+            
+        Returns:
+            float: The new cash balance
+        """
+        try:
+            current_balance = self.get_cash_balance(portfolio_id)
+            new_balance = current_balance + amount
+            if self.update_cash_balance(portfolio_id, new_balance):
+                return new_balance
+            return current_balance
+        except Exception as e:
+            print(f"Error adding cash: {e}")
+            return self.get_cash_balance(portfolio_id)
+    
+    def withdraw_cash(self, portfolio_id, amount):
+        """
+        Withdraw cash from a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            amount (float): The amount to withdraw
+            
+        Returns:
+            float: The new cash balance
+        """
+        try:
+            current_balance = self.get_cash_balance(portfolio_id)
+            if current_balance < amount:
+                print(f"Warning: Insufficient cash balance. Available: ${current_balance:.2f}, Requested: ${amount:.2f}")
+                return current_balance
+                
+            new_balance = current_balance - amount
+            if self.update_cash_balance(portfolio_id, new_balance):
+                return new_balance
+            return current_balance
+        except Exception as e:
+            print(f"Error withdrawing cash: {e}")
+            return self.get_cash_balance(portfolio_id)
+    
     def read_portfolio(self, portfolio_id=None):
         try:
             cursor = self.connection.cursor(dictionary=True)  # Return results as dictionaries

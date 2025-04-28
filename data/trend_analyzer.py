@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from enum import Enum
 import mysql.connector
+import decimal
 
 class TrendDirection(Enum):
     UP = "UP"
@@ -83,9 +84,13 @@ class TrendAnalyzer:
         previous_value = float(df.iloc[-2]['value'])
         
         # Calculate the percentage change rate
-        if previous_value != 0:
-            percent_change = (latest_value - previous_value) / previous_value * 100
-        else:
+        # Additional checks for division by zero or very small values
+        try:
+            if abs(previous_value) < 0.0001:
+                percent_change = 0
+            else:
+                percent_change = (latest_value - previous_value) / previous_value * 100
+        except (ZeroDivisionError, decimal.DivisionUndefined):
             percent_change = 0
             
         # Calculate angle of the trend
@@ -181,9 +186,13 @@ class TrendAnalyzer:
         ma_value = float(ma_result[0])
         
         # Calculate percentage distance from MA
-        if ma_value != 0:
-            distance_percent = (price - ma_value) / ma_value * 100
-        else:
+        # Additional checks for division by zero or very small values
+        try:
+            if abs(ma_value) < 0.0001:
+                distance_percent = 0
+            else:
+                distance_percent = (price - ma_value) / ma_value * 100
+        except (ZeroDivisionError, decimal.DivisionUndefined):
             distance_percent = 0
             
         # Determine position relative to MA

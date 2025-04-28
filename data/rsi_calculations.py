@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import mysql.connector
-from decimal import Decimal
+from decimal import Decimal, DivisionUndefined
 from mysql.connector import errorcode
 
 class rsi_calculations:
@@ -137,9 +137,19 @@ class rsi_calculations:
                 df_rs.iloc[rsi, avgGain_idx] = round((Decimal(df_rs.iloc[rsi - 1, avgGain_idx]) * Decimal(13) + Decimal(df_rs.loc[idx, 'gain'])) / Decimal(14), 2)
                 df_rs.iloc[rsi, avgLoss_idx] = round((Decimal(df_rs.iloc[rsi - 1, avgLoss_idx]) * Decimal(13) + Decimal(df_rs.loc[idx, 'loss'])) / Decimal(14), 2)
 
-
-            df_rs.iloc[rsi, rs_idx] = float(df_rs.iloc[ rsi, avgGain_idx] / df_rs.iloc[rsi, avgLoss_idx]) #calulate relative strength
-            df_rs.iloc[rsi, rsi_idx] =  np.round( 100 - (100 / (df_rs.iloc[rsi, rs_idx] + 1)),0) #convert to an index
+            # Handle division by zero for RS calculation
+            try:
+                if df_rs.iloc[rsi, avgLoss_idx] == 0 or df_rs.iloc[rsi, avgLoss_idx] < 0.0001:
+                    # If average loss is zero or very small, set RS to a large value (100 is common in finance)
+                    df_rs.iloc[rsi, rs_idx] = 100.0
+                else:
+                    df_rs.iloc[rsi, rs_idx] = float(df_rs.iloc[rsi, avgGain_idx] / df_rs.iloc[rsi, avgLoss_idx])
+            except (ZeroDivisionError, decimal.DivisionUndefined):
+                # Handle any other division errors
+                df_rs.iloc[rsi, rs_idx] = 100.0
+                
+            # Calculate RSI from RS
+            df_rs.iloc[rsi, rsi_idx] = np.round(100 - (100 / (df_rs.iloc[rsi, rs_idx] + 1)), 0) #convert to an index
 
             #Save the data so we have it for next time
             self.createAverages(idx, ticker_id, df_rs.iloc[rsi, avgGain_idx], df_rs.iloc[rsi, avgLoss_idx] , df_rs.iloc[rsi, rs_idx],  df_rs.iloc[rsi, rsi_idx])
