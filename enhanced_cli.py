@@ -185,8 +185,9 @@ class EnhancedCLI:
             for ticker_id, position in positions.items():
                 ticker_data = self.cli.ticker_dao.get_ticker_data(ticker_id)
                 current_price = ticker_data.get('last_price', 0)
-                shares = position['shares']
+                shares = float(position['shares']) if hasattr(position['shares'], 'as_tuple') else position['shares']
                 avg_price = position.get('avg_price', 0)
+                avg_price = float(avg_price) if hasattr(avg_price, 'as_tuple') else avg_price
                 value = shares * current_price
                 gain_loss = value - (shares * avg_price)
                 percent = (gain_loss / (shares * avg_price)) * 100 if avg_price > 0 else 0
@@ -965,7 +966,9 @@ class EnhancedCLI:
         if isinstance(current_value, bool):
             new_value = Confirm.ask(f"Enable {key_to_change}?", default=current_value)
         elif isinstance(current_value, int):
-            new_value = int(Prompt.ask(f"Enter new value for {key_to_change}", default=str(current_value)))
+            new_value = int(
+                Prompt.ask(
+                    f"Enter new value for {key_to_change}", default=str(current_value)))
         elif isinstance(current_value, float):
             new_value = float(Prompt.ask(f"Enter new value for {key_to_change}", default=str(current_value)))
         else:
@@ -1008,9 +1011,10 @@ class EnhancedCLI:
         console.print("\n[bold]Select Action:[/bold]")
         console.print("[1] Deposit Cash")
         console.print("[2] Withdraw Cash")
-        console.print("[3] Return to Portfolio")
+        console.print("[3] View Cash Transactions")
+        console.print("[4] Return to Portfolio")
         
-        choice = Prompt.ask("Select an action", choices=["1", "2", "3"], default="1")
+        choice = Prompt.ask("Select an action", choices=["1", "2", "3", "4"], default="1")
         
         if choice == "1":  # Deposit
             amount = float(Prompt.ask("[bold]Enter deposit amount ($)[/bold]", default="0.00"))
@@ -1059,10 +1063,82 @@ class EnhancedCLI:
                     with console.status("[bold green]Logging cash transaction...[/bold green]"):
                         self.cli.log_transaction(portfolio_id, "cash", date_str, None, None, None, -amount)
                     console.print("[bold green]✓ Cash transaction logged successfully[/bold green]")
+
+        elif choice == "3":  # View cash transactions
+            self.view_cash_transactions(portfolio_id)
         
-        # Return to portfolio view automatically if the user selected option 3 or after completing an action
-        if choice == "3" or Confirm.ask("Return to portfolio view?", default=True):
+        # Return to portfolio view automatically if the user selected option 4 or after completing an action
+        if choice == "4" or Confirm.ask("Return to portfolio view?", default=True):
             self.view_portfolio(portfolio_id)
+    
+    def view_cash_transactions(self, portfolio_id):
+        """View only cash transactions (deposits and withdrawals) for a portfolio."""
+        with console.status("[bold green]Loading cash transactions...[/bold green]"):
+            portfolio = self.cli.portfolio_dao.read_portfolio(portfolio_id)
+            
+            # Get all transactions
+            transactions = self.cli.transactions_dao.get_transaction_history(portfolio_id)
+            
+            # Filter to only cash transactions
+            cash_transactions = [t for t in transactions if t['transaction_type'] == 'cash']
+        
+        console.print(Panel(f"[bold]Cash Transaction History for {portfolio['name']}[/bold]", box=box.ROUNDED))
+        
+        if not cash_transactions:
+            console.print("[yellow]No cash transactions found for this portfolio.[/yellow]")
+            return
+        
+        table = Table(box=box.ROUNDED)
+        table.add_column("Date", style="cyan")
+        table.add_column("Type", style="green")
+        table.add_column("Amount", justify="right")
+        table.add_column("Balance After", justify="right", style="bold")
+        
+        # Sort by date, newest first
+        cash_transactions = sorted(cash_transactions, key=lambda x: x['transaction_date'], reverse=True)
+        
+        # We need to calculate the running balance since it's not stored in the transaction records
+        current_balance = self.cli.portfolio_dao.get_cash_balance(portfolio_id)
+        running_balance = current_balance
+        
+        # Since we're displaying newest first, we need to add up all transaction amounts 
+        # to get the starting balance, then subtract as we go through chronologically
+        total_transaction_amount = sum(t['amount'] for t in cash_transactions)
+        
+        # Starting balance before any transactions in our list
+        starting_balance = current_balance - total_transaction_amount
+        running_balance = starting_balance
+        
+        # Sort by date, oldest first for processing
+        cash_transactions_chronological = sorted(cash_transactions, key=lambda x: x['transaction_date'])
+        
+        # Create a dictionary mapping transaction date to balance after that transaction
+        balances = {}
+        for t in cash_transactions_chronological:
+            running_balance += t['amount']
+            balances[t['transaction_date'].strftime('%Y-%m-%d')] = running_balance
+            
+        # Now display newest first
+        for t in cash_transactions:
+            date = t['transaction_date'].strftime('%Y-%m-%d')
+            
+            # Determine transaction type label and color
+            if t['amount'] > 0:
+                trans_type = "Deposit"
+                amount_str = f"[green]+${t['amount']:.2f}[/green]"
+            else:
+                trans_type = "Withdrawal"
+                amount_str = f"[red]-${abs(t['amount']):.2f}[/red]"
+            
+            balance = balances[date]
+            table.add_row(
+                date,
+                trans_type,
+                amount_str,
+                f"${balance:.2f}"
+            )
+        
+        console.print(table)
     
     def main_menu(self):
         """Display the main menu."""

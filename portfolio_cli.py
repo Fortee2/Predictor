@@ -369,12 +369,12 @@ class PortfolioCLI:
 
             # Get ticker_id and security_id
             ticker_id = self.ticker_dao.get_ticker_id(ticker_symbol)
-            if not ticker_id:
+            if not ticker_id and transaction_type in ['buy', 'sell', 'dividend']:
                 print(f"Error: Ticker symbol {ticker_symbol} not found.")
                 return
                 
             security_id = self.portfolio_dao.get_security_id(portfolio_id, ticker_id)
-            if not security_id:
+            if not security_id and transaction_type in ['buy', 'sell', 'dividend']:
                 print(f"Error: {ticker_symbol} not found in portfolio {portfolio_id}.")
                 return
 
