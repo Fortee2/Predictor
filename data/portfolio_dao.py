@@ -141,7 +141,7 @@ class PortfolioDAO:
     def read_portfolio(self, portfolio_id=None):
         try:
             cursor = self.connection.cursor(dictionary=True)  # Return results as dictionaries
-            if portfolio_id:
+            if (portfolio_id):
                 query = "SELECT * FROM portfolio WHERE id = %s"
                 values = (portfolio_id,)
             else:
@@ -305,3 +305,188 @@ class PortfolioDAO:
     def log_transaction(self, portfolio_id, security_id, transaction_type, transaction_date, shares=None, price=None, amount=None):
         self.transactions_dao.insert_transaction(portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount)
         print(f"Logged {transaction_type} transaction for portfolio {portfolio_id} and security {security_id} on {transaction_date}")
+        
+    # Cash history management methods
+    def log_cash_transaction(self, portfolio_id, amount, transaction_type, description=None, transaction_date=None):
+        """
+        Log a cash transaction to the cash_balance_history table and update portfolio cash balance.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            amount (float): The transaction amount (positive for deposits, negative for withdrawals)
+            transaction_type (str): The type of transaction ('deposit', 'withdrawal', 'buy', 'sell', 'dividend', etc.)
+            description (str, optional): A description of the transaction
+            transaction_date (datetime, optional): The transaction date (defaults to current datetime)
+            
+        Returns:
+            float: The new cash balance after the transaction
+        """
+        try:
+            # Default to current date/time if not specified
+            if transaction_date is None:
+                transaction_date = datetime.datetime.now()
+                
+            cursor = self.connection.cursor(dictionary=True)
+            
+            # First check if the cash_balance_history table exists
+            check_table_query = """
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'cash_balance_history'
+            """
+            cursor.execute(check_table_query)
+            table_exists = cursor.fetchone()['count'] > 0
+            
+            if not table_exists:
+                # Create the table if it doesn't exist
+                create_table_query = """
+                    CREATE TABLE cash_balance_history (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        portfolio_id INT NOT NULL,
+                        transaction_date DATETIME NOT NULL,
+                        amount DECIMAL(10,2) NOT NULL,
+                        transaction_type VARCHAR(20) NOT NULL,
+                        description VARCHAR(255),
+                        balance_after DECIMAL(10,2) NOT NULL,
+                        FOREIGN KEY (portfolio_id) REFERENCES portfolio(id)
+                    )
+                """
+                cursor.execute(create_table_query)
+                self.connection.commit()
+            
+            # Get the current balance
+            current_balance = self.get_cash_balance(portfolio_id)
+            
+            # Calculate the new balance
+            new_balance = current_balance + amount
+            
+            # Insert the transaction into history
+            insert_query = """
+                INSERT INTO cash_balance_history 
+                (portfolio_id, transaction_date, amount, transaction_type, description, balance_after)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """
+            insert_values = (
+                portfolio_id,
+                transaction_date,
+                amount,
+                transaction_type,
+                description,
+                new_balance
+            )
+            cursor.execute(insert_query, insert_values)
+            
+            # Update the portfolio cash_balance
+            self.update_cash_balance(portfolio_id, new_balance)
+            
+            self.connection.commit()
+            return new_balance
+            
+        except mysql.connector.Error as e:
+            print(f"Error logging cash transaction: {e}")
+            self.connection.rollback()
+            return self.get_cash_balance(portfolio_id)
+            
+    def get_cash_transaction_history(self, portfolio_id):
+        """
+        Get all cash transactions for a portfolio.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            
+        Returns:
+            list: A list of cash transaction dictionaries
+        """
+        try:
+            cursor = self.connection.cursor(dictionary=True)
+            
+            # Check if the cash_balance_history table exists
+            check_table_query = """
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'cash_balance_history'
+            """
+            cursor.execute(check_table_query)
+            table_exists = cursor.fetchone()['count'] > 0
+            
+            if not table_exists:
+                # Create the table if it doesn't exist
+                create_table_query = """
+                    CREATE TABLE cash_balance_history (
+                        id INT AUTO_INCREMENT PRIMARY KEY,
+                        portfolio_id INT NOT NULL,
+                        transaction_date DATETIME NOT NULL,
+                        amount DECIMAL(10,2) NOT NULL,
+                        transaction_type VARCHAR(20) NOT NULL,
+                        description VARCHAR(255),
+                        balance_after DECIMAL(10,2) NOT NULL,
+                        FOREIGN KEY (portfolio_id) REFERENCES portfolio(id)
+                    )
+                """
+                cursor.execute(create_table_query)
+                self.connection.commit()
+                return []
+            
+            # Get all cash transactions
+            query = """
+                SELECT * FROM cash_balance_history
+                WHERE portfolio_id = %s
+                ORDER BY transaction_date DESC, id DESC
+            """
+            cursor.execute(query, (portfolio_id,))
+            return cursor.fetchall()
+            
+        except mysql.connector.Error as e:
+            print(f"Error retrieving cash transaction history: {e}")
+            return []
+            
+    def recalculate_cash_balance(self, portfolio_id):
+        """
+        Recalculate the cash balance from the transaction history.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            
+        Returns:
+            float: The recalculated cash balance
+        """
+        try:
+            cursor = self.connection.cursor()
+            
+            # Check if the cash_balance_history table exists
+            check_table_query = """
+                SELECT COUNT(*) as count 
+                FROM information_schema.tables 
+                WHERE table_schema = DATABASE() 
+                AND table_name = 'cash_balance_history'
+            """
+            cursor.execute(check_table_query)
+            table_exists = cursor.fetchone()[0] > 0
+            
+            if not table_exists:
+                return self.get_cash_balance(portfolio_id)
+                
+            # Get the most recent balance
+            query = """
+                SELECT balance_after
+                FROM cash_balance_history
+                WHERE portfolio_id = %s
+                ORDER BY transaction_date DESC, id DESC
+                LIMIT 1
+            """
+            cursor.execute(query, (portfolio_id,))
+            result = cursor.fetchone()
+            
+            if result and result[0] is not None:
+                balance = float(result[0])
+                # Update the portfolio cash_balance to match
+                self.update_cash_balance(portfolio_id, balance)
+                return balance
+            else:
+                return self.get_cash_balance(portfolio_id)
+                
+        except mysql.connector.Error as e:
+            print(f"Error recalculating cash balance: {e}")
+            return self.get_cash_balance(portfolio_id)

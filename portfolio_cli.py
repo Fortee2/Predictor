@@ -367,7 +367,40 @@ class PortfolioCLI:
                 print(f"Error: Portfolio {portfolio_id} does not exist.")
                 return
 
-            # Get ticker_id and security_id
+            # Parse date
+            try:
+                date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                print("Error: Invalid date format. Please use YYYY-MM-DD format.")
+                return
+
+            # Handle cash transactions first - use the new cash_balance_history method
+            if transaction_type == 'cash':
+                if amount is None:
+                    print("Error: cash transactions require amount parameter.")
+                    return
+                
+                # Use the new log_cash_transaction method which handles both the cash balance and history
+                cash_action = "deposit" if amount > 0 else "withdrawal"
+                description = f"Cash {cash_action}"
+                
+                # Log to cash history and update the balance in one operation
+                new_balance = self.portfolio_dao.log_cash_transaction(
+                    portfolio_id, 
+                    amount, 
+                    cash_action,
+                    description, 
+                    date
+                )
+                
+                print(f"\nSuccessfully logged cash transaction:")
+                if amount > 0:
+                    print(f"${amount:.2f} deposit")
+                else:
+                    print(f"${abs(amount):.2f} withdrawal")
+                return
+                
+            # For non-cash transactions, we need ticker and security info
             ticker_id = self.ticker_dao.get_ticker_id(ticker_symbol)
             if not ticker_id and transaction_type in ['buy', 'sell', 'dividend']:
                 print(f"Error: Ticker symbol {ticker_symbol} not found.")
@@ -378,13 +411,6 @@ class PortfolioCLI:
                 print(f"Error: {ticker_symbol} not found in portfolio {portfolio_id}.")
                 return
 
-            # Parse date
-            try:
-                date = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
-            except ValueError:
-                print("Error: Invalid date format. Please use YYYY-MM-DD format.")
-                return
-
             # Validate transaction type and parameters
             if transaction_type in ['buy', 'sell']:
                 if shares is None or price is None:
@@ -392,8 +418,12 @@ class PortfolioCLI:
                     return
                 amount = None  # Ensure amount is None for buy/sell
                 
-                # Update cash balance based on transaction type
+                # Calculate the cash impact
                 total_cost = shares * price
+                
+                # Prepare description for cash history
+                description = f"{transaction_type.title()} {shares} shares of {ticker_symbol} at ${price:.2f}"
+                
                 if transaction_type == 'buy':
                     # Check if there's enough cash for the purchase
                     cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
@@ -404,13 +434,25 @@ class PortfolioCLI:
                             print("Transaction cancelled.")
                             return
                     
-                    # Deduct the purchase cost from cash balance
-                    new_balance = self.portfolio_dao.withdraw_cash(portfolio_id, total_cost)
+                    # Log the cash withdrawal for the purchase
+                    new_balance = self.portfolio_dao.log_cash_transaction(
+                        portfolio_id,
+                        -total_cost,  # Negative amount for buy
+                        "buy",
+                        description,
+                        date
+                    )
                     print(f"Cash balance updated: ${new_balance:.2f} (after purchase)")
                 
                 elif transaction_type == 'sell':
-                    # Add the sale proceeds to cash balance
-                    new_balance = self.portfolio_dao.add_cash(portfolio_id, total_cost)
+                    # Log the cash deposit from the sale
+                    new_balance = self.portfolio_dao.log_cash_transaction(
+                        portfolio_id,
+                        total_cost,  # Positive amount for sell
+                        "sell",
+                        description,
+                        date
+                    )
                     print(f"Cash balance updated: ${new_balance:.2f} (after sale)")
             
             elif transaction_type == 'dividend':
@@ -419,47 +461,33 @@ class PortfolioCLI:
                     return
                 shares = price = None  # Ensure shares and price are None for dividend
                 
-                # Add dividend amount to cash balance
-                new_balance = self.portfolio_dao.add_cash(portfolio_id, amount)
+                # Log the cash deposit from dividend
+                description = f"Dividend from {ticker_symbol}"
+                new_balance = self.portfolio_dao.log_cash_transaction(
+                    portfolio_id,
+                    amount,  # Positive amount for dividend
+                    "dividend",
+                    description,
+                    date
+                )
                 print(f"Cash balance updated: ${new_balance:.2f} (after dividend)")
-            
-            elif transaction_type == 'cash':
-                # This is a special transaction type for adding or withdrawing cash
-                if amount is None:
-                    print("Error: cash transactions require amount parameter.")
-                    return
-                shares = price = None  # Ensure shares and price are None for cash
-                security_id = None  # No security involved
-                
-                # Amount can be positive (deposit) or negative (withdrawal)
-                if amount > 0:
-                    new_balance = self.portfolio_dao.add_cash(portfolio_id, amount)
-                    print(f"Cash deposited: ${amount:.2f}")
-                else:
-                    new_balance = self.portfolio_dao.withdraw_cash(portfolio_id, abs(amount))
-                    print(f"Cash withdrawn: ${abs(amount):.2f}")
-                print(f"New cash balance: ${new_balance:.2f}")
             
             else:
                 print("Error: Invalid transaction type. Must be 'buy', 'sell', 'dividend', or 'cash'.")
                 return
 
-            # Log transaction (skip for cash transactions if they have no security_id)
-            if transaction_type != 'cash' or security_id is not None:
-                self.transactions_dao.insert_transaction(
-                    portfolio_id, security_id, transaction_type, date, shares, price, amount
-                )
+            # Log transaction to portfolio_transactions table for all non-cash transactions
+            self.transactions_dao.insert_transaction(
+                portfolio_id, security_id, transaction_type, date, shares, price, amount
+            )
 
             # Print confirmation
             print(f"\nSuccessfully logged {transaction_type} transaction:")
-            if transaction_type != 'cash':
-                print(f"- {ticker_symbol}: ", end='')
+            print(f"- {ticker_symbol}: ", end='')
             if transaction_type in ['buy', 'sell']:
                 print(f"{shares} shares at ${price:.2f} each")
             elif transaction_type == 'dividend':
                 print(f"${amount:.2f} dividend")
-            elif transaction_type == 'cash':
-                print(f"${abs(amount):.2f} {'deposit' if amount > 0 else 'withdrawal'}")
 
         except Exception as e:
             print(f"Error logging transaction: {str(e)}")
@@ -928,76 +956,76 @@ def main():
     # Cash Management Commands
     cash_parser = subparsers.add_parser('manage-cash', help='Manage portfolio cash balance')
     cash_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    cash_parser.add_argument('action', choices=['view', 'deposit', 'withdraw'], help='Cash management action')
-    cash_parser.add_argument('--amount', type=float, help='Amount to deposit or withdraw')
+    cash_parser.add.argument('action', choices=['view', 'deposit', 'withdraw'], help='Cash management action')
+    cash_parser.add.argument('--amount', type=float, help='Amount to deposit or withdraw')
 
     # Add Tickers
     add_parser = subparsers.add_parser('add-tickers', help='Add tickers to portfolio')
-    add_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    add_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to add (e.g., AAPL GOOGL)')
+    add_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    add_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to add (e.g., AAPL GOOGL)')
 
     # Remove Tickers
     remove_parser = subparsers.add_parser('remove-tickers', help='Remove tickers from portfolio')
-    remove_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    remove_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
+    remove_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    remove_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
 
     # Log Transaction
     log_parser = subparsers.add_parser('log-transaction', help='Log a transaction')
-    log_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    log_parser.add_argument('type', choices=['buy', 'sell', 'dividend', 'cash'], help='Transaction type')
-    log_parser.add_argument('date', help='Transaction date (YYYY-MM-DD)')
-    log_parser.add_argument('ticker_symbol', nargs='?', help='Ticker symbol (not required for cash transactions)')
-    log_parser.add_argument('--shares', type=float, help='Number of shares (for buy/sell)')
-    log_parser.add_argument('--price', type=float, help='Price per share (for buy/sell)')
-    log_parser.add_argument('--amount', type=float, help='Amount for dividend or cash transactions. For cash: positive = deposit, negative = withdrawal')
+    log_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    log_parser.add.argument('type', choices=['buy', 'sell', 'dividend', 'cash'], help='Transaction type')
+    log_parser.add.argument('date', help='Transaction date (YYYY-MM-DD)')
+    log_parser.add.argument('ticker_symbol', nargs='?', help='Ticker symbol (not required for cash transactions)')
+    log_parser.add.argument('--shares', type=float, help='Number of shares (for buy/sell)')
+    log_parser.add.argument('--price', type=float, help='Price per share (for buy/sell)')
+    log_parser.add.argument('--amount', type=float, help='Amount for dividend or cash transactions. For cash: positive = deposit, negative = withdrawal')
 
     # View Transactions
     trans_parser = subparsers.add_parser('view-transactions', help='View transaction history')
-    trans_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    trans_parser.add_argument('--ticker_symbol', help='Filter by ticker symbol')
+    trans_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    trans_parser.add.argument('--ticker_symbol', help='Filter by ticker symbol')
 
     # Analyze Portfolio
     analyze_parser = subparsers.add_parser('analyze-portfolio', help='Analyze portfolio')
-    analyze_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    analyze_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
-    analyze_parser.add_argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
-    analyze_parser.add_argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
+    analyze_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    analyze_parser.add.argument('--ticker_symbol', help='Analyze specific ticker')
+    analyze_parser.add.argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
+    analyze_parser.add.argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
 
     # Update Data
     update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
     
     # View Portfolio Performance
     performance_parser = subparsers.add_parser('view-performance', help='View portfolio performance over time')
-    performance_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    performance_parser.add_argument('--days', type=int, default=30, help='Number of days of history to generate if none exists')
-    performance_parser.add_argument('--start_date', help='Start date in YYYY-MM-DD format')
-    performance_parser.add_argument('--end_date', help='End date in YYYY-MM-DD format')
-    performance_parser.add_argument('--chart', action='store_true', help='Generate performance chart')
+    performance_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    performance_parser.add.argument('--days', type=int, default=30, help='Number of days of history to generate if none exists')
+    performance_parser.add.argument('--start_date', help='Start date in YYYY-MM-DD format')
+    performance_parser.add.argument('--end_date', help='End date in YYYY-MM-DD format')
+    performance_parser.add.argument('--chart', action='store_true', help='Generate performance chart')
     
     # Recalculate Portfolio History
     recalc_parser = subparsers.add_parser('recalculate-history', help='Recalculate portfolio historical values')
-    recalc_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    recalc_parser.add_argument('--from_date', help='Date from which to start recalculation (YYYY-MM-DD format)')
+    recalc_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
+    recalc_parser.add.argument('--from_date', help='Date from which to start recalculation (YYYY-MM-DD format)')
 
     # Watch List Commands
     
     # Create Watch List
     create_wl_parser = subparsers.add_parser('create-watchlist', help='Create a new watch list')
-    create_wl_parser.add_argument('name', help='Watch list name')
-    create_wl_parser.add_argument('--description', help='Watch list description')
+    create_wl_parser.add.argument('name', help='Watch list name')
+    create_wl_parser.add.argument('--description', help='Watch list description')
     
     # View Watch Lists
     view_wl_parser = subparsers.add_parser('view-watchlists', help='View all watch lists')
     
     # View Watch List
     view_wl_details_parser = subparsers.add_parser('view-watchlist', help='View watch list details and tickers')
-    view_wl_details_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    view_wl_details_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
     
     # Add Ticker to Watch List
     add_wl_ticker_parser = subparsers.add_parser('add-watchlist-ticker', help='Add ticker(s) to watch list')
-    add_wl_ticker_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    add_wl_ticker_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
     add_wl_ticker_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to add')
-    add_wl_ticker_parser.add_argument('--notes', help='Notes for the ticker')
+    add_wl_ticker_parser.add.argument('--notes', help='Notes for the ticker')
     
     # Remove Ticker from Watch List
     remove_wl_ticker_parser = subparsers.add_parser('remove-watchlist-ticker', help='Remove ticker(s) from watch list')
