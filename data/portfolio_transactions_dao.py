@@ -81,6 +81,7 @@ class PortfolioTransactionsDAO:
             cursor = self.connection.cursor(dictionary=True)
             
             # Get all transactions for the portfolio in a single query to improve performance
+            # Order strictly by transaction_date first, then by ID to ensure proper FIFO ordering
             query = """
                 SELECT 
                     s.ticker_id, 
@@ -157,6 +158,10 @@ class PortfolioTransactionsDAO:
                             # Use part of this buy lot
                             buy_queue[0] = (buy_shares - shares_to_sell, buy_price)
                             shares_to_sell = 0
+                    
+                    # Check if we couldn't sell all shares (error condition)
+                    if shares_to_sell > 0:
+                        print(f"Warning: Attempted to sell more shares of {symbol} than available in portfolio. Shares not covered: {shares_to_sell}")
             
             # Calculate position for the last ticker
             if current_ticker is not None and buy_queue:
@@ -188,3 +193,162 @@ class PortfolioTransactionsDAO:
         except Exception as e:
             print(f"Error storing position data for {ticker_id}: {e}")
             return positions_dict
+
+    def add_cash_transaction(self, portfolio_id, transaction_type, amount, transaction_date):
+        """
+        Add a cash deposit or withdrawal transaction with a specific date.
+        
+        Args:
+            portfolio_id (int): ID of the portfolio
+            transaction_type (str): Either 'deposit' or 'withdrawal'
+            amount (float): The cash amount (positive value)
+            transaction_date (datetime): The date when the cash transaction occurred
+            
+        Returns:
+            bool: True if the transaction was added successfully, False otherwise
+        """
+        if transaction_type not in ('deposit', 'withdrawal'):
+            print(f"Error: Invalid cash transaction type '{transaction_type}'. Must be 'deposit' or 'withdrawal'.")
+            return False
+            
+        if amount <= 0:
+            print("Error: Transaction amount must be positive.")
+            return False
+            
+        try:
+            cursor = self.connection.cursor()
+            
+            # Get the current cash balance
+            current_balance = self.get_cash_balance(portfolio_id)
+            
+            # For withdrawals, check if there's enough balance
+            if transaction_type == 'withdrawal' and amount > current_balance:
+            # Map our transaction type to allowed ENUM values: 'buy' for withdrawals, 'sell' for deposits
+            # This is because the database only allows 'buy', 'sell', and 'dividend' as transaction types
+            db_transaction_type = 'sell' if transaction_type == 'deposit' else 'buy'
+            
+            # For cash transactions, we use the cash_security_id and NULL for shares/price
+            # The amount field stores the cash value
+            query = """
+                INSERT INTO portfolio_transactions 
+                (portfolio_id, security_id, transaction_type, transaction_date, amount)
+                VALUES (%s, %s, %s, %s, %s)
+            """
+            
+            # The amount should always be positive in the database
+            # The transaction_type determines if it's a deposit or withdrawal
+            values = (portfolio_id, cash_security_id, db_transaction_type, transaction_date, amount)
+            cursor.execute(query, values)
+            self.connection.commit()
+            return True
+            
+        except mysql.connector.Error as e:
+            print(f"Error adding cash {transaction_type}: {e}")
+            self.connection.rollback()
+            return False
+            
+    def _get_or_create_cash_security_id(self, portfolio_id):
+        """
+        Get or create a special security_id for cash transactions.
+        This is needed because the database schema requires a valid security_id for all transactions.
+        
+        Args:
+            portfolio_id (int): ID of the portfolio
+            
+        Returns:
+            int: The security_id for cash transactions, or None if there was an error
+        """
+        try:
+            cursor = self.connection.cursor()
+            
+            # Check if we have a special cash ticker
+            cursor.execute("SELECT id FROM tickers WHERE ticker = 'CASH'")
+            cash_ticker = cursor.fetchone()
+            
+            # If not, create it
+            if not cash_ticker:
+                cursor.execute(
+                    "INSERT INTO tickers (ticker, ticker_name) VALUES ('CASH', 'Cash Account')"
+                )
+                self.connection.commit()
+                cash_ticker_id = cursor.lastrowid
+            else:
+                cash_ticker_id = cash_ticker[0]
+                
+            # Check if we have a portfolio_securities entry for this cash ticker
+            cursor.execute(
+                "SELECT id FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s",
+                (portfolio_id, cash_ticker_id)
+            )
+            cash_security = cursor.fetchone()
+            
+            # If not, create it
+            if not cash_security:
+                cursor.execute(
+                    "INSERT INTO portfolio_securities (portfolio_id, ticker_id, date_added) VALUES (%s, %s, NOW())",
+                    (portfolio_id, cash_ticker_id)
+                )
+                self.connection.commit()
+                return cursor.lastrowid
+            else:
+                return cash_security[0]
+                
+        except mysql.connector.Error as e:
+            print(f"Error setting up cash security: {e}")
+            self.connection.rollback()
+            return None
+
+    def get_cash_balance(self, portfolio_id):
+        """
+        Calculate the current cash balance for a portfolio based on deposits and withdrawals.
+        
+        Args:
+            portfolio_id (int): ID of the portfolio
+            
+        Returns:
+            float: The current cash balance
+        """
+        try:
+            cursor = self.connection.cursor()
+            
+            # Get the cash ticker ID
+            cursor.execute("SELECT id FROM tickers WHERE ticker = 'CASH'")
+            cash_ticker_result = cursor.fetchone()
+            
+            if not cash_ticker_result:
+                return 0  # No cash ticker found, so no cash transactions
+                
+            cash_ticker_id = cash_ticker_result[0]
+            
+            # Get the portfolio security ID for cash
+            cursor.execute(
+                "SELECT id FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s",
+                (portfolio_id, cash_ticker_id)
+            )
+            cash_security_result = cursor.fetchone()
+            
+            if not cash_security_result:
+                return 0  # No cash security entry, so no cash transactions
+                
+            cash_security_id = cash_security_result[0]
+            
+            # Sum the amounts with the correct mapping:
+            # 'sell' transactions (deposits) are positive
+            # 'buy' transactions (withdrawals) are negative
+            query = """
+                SELECT 
+                    COALESCE(SUM(CASE WHEN transaction_type = 'sell' THEN amount ELSE -amount END), 0) as balance
+                FROM portfolio_transactions
+                WHERE portfolio_id = %s 
+                AND security_id = %s
+            """
+            
+            cursor.execute(query, (portfolio_id, cash_security_id))
+            result = cursor.fetchone()
+            
+            # Return the cash balance (will be 0 if no transactions found)
+            return float(result[0]) if result else 0
+            
+        except mysql.connector.Error as e:
+            print(f"Error retrieving cash balance: {e}")
+            return 0
