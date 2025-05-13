@@ -90,7 +90,7 @@ class TickerCLI:
                 ticker_id = self.ticker_dao.get_ticker_id(symbol)
             
             # Update all ticker data
-            self.data_retrieval.update_ticker_data(symbol)
+            self.data_retrieval.update_symbol_data(symbol)
             if ticker_id:
                 self.data_retrieval.update_ticker_history(symbol, ticker_id)
                 print(f"Successfully updated {symbol} data")

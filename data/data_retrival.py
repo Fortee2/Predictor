@@ -28,24 +28,48 @@ class DataRetrieval:
         self.fundamental_dao.open_connection()
         self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
 
-    def update_ticker_data(self, symbol):
+    def update_symbol_data(self, symbol):
         try:
-            ticker = yf.Ticker(symbol)
-            info = ticker.info if hasattr(ticker, 'info') else {}
+            # First check if industry or sector are missing
+            ticker_id = self.dao.get_ticker_id(symbol)
+            if ticker_id:
+                ticker_data = self.dao.get_ticker_data(ticker_id)
+                
+                # Only proceed with update if industry or sector are missing/unknown
+                should_update = (not ticker_data or 
+                               ticker_data['industry'] is None or 
+                               ticker_data['industry'] == "Unknown" or
+                               ticker_data['sector'] is None or 
+                               ticker_data['sector'] == "Unknown")
+                if should_update:
+                    
+                    ticker = yf.Ticker(symbol)
+                    info = ticker.info if hasattr(ticker, 'info') else {}
+                    
+                    if not info:
+                        print(f"Warning: No info available for {symbol}")
+                        info = {}
+                    
+                    # Update basic ticker info with safe defaults for None values
+                    try:
+                        name = info.get("shortName") or info.get("longName") or symbol
+                        industry = info.get("industry") or "Unknown"
+                        sector = info.get("sector") or "Unknown"
+                        self.dao.update_stock(symbol, name, industry, sector)
+                        print(f"Updated basic info for {symbol}")
+                    except Exception as e:
+                        print(f"Error updating basic info for {symbol}: {str(e)}")
+                else:
+                    print(f"Skipping basic info update for {symbol} - industry and sector already present")
             
-            if not info:
-                print(f"Warning: No info available for {symbol}")
-                info = {}
-            
-            # Update basic ticker info with safe defaults for None values
-            try:
-                name = info.get("shortName") or info.get("longName") or symbol
-                industry = info.get("industry") or "Unknown"
-                sector = info.get("sector") or "Unknown"
-                self.dao.update_stock(symbol, name, industry, sector)
-                print(f"Updated basic info for {symbol}")
-            except Exception as e:
-                print(f"Error updating basic info for {symbol}: {str(e)}")
+            # Always retrieve ticker for other operations, if not already done above
+            if 'ticker' not in locals():
+                ticker = yf.Ticker(symbol)
+                info = ticker.info if hasattr(ticker, 'info') else {}
+                
+                if not info:
+                    print(f"Warning: No info available for {symbol}")
+                    info = {}
             
             # Update fundamental data
             try:
@@ -198,7 +222,7 @@ class DataRetrieval:
                     print(f"\nProcessing {symbol} (ID: {ticker_id})")
                     
                     try:
-                        self.update_ticker_data(symbol)
+                        self.update_symbol_data(symbol)
                         print(f"Updated ticker data for {symbol}")
                     except Exception as e:
                         print(f"Error updating ticker data for {symbol}: {str(e)}")
