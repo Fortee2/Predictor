@@ -10,7 +10,7 @@ from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
 from data.macd import MACD
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.data_retrival import DataRetrieval
+from data.data_retrival_improved import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
 from data.options_data import OptionsData
 from data.trend_analyzer import TrendAnalyzer
@@ -956,96 +956,96 @@ def main():
     # Cash Management Commands
     cash_parser = subparsers.add_parser('manage-cash', help='Manage portfolio cash balance')
     cash_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
-    cash_parser.add.argument('action', choices=['view', 'deposit', 'withdraw'], help='Cash management action')
-    cash_parser.add.argument('--amount', type=float, help='Amount to deposit or withdraw')
+    cash_parser.add_argument('action', choices=['view', 'deposit', 'withdraw'], help='Cash management action')
+    cash_parser.add_argument('--amount', type=float, help='Amount to deposit or withdraw')
 
     # Add Tickers
     add_parser = subparsers.add_parser('add-tickers', help='Add tickers to portfolio')
-    add_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    add_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to add (e.g., AAPL GOOGL)')
+    add_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    add_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to add (e.g., AAPL GOOGL)')
 
     # Remove Tickers
     remove_parser = subparsers.add_parser('remove-tickers', help='Remove tickers from portfolio')
-    remove_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    remove_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
+    remove_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    remove_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
 
     # Log Transaction
     log_parser = subparsers.add_parser('log-transaction', help='Log a transaction')
-    log_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    log_parser.add.argument('type', choices=['buy', 'sell', 'dividend', 'cash'], help='Transaction type')
-    log_parser.add.argument('date', help='Transaction date (YYYY-MM-DD)')
-    log_parser.add.argument('ticker_symbol', nargs='?', help='Ticker symbol (not required for cash transactions)')
-    log_parser.add.argument('--shares', type=float, help='Number of shares (for buy/sell)')
-    log_parser.add.argument('--price', type=float, help='Price per share (for buy/sell)')
-    log_parser.add.argument('--amount', type=float, help='Amount for dividend or cash transactions. For cash: positive = deposit, negative = withdrawal')
+    log_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    log_parser.add_argument('type', choices=['buy', 'sell', 'dividend', 'cash'], help='Transaction type')
+    log_parser.add_argument('date', help='Transaction date (YYYY-MM-DD)')
+    log_parser.add_argument('ticker_symbol', nargs='?', help='Ticker symbol (not required for cash transactions)')
+    log_parser.add_argument('--shares', type=float, help='Number of shares (for buy/sell)')
+    log_parser.add_argument('--price', type=float, help='Price per share (for buy/sell)')
+    log_parser.add_argument('--amount', type=float, help='Amount for dividend or cash transactions. For cash: positive = deposit, negative = withdrawal')
 
     # View Transactions
     trans_parser = subparsers.add_parser('view-transactions', help='View transaction history')
-    trans_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    trans_parser.add.argument('--ticker_symbol', help='Filter by ticker symbol')
+    trans_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    trans_parser.add_argument('--ticker_symbol', help='Filter by ticker symbol')
 
     # Analyze Portfolio
     analyze_parser = subparsers.add_parser('analyze-portfolio', help='Analyze portfolio')
-    analyze_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    analyze_parser.add.argument('--ticker_symbol', help='Analyze specific ticker')
-    analyze_parser.add.argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
-    analyze_parser.add.argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
+    analyze_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    analyze_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
+    analyze_parser.add_argument('--ma_period', type=int, default=20, help='Moving average period for analysis (default: 20)')
+    analyze_parser.add_argument('--lookback_days', type=int, default=5, help='Number of days to look back for trend analysis (default: 5)')
 
     # Update Data
     update_parser = subparsers.add_parser('update-data', help='Update data for all securities in portfolios')
     
     # View Portfolio Performance
     performance_parser = subparsers.add_parser('view-performance', help='View portfolio performance over time')
-    performance_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    performance_parser.add.argument('--days', type=int, default=30, help='Number of days of history to generate if none exists')
-    performance_parser.add.argument('--start_date', help='Start date in YYYY-MM-DD format')
-    performance_parser.add.argument('--end_date', help='End date in YYYY-MM-DD format')
-    performance_parser.add.argument('--chart', action='store_true', help='Generate performance chart')
+    performance_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    performance_parser.add_argument('--days', type=int, default=30, help='Number of days of history to generate if none exists')
+    performance_parser.add_argument('--start_date', help='Start date in YYYY-MM-DD format')
+    performance_parser.add_argument('--end_date', help='End date in YYYY-MM-DD format')
+    performance_parser.add_argument('--chart', action='store_true', help='Generate performance chart')
     
     # Recalculate Portfolio History
     recalc_parser = subparsers.add_parser('recalculate-history', help='Recalculate portfolio historical values')
-    recalc_parser.add.argument('portfolio_id', type=int, help='Portfolio ID')
-    recalc_parser.add.argument('--from_date', help='Date from which to start recalculation (YYYY-MM-DD format)')
+    recalc_parser.add_argument('portfolio_id', type=int, help='Portfolio ID')
+    recalc_parser.add_argument('--from_date', help='Date from which to start recalculation (YYYY-MM-DD format)')
 
     # Watch List Commands
     
     # Create Watch List
     create_wl_parser = subparsers.add_parser('create-watchlist', help='Create a new watch list')
-    create_wl_parser.add.argument('name', help='Watch list name')
-    create_wl_parser.add.argument('--description', help='Watch list description')
+    create_wl_parser.add_argument('name', help='Watch list name')
+    create_wl_parser.add_argument('--description', help='Watch list description')
     
     # View Watch Lists
     view_wl_parser = subparsers.add_parser('view-watchlists', help='View all watch lists')
     
     # View Watch List
     view_wl_details_parser = subparsers.add_parser('view-watchlist', help='View watch list details and tickers')
-    view_wl_details_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
+    view_wl_details_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
     
     # Add Ticker to Watch List
     add_wl_ticker_parser = subparsers.add_parser('add-watchlist-ticker', help='Add ticker(s) to watch list')
-    add_wl_ticker_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
-    add_wl_ticker_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to add')
-    add_wl_ticker_parser.add.argument('--notes', help='Notes for the ticker')
+    add_wl_ticker_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    add_wl_ticker_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to add')
+    add_wl_ticker_parser.add_argument('--notes', help='Notes for the ticker')
     
     # Remove Ticker from Watch List
     remove_wl_ticker_parser = subparsers.add_parser('remove-watchlist-ticker', help='Remove ticker(s) from watch list')
-    remove_wl_ticker_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
-    remove_wl_ticker_parser.add.argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
+    remove_wl_ticker_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    remove_wl_ticker_parser.add_argument('ticker_symbols', nargs='+', help='Ticker symbols to remove')
     
     # Update Watch List Ticker Notes
     update_wl_notes_parser = subparsers.add_parser('update-watchlist-notes', help='Update notes for a ticker in watch list')
-    update_wl_notes_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
-    update_wl_notes_parser.add.argument('ticker_symbol', help='Ticker symbol')
-    update_wl_notes_parser.add.argument('notes', help='Notes for the ticker')
+    update_wl_notes_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    update_wl_notes_parser.add_argument('ticker_symbol', help='Ticker symbol')
+    update_wl_notes_parser.add_argument('notes', help='Notes for the ticker')
     
     # Delete Watch List
     delete_wl_parser = subparsers.add_parser('delete-watchlist', help='Delete a watch list')
-    delete_wl_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
+    delete_wl_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
     
     # Analyze Watch List
     analyze_wl_parser = subparsers.add_parser('analyze-watchlist', help='Analyze tickers in a watch list')
-    analyze_wl_parser.add.argument('watch_list_id', type=int, help='Watch list ID')
-    analyze_wl_parser.add.argument('--ticker_symbol', help='Analyze specific ticker')
+    analyze_wl_parser.add_argument('watch_list_id', type=int, help='Watch list ID')
+    analyze_wl_parser.add_argument('--ticker_symbol', help='Analyze specific ticker')
     
     args = parser.parse_args()
     cli = PortfolioCLI()

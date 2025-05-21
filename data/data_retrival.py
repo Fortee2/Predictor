@@ -42,23 +42,46 @@ class DataRetrieval:
                                ticker_data['sector'] is None or 
                                ticker_data['sector'] == "Unknown")
                 if should_update:
-                    
                     ticker = yf.Ticker(symbol)
-                    info = ticker.info if hasattr(ticker, 'info') else {}
                     
-                    if not info:
-                        print(f"Warning: No info available for {symbol}")
-                        info = {}
-                    
-                    # Update basic ticker info with safe defaults for None values
+                    # Try to use fast_info first for better performance
                     try:
+                        # Get basic info using fast_info
+                        fast_info = ticker.fast_info
+                        
+                        # We still need to get industry and sector from regular info
+                        # as they're not available in fast_info
+                        info = ticker.info if hasattr(ticker, 'info') else {}
+                        
+                        if not info:
+                            print(f"Warning: No info available for {symbol}")
+                            info = {}
+                        
+                        # Update basic ticker info with safe defaults for None values
                         name = info.get("shortName") or info.get("longName") or symbol
                         industry = info.get("industry") or "Unknown"
                         sector = info.get("sector") or "Unknown"
+                        
+                        # Update the database
                         self.dao.update_stock(symbol, name, industry, sector)
                         print(f"Updated basic info for {symbol}")
                     except Exception as e:
-                        print(f"Error updating basic info for {symbol}: {str(e)}")
+                        print(f"Error accessing fast_info for {symbol}: {str(e)}")
+                        # Fallback to traditional method
+                        try:
+                            info = ticker.info if hasattr(ticker, 'info') else {}
+                            if not info:
+                                print(f"Warning: No info available for {symbol}")
+                                info = {}
+                            name = info.get("shortName") or info.get("longName") or symbol
+                            industry = info.get("industry") or "Unknown"
+                            sector = info.get("sector") or "Unknown"
+                            
+                            # Update the database
+                            self.dao.update_stock(symbol, name, industry, sector)
+                            print(f"Updated basic info for {symbol}")
+                        except Exception as e:
+                            print(f"Error updating basic info for {symbol}: {str(e)}")
                 else:
                     print(f"Skipping basic info update for {symbol} - industry and sector already present")
             
@@ -93,11 +116,29 @@ class DataRetrieval:
     def update_fundamental_data(self, ticker, symbol):
         """Updates fundamental data for a given ticker"""
         try:
-            info = ticker.info if hasattr(ticker, 'info') else {}
+            # Try using fast_info where available
+            fast_info = None
+            info = {}
+            market_cap = None
             
-            if not info:
-                print(f"Warning: No fundamental data available for {symbol}")
-                return
+            try:
+                fast_info = ticker.fast_info
+                # Market cap is available in fast_info
+                market_cap = getattr(fast_info, 'market_cap', None)
+                print(f"Using fast_info for {symbol} market cap: {market_cap}")
+            except Exception as e:
+                print(f"Error accessing fast_info for {symbol} fundamentals: {str(e)}")
+            
+            # Get regular info for other metrics not in fast_info
+            try:
+                info = ticker.info if hasattr(ticker, 'info') else {}
+                if not info and not fast_info:
+                    print(f"Warning: No fundamental data available for {symbol}")
+                    return
+            except Exception as e:
+                print(f"Error accessing info for {symbol}: {str(e)}")
+                if not fast_info:
+                    return
             
             ticker_id = self.dao.get_ticker_id(symbol)
             if not ticker_id:
@@ -107,6 +148,7 @@ class DataRetrieval:
             # Convert None values to appropriate defaults
             try:
                 # Extract fundamental data with safe type conversion
+                # Use market_cap from fast_info if available, otherwise from regular info
                 self.fundamental_dao.save_fundamental_data(
                     ticker_id=ticker_id,
                     pe_ratio=float(info.get('trailingPE')) if info.get('trailingPE') is not None else None,
@@ -120,7 +162,7 @@ class DataRetrieval:
                     revenue_growth=float(info.get('revenueGrowth')) if info.get('revenueGrowth') is not None else None,
                     profit_margin=float(info.get('profitMargins')) if info.get('profitMargins') is not None else None,
                     debt_to_equity=float(info.get('debtToEquity')) if info.get('debtToEquity') is not None else None,
-                    market_cap=float(info.get('marketCap')) if info.get('marketCap') is not None else None
+                    market_cap=market_cap if market_cap is not None else (float(info.get('marketCap')) if info.get('marketCap') is not None else None)
                 )
             except (ValueError, TypeError) as e:
                 print(f"Error converting fundamental data for {symbol}: {str(e)}")
@@ -131,35 +173,56 @@ class DataRetrieval:
     def update_ticker_history(self, symbol, ticker_id):
         try:
             ticker = yf.Ticker(symbol)
-            info = ticker.info if hasattr(ticker, 'info') else {}
             
-            if not info:
-                print(f"Warning: No info available for {symbol}")
-                info = {}
+            # Try to use fast_info first to check if the ticker is valid
+            is_delisted = False
+            try:
+                fast_info = ticker.fast_info
+                # If we can get the last price, the stock is likely active
+                last_price = getattr(fast_info, 'last_price', None)
+                if last_price is None or last_price == 0:
+                    print(f"{symbol} might be delisted or not available (fast_info check).")
+                    is_delisted = True
+            except Exception as e:
+                print(f"Error accessing fast_info for {symbol} history check: {str(e)}")
+                # Fall back to traditional method
+                info = ticker.info if hasattr(ticker, 'info') else {}
+                
+                if not info:
+                    print(f"Warning: No info available for {symbol}")
+                    info = {}
 
-            # Check if ticker is delisted or unavailable
-            if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
-                print(f"{symbol} might be delisted or not available.")
+                # Check if ticker is delisted or unavailable
+                if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
+                    print(f"{symbol} might be delisted or not available.")
+                    is_delisted = True
+            
+            # Handle delisted ticker
+            if is_delisted:
                 try:
                     self.dao.ticker_delisted(symbol)
-                    portfolio_ids = self.portfolio_dao.get_portfolios_with_ticker(ticker_id)
-                    for portfolio_id in portfolio_ids:
-                        self.portfolio_dao.remove_tickers_from_portfolio(portfolio_id, [ticker_id])
-                        self.portfolio_transactions_dao.insert_transaction(portfolio_id, None, 'sell', datetime.today().date())
-                    return
                 except Exception as e:
                     print(f"Error handling delisted ticker {symbol}: {str(e)}")
-                    return
+                return
 
             try:
                 df_last_date = self.dao.retrieve_last_activity_date(ticker_id)
-                start = datetime.today() - timedelta(weeks=520)  # create window with enough room for 50 day moving average
-
+                
+                # Get history data - option 1: By date range
                 if df_last_date is not None and not df_last_date.empty and df_last_date.iloc[0, 0] is not None:
+                    # If we have previous data, just get data since last update
                     start = df_last_date.iloc[0, 0] + timedelta(days=1)
-
-                end = datetime.today() + timedelta(days=1)
-                hist = ticker.history(interval="1d", start=start, end=end)
+                    end = datetime.today() + timedelta(days=1)
+                    print(f"Getting history for {symbol} from {start} to {end}")
+                    hist = ticker.history(interval="1d", start=start, end=end)
+                else:
+                    # If no previous data, we can use period parameter instead of start/end dates
+                    # This is more efficient as it only downloads the amount of data specified
+                    # Options: '1d', '5d', '1mo', '3mo', '6mo', '1y', '2y', '5y', '10y', 'ytd', 'max'
+                    # Default to 2 years of data for new tickers which is enough for most analysis
+                    period = '2y'
+                    print(f"No previous data for {symbol}. Getting {period} of history.")
+                    hist = ticker.history(period=period)
 
                 if hist.empty:
                     print(f"No historical data available for {symbol}")
