@@ -1,8 +1,7 @@
-import os
+Marketimport os
 import time
 import random
-from datetime import datetime, timedelta
-import requests
+from datetime import datetime, timedelta, date
 
 from data import rsi_calculations as rsi_calc
 from data import ticker_dao
@@ -41,176 +40,22 @@ class DataRetrieval:
         initial_delay = random.randint(5, 30)
         print(f"Adding initial delay of {initial_delay} seconds...")
         time.sleep(initial_delay)
-        
-        # Setup custom headers and session for YFinance
-        self.session = requests.Session()
-        self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-            'Accept-Language': 'en-US,en;q=0.5',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1',
-            'Cache-Control': 'max-age=0'
-        })
 
-    def _apply_rate_limiting(self, count, is_error=False):
-        """Apply appropriate rate limiting based on request count or errors"""
-        if is_error:
-            pause_time = self.error_pause_time + random.randint(0, self.jitter_max)
-            print(f"Error encountered. Pausing for {pause_time} seconds to respect rate limits...")
-            time.sleep(pause_time)
-            return 0
-        elif count >= self.requests_per_batch:
-            pause_time = self.batch_pause_time + random.randint(0, self.jitter_max)
-            print(f"Batch complete. Pausing for {pause_time} seconds to respect rate limits...")
-            time.sleep(pause_time)
-            return 0
-        return count
-
-    def update_symbol_data(self, symbol):
-        try:
-            # First check if industry or sector are missing
-            ticker_id = self.dao.get_ticker_id(symbol)
-            if ticker_id:
-                ticker_data = self.dao.get_ticker_data(ticker_id)
-                
-                # Only proceed with update if industry or sector are missing/unknown
-                should_update = (not ticker_data or 
-                               ticker_data['industry'] is None or 
-                               ticker_data['industry'] == "Unknown" or
-                               ticker_data['sector'] is None or 
-                               ticker_data['sector'] == "Unknown")
-                if should_update:
-                    # Use session for better header handling
-                    ticker = yf.Ticker(symbol, session=self.session)
-                    
-                    # Try to use fast_info first for better performance
-                    try:
-                        # Get basic info using fast_info
-                        fast_info = ticker.fast_info
-                        
-                        # We still need to get industry and sector from regular info
-                        # as they're not available in fast_info
-                        info = ticker.info if hasattr(ticker, 'info') else {}
-                        
-                        if not info:
-                            print(f"Warning: No info available for {symbol}")
-                            info = {}
-                        
-                        # Update basic ticker info with safe defaults for None values
-                        name = info.get("shortName") or info.get("longName") or symbol
-                        industry = info.get("industry") or "Unknown"
-                        sector = info.get("sector") or "Unknown"
-                        
-                        # Update the database
-                        self.dao.update_stock(symbol, name, industry, sector)
-                        print(f"Updated basic info for {symbol}")
-                    except Exception as e:
-                        print(f"Error accessing fast_info for {symbol}: {str(e)}")
-                        # Fallback to traditional method
-                        try:
-                            info = ticker.info if hasattr(ticker, 'info') else {}
-                            if not info:
-                                print(f"Warning: No info available for {symbol}")
-                                info = {}
-                            name = info.get("shortName") or info.get("longName") or symbol
-                            industry = info.get("industry") or "Unknown"
-                            sector = info.get("sector") or "Unknown"
-                            
-                            # Update the database
-                            self.dao.update_stock(symbol, name, industry, sector)
-                            print(f"Updated basic info for {symbol}")
-                        except Exception as e:
-                            print(f"Error updating basic info for {symbol}: {str(e)}")
-                else:
-                    print(f"Skipping basic info update for {symbol} - industry and sector already present")
-            
-            # Always retrieve ticker for other operations, if not already done above
-            if 'ticker' not in locals():
-                ticker = yf.Ticker(symbol, session=self.session)
-                info = ticker.info if hasattr(ticker, 'info') else {}
-                
-                if not info:
-                    print(f"Warning: No info available for {symbol}")
-                    info = {}
-            
-            # Update fundamental data
+    def _ensure_datetime(self, input_date):
+        """
+        Convert input to datetime, handling various input types
+        """
+        if isinstance(input_date, datetime):
+            return input_date
+        elif isinstance(input_date, date):
+            return datetime.combine(input_date, datetime.min.time())
+        else:
             try:
-                self.update_fundamental_data(ticker, symbol)
-                print(f"Updated fundamental data for {symbol}")
+                # Try parsing string or other convertible types
+                return datetime.fromisoformat(str(input_date))
             except Exception as e:
-                print(f"Error updating fundamental data for {symbol}: {str(e)}")
-            
-            # Update news sentiment
-            try:
-                ticker_id = self.dao.get_ticker_id(symbol)
-                if ticker_id:
-                    self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
-                    print(f"Updated news sentiment for {symbol}")
-            except Exception as e:
-                print(f"Error updating news sentiment for {symbol}: {str(e)}")
-                
-        except Exception as e:
-            print(f"Error in update_ticker_data for {symbol}: {str(e)}")
-            return False
-        return True
-
-    def update_fundamental_data(self, ticker, symbol):
-        """Updates fundamental data for a given ticker"""
-        try:
-            # Try using fast_info where available
-            fast_info = None
-            info = {}
-            market_cap = None
-            
-            try:
-                fast_info = ticker.fast_info
-                # Market cap is available in fast_info
-                market_cap = getattr(fast_info, 'market_cap', None)
-                print(f"Using fast_info for {symbol} market cap: {market_cap}")
-            except Exception as e:
-                print(f"Error accessing fast_info for {symbol} fundamentals: {str(e)}")
-            
-            # Get regular info for other metrics not in fast_info
-            try:
-                info = ticker.info if hasattr(ticker, 'info') else {}
-                if not info and not fast_info:
-                    print(f"Warning: No fundamental data available for {symbol}")
-                    return
-            except Exception as e:
-                print(f"Error accessing info for {symbol}: {str(e)}")
-                if not fast_info:
-                    return
-            
-            ticker_id = self.dao.get_ticker_id(symbol)
-            if not ticker_id:
-                print(f"Error: Could not find ticker ID for {symbol}")
-                return
-            
-            # Convert None values to appropriate defaults
-            try:
-                # Extract fundamental data with safe type conversion
-                # Use market_cap from fast_info if available, otherwise from regular info
-                self.fundamental_dao.save_fundamental_data(
-                    ticker_id=ticker_id,
-                    pe_ratio=float(info.get('trailingPE')) if info.get('trailingPE') is not None else None,
-                    forward_pe=float(info.get('forwardPE')) if info.get('forwardPE') is not None else None,
-                    peg_ratio=float(info.get('pegRatio')) if info.get('pegRatio') is not None else None,
-                    price_to_book=float(info.get('priceToBook')) if info.get('priceToBook') is not None else None,
-                    dividend_yield=float(info.get('dividendYield')) if info.get('dividendYield') is not None else None,
-                    dividend_rate=float(info.get('dividendRate')) if info.get('dividendRate') is not None else None,
-                    eps_ttm=float(info.get('trailingEps')) if info.get('trailingEps') is not None else None,
-                    eps_growth=float(info.get('earningsGrowth')) if info.get('earningsGrowth') is not None else None,
-                    revenue_growth=float(info.get('revenueGrowth')) if info.get('revenueGrowth') is not None else None,
-                    profit_margin=float(info.get('profitMargins')) if info.get('profitMargins') is not None else None,
-                    debt_to_equity=float(info.get('debtToEquity')) if info.get('debtToEquity') is not None else None,
-                    market_cap=market_cap if market_cap is not None else (float(info.get('marketCap')) if info.get('marketCap') is not None else None)
-                )
-            except (ValueError, TypeError) as e:
-                print(f"Error converting fundamental data for {symbol}: {str(e)}")
-            
-        except Exception as e:
-            print(f"Error updating fundamental data for {symbol}: {str(e)}")
+                print(f"Could not convert {input_date} to datetime: {e}")
+                return datetime.now()  # Fallback to current datetime
 
     def update_ticker_history(self, symbol, ticker_id):
         """Updates ticker history with retry mechanism for rate limiting"""
@@ -225,20 +70,7 @@ class DataRetrieval:
                     print(f"Retry attempt {attempt+1}/{self.max_retries} for {symbol} after {retry_delay} seconds...")
                     time.sleep(retry_delay)
                 
-                # Create a new session for each retry to avoid potential session issues
-                if attempt > 0:
-                    print(f"Creating new session for retry {attempt+1}")
-                    self.session = requests.Session()
-                    self.session.headers.update({
-                        'User-Agent': f'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{90+random.randint(0,10)}.0.{4000+random.randint(0,500)}.{random.randint(80,200)} Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-                        'Accept-Language': 'en-US,en;q=0.5',
-                        'Connection': 'keep-alive',
-                        'Upgrade-Insecure-Requests': '1',
-                        'Cache-Control': 'max-age=0'
-                    })
-                
-                ticker = yf.Ticker(symbol, session=self.session)
+                ticker = yf.Ticker(symbol)
                 
                 # Try to use fast_info first to check if the ticker is valid
                 is_delisted = False
@@ -298,7 +130,154 @@ class DataRetrieval:
                     if df_last_date is not None and not df_last_date.empty and df_last_date.iloc[0, 0] is not None:
                         # If we have previous data, just get data since last update
                         # Add buffer days to avoid hitting exact boundaries which might cause rate limiting
-                        start = df_last_date.iloc[0, 0] + timedelta(days=1)
+                        last_date = df_last_date.iloc[0, 0]
+                        
+                        # Robust datetime conversion
+                        last_date = self._ensure_datetime(last_date)
+                        
+                        start = last_date + timedelta(days=1)
+                        end = datetime.today() + timedelta(days=1)
+                        
+                        # Debug logging
+                        print(f"Last date type: {type(last_date)}")
+                        print(f"Start date type: {type(start)}")
+                        print(f"End date type: {type(end)}")
+                        
+                        print(f"Getting history for {symbol} from {start} to {end}")
+                        
+                        # For incremental updates, use a smaller chunk size
+                        days_difference = (end - start).days
+                        if days_difference > 30:
+                            # If getting more than a month of data, split into multiple requests
+                            print(f"Getting history in chunks (incremental update for {days_difference} days)")
+                            hist_parts = []
+                            current_start = start
+                            while current_start < end:
+                                current_end = min(current_start + timedelta(days=30), end)
+                                print(f"Getting chunk from {current_start} to {current_end}")
+                                try:
+                                    chunk = ticker.history(interval="1d", start=current_start, end=current_end)
+                                    if not chunk.empty:
+                                        hist_parts.append(chunk)
+                                except Exception as inner_e:
+                                    if "Too Many Requests" in str(inner_e) and attempt < self.max_retries - 1:
+                                        print("Rate limit hit during chunked history request. Will restart with a new retry.")
+                                        raise inner_e  # This will be caught by the outer try/except
+                                    else:
+                                        print(f"Error during chunk request: {str(inner_e)}")
+                                
+                                time.sleep(random.randint(5, 10))  # Wait between chunk requests
+                                current_start = current_end
+                            
+                            if hist_parts:
+                                hist = pd.concat(hist_parts)
+                            else:
+                                hist = pd.DataFrame()
+                        else:
+                            # Use longer interval to reduce number of data points requested
+                            hist = ticker.history(interval="1d", start=start, end=end)
+                    else:
+                        # Instead of 1 year of history, use 6 months to reduce initial data load
+                        period = '6mo'
+                        print(f"No previous data for {symbol}. Getting {period} of history.")
+                        hist = ticker.history(period=period)
+                
+                except Exception as hist_e:
+                    if "Too Many Requests" in str(hist_e) and attempt < self.max_retries - 1:
+                        print(f"Rate limit hit when retrieving history. Will retry.")
+                        continue
+                    else:
+                        print(f"Error retrieving history data: {str(hist_e)}")
+                        return False
+
+                if hist is None or hist.empty:
+                    print(f"No historical data available for {symbol}")
+                    return True  # Return true as this is not a failure condition
+                
+                # Process the historical data
+                try:
+                    # Break up large data processing into smaller chunks
+                    chunk_size = 50  # Process 50 days at a time
+                    for i in range(0, len(hist), chunk_size):
+                        chunk = hist.iloc[i:i+chunk_size]
+                        for j in range(len(chunk)):
+                            try:
+                                idx = chunk.index[j]
+                                self.dao.update_activity(
+                                    ticker_id, 
+                                    idx,
+                                    float(chunk.loc[idx, 'Open']),
+                                    float(chunk.loc[idx, 'Close']),
+                                    float(chunk.loc[idx, 'Volume']),
+                                    float(chunk.loc[idx, 'High']),
+                                    float(chunk.loc[idx, 'Low'])
+                                )
+
+                                # Check if the stock paid dividends on this date
+                                if chunk.loc[idx, 'Dividends'] > 0:
+                                    self.log_dividend_transactions(ticker_id, idx, float(chunk.loc[idx, 'Dividends']))
+                            except Exception as e:
+                                print(f"Error updating activity for {symbol} on {idx}: {str(e)}")
+                                continue
+                        
+                        # Add a small pause between chunks to avoid overwhelming the database
+                        if i + chunk_size < len(hist):
+                            time.sleep(1)
+                            
+                    # Successfully processed all data
+                    return True
+                    
+                except Exception as processing_e:
+                    print(f"Error processing historical data: {str(processing_e)}")
+                    return False
+                
+            except Exception as e:
+                print(f"Error in update_ticker_history attempt {attempt+1} for {symbol}: {str(e)}")
+                if attempt == self.max_retries - 1:
+                    # This was the last retry attempt
+                    return False
+        
+                        
+                        info = ticker.info if hasattr(ticker, 'info') else {}
+                        
+                        if not info:
+                            print(f"Warning: No info available for {symbol}")
+                            info = {}
+    
+                        # Check if ticker is delisted or unavailable
+                        if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
+                            print(f"{symbol} might be delisted or not available.")
+                            is_delisted = True
+                    except Exception as info_e:
+                        if "Too Many Requests" in str(info_e) and attempt < self.max_retries - 1:
+                            print(f"Rate limit hit when checking info. Will retry.")
+                            continue
+                        print(f"Error accessing info for {symbol}: {str(info_e)}")
+                
+                # Handle delisted ticker
+                if is_delisted:
+                    try:
+                        self.dao.ticker_delisted(symbol)
+                    except Exception as e:
+                        print(f"Error handling delisted ticker {symbol}: {str(e)}")
+                    return True  # Return true because we handled this case appropriately
+                
+                # Get the historical data
+                df_last_date = self.dao.retrieve_last_activity_date(ticker_id)
+                hist = None
+                
+                try:
+                    # Add small delay before getting history
+                    time.sleep(random.randint(1, 3))
+                    
+                    if df_last_date is not None and not df_last_date.empty and df_last_date.iloc[0, 0] is not None:
+                        # If we have previous data, just get data since last update
+                        # Add buffer days to avoid hitting exact boundaries which might cause rate limiting
+                        last_date = df_last_date.iloc[0, 0]
+                        # Explicitly convert to datetime if it's a date
+                        if hasattr(last_date, 'date'):
+                            last_date = datetime.combine(last_date, datetime.min.time())
+                        start = last_date + timedelta(days=1)
                         end = datetime.today() + timedelta(days=1)
                         print(f"Getting history for {symbol} from {start} to {end}")
                         
