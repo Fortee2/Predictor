@@ -1,4 +1,4 @@
-Marketimport os
+import os
 import time
 import random
 from datetime import datetime, timedelta, date
@@ -237,22 +237,17 @@ class DataRetrieval:
                     # This was the last retry attempt
                     return False
         
-                        
-                        info = ticker.info if hasattr(ticker, 'info') else {}
-                        
-                        if not info:
-                            print(f"Warning: No info available for {symbol}")
-                            info = {}
-    
-                        # Check if ticker is delisted or unavailable
-                        if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
-                            print(f"{symbol} might be delisted or not available.")
-                            is_delisted = True
-                    except Exception as info_e:
-                        if "Too Many Requests" in str(info_e) and attempt < self.max_retries - 1:
-                            print(f"Rate limit hit when checking info. Will retry.")
-                            continue
-                        print(f"Error accessing info for {symbol}: {str(info_e)}")
+                info = ticker.info if hasattr(ticker, 'info') else {}
+                
+                if not info:
+                    print(f"Warning: No info available for {symbol}")
+                    info = {}
+
+                # Check if ticker is delisted or unavailable
+                if not info.get('regularMarketPrice') and not info.get('financialCurrency'):
+                    print(f"{symbol} might be delisted or not available.")
+                    is_delisted = True
+                
                 
                 # Handle delisted ticker
                 if is_delisted:
