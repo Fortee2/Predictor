@@ -10,7 +10,7 @@ from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
 from data.macd import MACD
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.data_retrival_improved import DataRetrieval
+from data.data_retrieval_consolidated import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
 from data.options_data import OptionsData
 from data.trend_analyzer import TrendAnalyzer

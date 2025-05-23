@@ -2,7 +2,7 @@
 import argparse
 import os
 from data.ticker_dao import TickerDao
-from data.data_retrival import DataRetrieval
+from data.data_retrieval_consolidated import DataRetrieval
 from dotenv import load_dotenv
 import pandas as pd
 
