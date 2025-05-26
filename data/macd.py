@@ -118,6 +118,10 @@ class MACD:
 
     def get_macd_signals(self, ticker_id):
         """Get buy/sell signals based on MACD crossovers"""
+        # First, ensure MACD data is up to date
+        self.calculate_macd(ticker_id)
+        
+        # Load the most recent MACD data
         df = self.load_macd_from_db(ticker_id)
         if df is None or df.empty:
             return None
