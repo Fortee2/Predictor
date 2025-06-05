@@ -50,16 +50,10 @@ def main():
     else:
         # Use enhanced GUI-like interface
         console.print("[green]Starting enhanced user interface...[/green]")
-        try:
-            from enhanced_cli import EnhancedCLI
-            cli = EnhancedCLI()
-            cli.main_menu()
-            return 0
-        except Exception as e:
-            console.print(f"[bold red]Error starting enhanced interface: {str(e)}[/bold red]")
-            console.print("[yellow]Falling back to traditional interface...[/yellow]")
-            from portfolio_cli import main as cli_main
-            return cli_main()
+        from enhanced_cli.main import EnhancedCLI
+        cli = EnhancedCLI()
+        cli.run()
+        return 0
 
 if __name__ == "__main__":
     sys.exit(main())

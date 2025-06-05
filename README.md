@@ -26,8 +26,13 @@ This project is a comprehensive stock portfolio management and analysis system t
 ## System Architecture
 
 ### Command-line Interfaces
-- `portfolio_cli.py`: Main CLI tool for portfolio management operations
+- `enhanced_cli.py`: Rich interactive CLI with full portfolio management functionality
+- `portfolio_cli.py`: Traditional CLI tool for portfolio management operations
 - `ticker_cli.py`: CLI tool for ticker management and data updates
+- `launch.py`: Main entry point that can launch either CLI version
+
+### Data Retrieval
+- `data_retrieval_consolidated.py`: Consolidated module for retrieving data with improved rate limiting
 
 ### Ticker Management Guide
 
@@ -98,7 +103,7 @@ MSFT     Microsoft Corp    2     Software                                 Techno
 ```
 
 ### Data Access Layer
-- `portfolio_dao.py`: Portfolio creation and management
+- `portfolio_dao.py`: Portfolio creation and management, cash management operations
 - `portfolio_transactions_dao.py`: Transaction recording and retrieval
 - `ticker_dao.py`: Stock symbol management and data retrieval
 - `portfolio_value_calculator.py`: Calculates portfolio values using current prices
@@ -137,6 +142,7 @@ MSFT     Microsoft Corp    2     Software                                 Techno
   - requests
   - transformers
   - torch
+  - rich (for enhanced CLI)
 
 ## Environment Setup
 
@@ -310,6 +316,43 @@ Portfolio Value History:
 Performance chart saved to: /Users/username/portfolio_1_performance.png
 ```
 
+### Cash Management
+
+1. **View Cash Balance**
+```bash
+python portfolio_cli.py manage-cash 1 view
+```
+- Shows the current cash balance for a portfolio
+- Example output:
+```
+Cash Balance for Portfolio: My Tech Portfolio
+Available Cash: $5,000.00
+```
+
+2. **Deposit Cash**
+```bash
+python portfolio_cli.py manage-cash 1 deposit --amount 1000.00
+```
+- Adds cash to a portfolio
+- Records the deposit in the cash transaction history
+- Example output:
+```
+Deposited $1000.00 to portfolio My Tech Portfolio
+New Cash Balance: $6,000.00
+```
+
+3. **Withdraw Cash**
+```bash
+python portfolio_cli.py manage-cash 1 withdraw --amount 500.00
+```
+- Withdraws cash from a portfolio
+- Records the withdrawal in the cash transaction history
+- Example output:
+```
+Withdrew $500.00 from portfolio My Tech Portfolio
+New Cash Balance: $5,500.00
+```
+
 ### Error Handling
 
 The system provides clear error messages for common scenarios:
@@ -445,6 +488,26 @@ Date: 2025-03-10 10:15:00
 Sentiment: 0.6540 (Confidence: 0.8830)
 Link: https://bloomberg.com/news/...
 ```
+
+## Code Organization and Maintenance
+
+### Recent Improvements
+
+1. **Data Retrieval Consolidation**
+   - Consolidated multiple data retrieval modules into a single `data_retrieval_consolidated.py`
+   - Improved YFinance rate limiting to handle API restrictions
+   - Enhanced error handling and retry logic
+   - Added randomization to avoid pattern detection in API calls
+
+2. **Cash Management Consolidation**
+   - Unified cash management functionality in `portfolio_dao.py`
+   - Removed duplicate functions from `ticker_dao.py`
+   - Enhanced transaction tracking with comprehensive history
+
+3. **Enhanced CLI Interface**
+   - Added rich text formatting and interactive menus
+   - Improved user experience with progress indicators and status messages
+   - Clear visual separation between different sections and functions
 
 ### Usage Options
 
