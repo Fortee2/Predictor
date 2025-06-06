@@ -15,6 +15,9 @@ from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
+# Import DataRetrieval lazily to avoid startup delay
+# This prevents the initial delay caused by DataRetrieval's initialization
+
 
 class UpdateDataCommand(Command):
     """Command to update data for all securities in portfolios."""
@@ -36,9 +39,22 @@ class UpdateDataCommand(Command):
         ):
             return
         
+        # Import here to avoid startup delay
+        from data.data_retrieval_consolidated import DataRetrieval
+        import os
+        
+        # Get database credentials from PortfolioCLI instance
+        db_user = os.getenv('DB_USER')
+        db_password = os.getenv('DB_PASSWORD')
+        db_host = os.getenv('DB_HOST')
+        db_name = os.getenv('DB_NAME')
+        
         with ui.progress("Updating stock data...") as progress:
             progress.add_task("", total=None)
-            cli.cli.update_data()
+            
+            # Create DataRetrieval instance only when needed
+            data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
+            data_retrieval.update_stock_activity()
         
         ui.status_message("Data update complete", "success")
 
