@@ -98,7 +98,8 @@ class PortfolioValueCalculator:
             # Fetch historical stock prices for the calculation date
             stock_prices = {}
             for ticker_id, symbol in ticker_symbols.items():
-                if shares_held[ticker_id] <= 0:
+                # Check if ticker_id exists in shares_held, if not, skip it
+                if ticker_id not in shares_held or shares_held[ticker_id] <= 0:
                     continue
                     
                 # Try to get data from investing.activity table if it exists
@@ -200,29 +201,72 @@ class PortfolioValueCalculator:
             print(f"\nTotal portfolio value: ${portfolio_value:.2f}")
 
             # Check for existing value on this date
-            query = "SELECT id FROM portfolio_value WHERE portfolio_id = %s AND calculation_date = %s"
-            cursor.execute(query, (portfolio_id, calculation_date))
-            existing = cursor.fetchone()
-            
-            if existing:
-                # Update existing record
-                query = "UPDATE portfolio_value SET value = %s WHERE portfolio_id = %s AND calculation_date = %s"
-                values = (portfolio_value, portfolio_id, calculation_date)
-                cursor.execute(query, values)
-                print(f"Updated existing value record for {calculation_date}")
-            else:
-                # Insert new record
-                query = "INSERT INTO portfolio_value (portfolio_id, calculation_date, value) VALUES (%s, %s, %s)"
-                values = (portfolio_id, calculation_date, portfolio_value)
-                cursor.execute(query, values)
-                print(f"Created new value record for {calculation_date}")
+            try:
+                query = "SELECT id FROM portfolio_value WHERE portfolio_id = %s AND calculation_date = %s"
+                cursor.execute(query, (portfolio_id, calculation_date))
+                existing = cursor.fetchone()
                 
-            self.connection.commit()
-            return portfolio_value
+                # Convert portfolio_value to Decimal for database storage
+                from decimal import Decimal
+                portfolio_value_decimal = Decimal(str(round(portfolio_value, 2)))
+                
+                if existing:
+                    # Update existing record
+                    query = "UPDATE portfolio_value SET value = %s WHERE portfolio_id = %s AND calculation_date = %s"
+                    values = (portfolio_value_decimal, portfolio_id, calculation_date)
+                    cursor.execute(query, values)
+                    print(f"Updated existing value record for {calculation_date}")
+                else:
+                    # Insert new record
+                    query = "INSERT INTO portfolio_value (portfolio_id, calculation_date, value) VALUES (%s, %s, %s)"
+                    values = (portfolio_id, calculation_date, portfolio_value_decimal)
+                    cursor.execute(query, values)
+                    print(f"Created new value record for {calculation_date}")
+                    
+                self.connection.commit()
+                return portfolio_value
+                
+            except mysql.connector.Error as db_error:
+                print(f"Database error saving portfolio value: {db_error}")
+                print(f"Error code: {db_error.errno}")
+                print(f"Error message: {db_error.msg}")
+                
+                # Check if portfolio_value table exists
+                try:
+                    cursor.execute("SHOW TABLES LIKE 'portfolio_value'")
+                    table_exists = cursor.fetchone()
+                    if not table_exists:
+                        print("ERROR: portfolio_value table does not exist!")
+                        print("You may need to run the database setup script to create the table.")
+                        return None
+                    else:
+                        # Check table structure
+                        cursor.execute("DESCRIBE portfolio_value")
+                        columns = cursor.fetchall()
+                        print("portfolio_value table structure:")
+                        for col in columns:
+                            print(f"  {col}")
+                except Exception as table_check_error:
+                    print(f"Error checking table structure: {table_check_error}")
+                
+                self.connection.rollback()
+                return None
 
         except mysql.connector.Error as e:
-            print(f"Error calculating portfolio value: {e}")
+            print(f"Database error calculating portfolio value: {e}")
+            print(f"Error code: {e.errno}")
+            print(f"Error message: {e.msg}")
             return None
+        except Exception as e:
+            print(f"General error calculating portfolio value: {e}")
+            print(f"Error type: {type(e)}")
+            import traceback
+            print("Full traceback:")
+            traceback.print_exc()
+            return None
+        finally:
+            if cursor:
+                cursor.close()
 
     def get_ticker_symbol(self, ticker_id):
         try:
@@ -373,6 +417,7 @@ class PortfolioValueCalculator:
         Returns:
             bool: True if successful, False otherwise
         """
+        cursor = None
         try:
             cursor = self.connection.cursor()
             today = date.today()
@@ -392,9 +437,17 @@ class PortfolioValueCalculator:
                     # Default to 30 days ago if no transactions found
                     from_date = today - timedelta(days=30)
             
-            # Convert string date to date object if necessary
+            # Ensure from_date is a date object
             if isinstance(from_date, str):
-                from_date = pd.to_datetime(from_date).date()
+                try:
+                    from_date = pd.to_datetime(from_date).date()
+                except:
+                    # Fallback to manual parsing
+                    from datetime import datetime
+                    from_date = datetime.strptime(from_date, '%Y-%m-%d').date()
+            elif hasattr(from_date, 'date'):
+                # Handle datetime objects
+                from_date = from_date.date()
                 
             print(f"Recalculating portfolio values from {from_date} to {today}")
                 
@@ -411,18 +464,52 @@ class PortfolioValueCalculator:
             # Calculate the number of days to recalculate
             days_to_calculate = (today - from_date).days + 1
             
+            # Limit the number of days to prevent excessive processing
+            if days_to_calculate > 365:
+                print(f"Warning: Attempting to recalculate {days_to_calculate} days. Limiting to 365 days.")
+                days_to_calculate = 365
+                from_date = today - timedelta(days=364)
+            
             # Recalculate for each day
             calculation_dates = [from_date + timedelta(days=i) for i in range(days_to_calculate)]
+            successful_calculations = 0
+            failed_calculations = 0
+            
             for calc_date in calculation_dates:
-                print(f"Calculating portfolio value for {calc_date}")
-                self.calculate_portfolio_value(portfolio_id, calc_date)
+                try:
+                    print(f"Calculating portfolio value for {calc_date}")
+                    result = self.calculate_portfolio_value(portfolio_id, calc_date)
+                    if result is not None:
+                        successful_calculations += 1
+                    else:
+                        failed_calculations += 1
+                        print(f"  Failed to calculate value for {calc_date}")
+                except Exception as calc_error:
+                    failed_calculations += 1
+                    print(f"  Error calculating value for {calc_date}: {calc_error}")
+                    continue
+            
+            print(f"\nRecalculation complete:")
+            print(f"  Successful: {successful_calculations}")
+            print(f"  Failed: {failed_calculations}")
+            
+            return successful_calculations > 0
                 
-            return True
-                
+        except mysql.connector.Error as db_error:
+            print(f"Database error recalculating historical portfolio values: {db_error}")
+            print(f"Error code: {db_error.errno}")
+            print(f"Error message: {db_error.msg}")
+            if self.connection:
+                self.connection.rollback()
+            return False
         except Exception as e:
             print(f"Error recalculating historical portfolio values: {e}")
-            self.connection.rollback()
+            if self.connection:
+                self.connection.rollback()
             return False
+        finally:
+            if cursor:
+                cursor.close()
 
     def generate_performance_chart(self, portfolio_id, start_date=None, end_date=None):
         """
