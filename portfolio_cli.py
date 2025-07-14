@@ -269,6 +269,7 @@ class PortfolioCLI:
 
                     # MACD Analysis
                     try:
+                        # Calculate MACD data once and reuse it
                         macd_data = self.macd_analyzer.calculate_macd(ticker_id)
                         if (macd_data is not None) and (not macd_data.empty):
                             latest_macd = macd_data.iloc[-1]
@@ -278,11 +279,36 @@ class PortfolioCLI:
                             print(f"║   Signal Line: {latest_macd['signal_line']:.2f}{' ' * 42}║")
                             print(f"║   Histogram: {latest_macd['histogram']:.2f}{' ' * 44}║")
 
-                        # Get MACD signals
-                        macd_signals = self.macd_analyzer.get_macd_signals(ticker_id)
-                        if macd_signals and len(macd_signals) > 0:
-                            latest_signal = macd_signals[-1]
-                            print(f"║ Latest MACD Signal ({latest_signal['date'].strftime('%Y-%m-%d')}): {latest_signal['signal']:<27}║")
+                            # Calculate signals from the same data instead of calling get_macd_signals
+                            # which would recalculate everything
+                            macd_data['signal_shift'] = macd_data['signal_line'].shift(1)
+                            macd_data['macd_shift'] = macd_data['macd'].shift(1)
+                            
+                            signals = []
+                            for date in macd_data.index[1:]:  # Skip first row due to shift
+                                # Bullish crossover (MACD crosses above Signal)
+                                if macd_data.loc[date, 'macd'] > macd_data.loc[date, 'signal_line'] and \
+                                   macd_data.loc[date, 'macd_shift'] <= macd_data.loc[date, 'signal_shift']:
+                                    signals.append({
+                                        'date': date,
+                                        'signal': 'BUY',
+                                        'macd': macd_data.loc[date, 'macd'],
+                                        'signal_line': macd_data.loc[date, 'signal_line']
+                                    })
+                                
+                                # Bearish crossover (MACD crosses below Signal)
+                                elif macd_data.loc[date, 'macd'] < macd_data.loc[date, 'signal_line'] and \
+                                     macd_data.loc[date, 'macd_shift'] >= macd_data.loc[date, 'signal_shift']:
+                                    signals.append({
+                                        'date': date,
+                                        'signal': 'SELL',
+                                        'macd': macd_data.loc[date, 'macd'],
+                                        'signal_line': macd_data.loc[date, 'signal_line']
+                                    })
+                            
+                            if signals and len(signals) > 0:
+                                latest_signal = signals[-1]
+                                print(f"║ Latest MACD Signal ({latest_signal['date'].strftime('%Y-%m-%d')}): {latest_signal['signal']:<27}║")
                     except Exception as e:
                         print(f"║ MACD: Unable to calculate                                    ║")
 
