@@ -5,12 +5,8 @@ This module provides commands for portfolio management operations such as
 listing, creating, viewing, and managing portfolios.
 """
 
-from typing import Optional, Dict, List, Any
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from datetime import datetime
-
-from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -189,17 +185,20 @@ class ViewPortfolioCommand(Command):
         columns = [
             {'header': 'Symbol', 'style': 'cyan'},
             {'header': 'Shares', 'justify': 'right'},
-            {'header': 'Avg Price', 'justify': 'right'},
+            {'header': 'Avg Cost', 'justify': 'right', 'style': 'yellow'},
             {'header': 'Current Price', 'justify': 'right'},
             {'header': 'Value', 'justify': 'right'},
+            {'header': 'Weight %', 'justify': 'right', 'style': 'magenta'},
             {'header': 'Gain/Loss', 'justify': 'right'},
             {'header': 'Percent', 'justify': 'right'}
         ]
         
         portfolio_value = 0
+        position_values = []  # Store position values for weight calculation
         rows = []
         
         if positions:
+            # First pass: calculate all position values
             for ticker_id, position in positions.items():
                 ticker_data = cli.cli.ticker_dao.get_ticker_data(ticker_id)
                 current_price = ticker_data.get('last_price', 0)
@@ -207,15 +206,37 @@ class ViewPortfolioCommand(Command):
                 avg_price = position.get('avg_price', 0)
                 avg_price = float(avg_price) if hasattr(avg_price, 'as_tuple') else avg_price
                 value = shares * current_price
-                gain_loss = value - (shares * avg_price)
-                percent = (gain_loss / (shares * avg_price)) * 100 if avg_price > 0 else 0
                 
                 portfolio_value += value
+                position_values.append({
+                    'ticker_id': ticker_id,
+                    'position': position,
+                    'ticker_data': ticker_data,
+                    'current_price': current_price,
+                    'shares': shares,
+                    'avg_price': avg_price,
+                    'value': value
+                })
+            
+            # Second pass: create table rows with weight calculations
+            for pos_data in position_values:
+                position = pos_data['position']
+                current_price = pos_data['current_price']
+                shares = pos_data['shares']
+                avg_price = pos_data['avg_price']
+                value = pos_data['value']
+                
+                # Calculate weight percentage
+                weight_percent = (value / portfolio_value * 100) if portfolio_value > 0 else 0
+                
+                # Calculate gain/loss
+                gain_loss = value - (shares * avg_price)
+                percent_change = (gain_loss / (shares * avg_price)) * 100 if avg_price > 0 else 0
                 
                 # Color formatting for gain/loss values
                 gl_color = "green" if gain_loss >= 0 else "red"
                 gl_formatted = f"[{gl_color}]${gain_loss:.2f}[/{gl_color}]"
-                percent_formatted = f"[{gl_color}]{percent:.2f}%[/{gl_color}]"
+                percent_formatted = f"[{gl_color}]{percent_change:.2f}%[/{gl_color}]"
                 
                 rows.append([
                     position['symbol'],
@@ -223,11 +244,12 @@ class ViewPortfolioCommand(Command):
                     f"${avg_price:.2f}",
                     f"${current_price:.2f}",
                     f"${value:.2f}",
+                    f"{weight_percent:.1f}%",
                     gl_formatted,
                     percent_formatted
                 ])
         else:
-            rows.append(["[italic]No current holdings[/italic]", "", "", "", "", "", ""])
+            rows.append(["[italic]No current holdings[/italic]", "", "", "", "", "", "", ""])
         
         holdings_table = ui.data_table("Current Holdings", columns, rows)
         ui.console.print(holdings_table)

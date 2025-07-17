@@ -5,12 +5,9 @@ This module contains the core CLI class that coordinates all components
 and provides the main menu and application flow.
 """
 
-import sys
 import os
 import logging
-from typing import Dict, List, Optional, Any, Callable
 from rich.console import Console
-from rich import box
 
 from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import CommandRegistry, error_handler
@@ -102,6 +99,7 @@ class EnhancedCLI:
         from enhanced_cli.settings_views import register_settings_commands as real_register_settings_commands
         from enhanced_cli.cash_management_views import register_cash_management_commands as real_register_cash_management_commands
         from enhanced_cli.data_views import register_data_commands as real_register_data_commands
+        from enhanced_cli.comprehensive_analysis_views import register_comprehensive_analysis_commands
         
         # Register actual commands from each module
         real_register_portfolio_commands(self.command_registry)
@@ -111,6 +109,7 @@ class EnhancedCLI:
         real_register_settings_commands(self.command_registry)
         real_register_cash_management_commands(self.command_registry)
         real_register_data_commands(self.command_registry)
+        register_comprehensive_analysis_commands(self.command_registry)
     
     def display_header(self):
         """Display application header."""
@@ -212,7 +211,10 @@ class EnhancedCLI:
         options = {
             "1": "Analyze Portfolio",
             "2": "View Portfolio Performance",
-            "3": "Back to Main Menu"
+            "3": "Comprehensive Analysis",
+            "4": "View Saved Metrics",
+            "5": "Update Benchmark Data",
+            "6": "Back to Main Menu"
         }
         
         choice = ui.menu("Analysis Tools", options)
@@ -221,7 +223,13 @@ class EnhancedCLI:
             self.command_registry.execute("analyze_portfolio", self)
         elif choice == "2":
             self.command_registry.execute("view_performance", self)
-        # choice 3 returns to main menu
+        elif choice == "3":
+            self.command_registry.execute("comprehensive_analysis", self)
+        elif choice == "4":
+            self.command_registry.execute("view_saved_metrics", self)
+        elif choice == "5":
+            self.command_registry.execute("update_benchmark_data", self)
+        # choice 6 returns to main menu
     
     def show_watchlist_menu(self):
         """Display the watch list management menu."""
