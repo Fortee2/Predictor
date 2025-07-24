@@ -145,15 +145,19 @@ class ViewPortfolioCommand(Command):
         portfolio_id = kwargs.get('portfolio_id')
         
         if portfolio_id is None:
-            # List portfolios and ask for selection
-            list_command = ListPortfoliosCommand()
-            list_command.execute(cli)
-            
-            try:
-                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to view[/bold]"))
-            except ValueError:
-                ui.status_message("Invalid portfolio ID", "error")
-                return
+            # Use selected portfolio if available
+            if hasattr(cli, 'selected_portfolio') and cli.selected_portfolio:
+                portfolio_id = cli.selected_portfolio
+            else:
+                # List portfolios and ask for selection
+                list_command = ListPortfoliosCommand()
+                list_command.execute(cli)
+                
+                try:
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to view[/bold]"))
+                except ValueError:
+                    ui.status_message("Invalid portfolio ID", "error")
+                    return
         
         with ui.progress("Loading portfolio details...") as progress:
             progress.add_task("", total=None)
@@ -321,15 +325,19 @@ class AddTickersCommand(Command):
         portfolio_id = kwargs.get('portfolio_id')
         
         if portfolio_id is None:
-            # List portfolios and ask for selection
-            list_command = ListPortfoliosCommand()
-            list_command.execute(cli)
-            
-            try:
-                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
-            except ValueError:
-                ui.status_message("Invalid portfolio ID", "error")
-                return
+            # Use selected portfolio if available
+            if hasattr(cli, 'selected_portfolio') and cli.selected_portfolio:
+                portfolio_id = cli.selected_portfolio
+            else:
+                # List portfolios and ask for selection
+                list_command = ListPortfoliosCommand()
+                list_command.execute(cli)
+                
+                try:
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
+                except ValueError:
+                    ui.status_message("Invalid portfolio ID", "error")
+                    return
         
         # Get portfolio info for header
         portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)
@@ -370,15 +378,19 @@ class RemoveTickersCommand(Command):
         portfolio_id = kwargs.get('portfolio_id')
         
         if portfolio_id is None:
-            # List portfolios and ask for selection
-            list_command = ListPortfoliosCommand()
-            list_command.execute(cli)
-            
-            try:
-                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
-            except ValueError:
-                ui.status_message("Invalid portfolio ID", "error")
-                return
+            # Use selected portfolio if available
+            if hasattr(cli, 'selected_portfolio') and cli.selected_portfolio:
+                portfolio_id = cli.selected_portfolio
+            else:
+                # List portfolios and ask for selection
+                list_command = ListPortfoliosCommand()
+                list_command.execute(cli)
+                
+                try:
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
+                except ValueError:
+                    ui.status_message("Invalid portfolio ID", "error")
+                    return
         
         # Get portfolio info
         portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)
@@ -431,15 +443,19 @@ class RecalculatePortfolioValuesCommand(Command):
         portfolio_id = kwargs.get('portfolio_id')
         
         if portfolio_id is None:
-            # List portfolios and ask for selection
-            list_command = ListPortfoliosCommand()
-            list_command.execute(cli)
-            
-            try:
-                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to recalculate[/bold]"))
-            except ValueError:
-                ui.status_message("Invalid portfolio ID", "error")
-                return
+            # Use selected portfolio if available
+            if hasattr(cli, 'selected_portfolio') and cli.selected_portfolio:
+                portfolio_id = cli.selected_portfolio
+            else:
+                # List portfolios and ask for selection
+                list_command = ListPortfoliosCommand()
+                list_command.execute(cli)
+                
+                try:
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to recalculate[/bold]"))
+                except ValueError:
+                    ui.status_message("Invalid portfolio ID", "error")
+                    return
         
         # Get portfolio info for header
         portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)

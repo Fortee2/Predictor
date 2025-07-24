@@ -8,6 +8,7 @@ and provides the main menu and application flow.
 import os
 import logging
 from rich.console import Console
+from rich.prompt import Prompt
 
 from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import CommandRegistry, error_handler
@@ -22,6 +23,7 @@ class EnhancedCLI:
         self.console = Console()
         self.cli = PortfolioCLI()
         self.command_registry = CommandRegistry(self.console)
+        self.selected_portfolio = None
         self.configure_logging()
         self.register_commands()
     
@@ -115,6 +117,10 @@ class EnhancedCLI:
         """Display application header."""
         header = ui.header("Portfolio & Stock Management System", "v1.0.0")
         self.console.print(header)
+        if self.selected_portfolio:
+            portfolio = self.cli.portfolio_dao.read_portfolio(self.selected_portfolio)
+            if portfolio:
+                self.console.print(f"\n[bold blue]Selected Portfolio:[/bold blue] [green]{portfolio['name']}[/green] (ID: {portfolio['id']})")
     
     def display_main_menu(self) -> str:
         """
@@ -126,18 +132,20 @@ class EnhancedCLI:
         # Create menu options from command categories
         menu_options = {}
         
+        # Portfolio selection
+        menu_options["1"] = "Select Portfolio" if not self.selected_portfolio else "Change Portfolio"
         # Portfolio commands
-        menu_options["1"] = "Portfolio Management"
+        menu_options["2"] = "Portfolio Management"
         # Transaction commands
-        menu_options["2"] = "Transactions"
+        menu_options["3"] = "Transactions"
         # Analysis commands
-        menu_options["3"] = "Analysis Tools"
+        menu_options["4"] = "Analysis Tools"
         # Watchlist commands
-        menu_options["4"] = "Watch List Management"
+        menu_options["5"] = "Watch List Management"
         # Data commands
-        menu_options["5"] = "Data Management"
+        menu_options["6"] = "Data Management"
         # Settings
-        menu_options["6"] = "Settings"
+        menu_options["7"] = "Settings"
         # Exit
         menu_options["0"] = "Exit"
         
@@ -154,16 +162,24 @@ class EnhancedCLI:
             False if the application should exit, True otherwise
         """
         if choice == "1":
-            self.show_portfolio_menu()
+            self.select_portfolio()
         elif choice == "2":
-            self.show_transaction_menu()
+            self.show_portfolio_menu()
         elif choice == "3":
-            self.show_analysis_menu()
+            if not self.selected_portfolio:
+                self.console.print("[yellow]Please select a portfolio first.[/yellow]")
+            else:
+                self.show_transaction_menu()
         elif choice == "4":
-            self.show_watchlist_menu()
+            if not self.selected_portfolio:
+                self.console.print("[yellow]Please select a portfolio first.[/yellow]")
+            else:
+                self.show_analysis_menu()
         elif choice == "5":
-            self.show_data_menu()
+            self.show_watchlist_menu()
         elif choice == "6":
+            self.show_data_menu()
+        elif choice == "7":
             self.show_settings_menu()
         elif choice == "0":
             self.console.print("[bold green]Thank you for using the Portfolio Management System![/bold green]")
@@ -190,6 +206,20 @@ class EnhancedCLI:
             self.command_registry.execute("view_portfolio", self)
         # choice 4 returns to main menu
     
+    def select_portfolio(self):
+        """Select a portfolio to work with."""
+        self.command_registry.execute("list_portfolios", self)
+        try:
+            portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to select[/bold]"))
+            portfolio = self.cli.portfolio_dao.read_portfolio(portfolio_id)
+            if portfolio:
+                self.selected_portfolio = portfolio_id
+                self.console.print(f"[green]Selected portfolio: {portfolio['name']}[/green]")
+            else:
+                self.console.print("[red]Portfolio not found.[/red]")
+        except ValueError:
+            self.console.print("[red]Invalid portfolio ID.[/red]")
+
     def show_transaction_menu(self):
         """Display the transaction management menu."""
         options = {
@@ -201,9 +231,9 @@ class EnhancedCLI:
         choice = ui.menu("Transaction Management", options)
         
         if choice == "1":
-            self.command_registry.execute("log_transaction", self)
+            self.command_registry.execute("log_transaction", self, portfolio_id=self.selected_portfolio)
         elif choice == "2":
-            self.command_registry.execute("view_transactions", self)
+            self.command_registry.execute("view_transactions", self, portfolio_id=self.selected_portfolio)
         # choice 3 returns to main menu
     
     def show_analysis_menu(self):
@@ -220,11 +250,11 @@ class EnhancedCLI:
         choice = ui.menu("Analysis Tools", options)
         
         if choice == "1":
-            self.command_registry.execute("analyze_portfolio", self)
+            self.command_registry.execute("analyze_portfolio", self, portfolio_id=self.selected_portfolio)
         elif choice == "2":
-            self.command_registry.execute("view_performance", self)
+            self.command_registry.execute("view_performance", self, portfolio_id=self.selected_portfolio)
         elif choice == "3":
-            self.command_registry.execute("comprehensive_analysis", self)
+            self.command_registry.execute("comprehensive_analysis", self, portfolio_id=self.selected_portfolio)
         elif choice == "4":
             self.command_registry.execute("view_saved_metrics", self)
         elif choice == "5":

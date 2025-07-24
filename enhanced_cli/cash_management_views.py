@@ -5,12 +5,9 @@ This module provides commands for cash management operations such as
 viewing cash balances, depositing, and withdrawing cash.
 """
 
-from typing import Optional, Dict, List, Any
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from datetime import datetime
 
-from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -33,16 +30,20 @@ class ManageCashCommand(Command):
         portfolio_id = kwargs.get('portfolio_id')
         
         if portfolio_id is None:
-            # First list portfolios for selection
-            from enhanced_cli.portfolio_views import ListPortfoliosCommand
-            list_command = ListPortfoliosCommand()
-            list_command.execute(cli)
-            
-            try:
-                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
-            except ValueError:
-                ui.status_message("Invalid portfolio ID", "error")
-                return
+            # Use selected portfolio if available
+            if hasattr(cli, 'selected_portfolio') and cli.selected_portfolio:
+                portfolio_id = cli.selected_portfolio
+            else:
+                # First list portfolios for selection
+                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                list_command = ListPortfoliosCommand()
+                list_command.execute(cli)
+                
+                try:
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
+                except ValueError:
+                    ui.status_message("Invalid portfolio ID", "error")
+                    return
         
         # Get portfolio info
         with ui.progress("Loading portfolio details...") as progress:
