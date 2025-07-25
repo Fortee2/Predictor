@@ -487,6 +487,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           },
           required: ["portfolio_id"]
         }
+      },
+      
+      // LLM Export Tools
+      {
+        name: "generate_portfolio_snapshot",
+        description: "Generate a comprehensive LLM-friendly portfolio snapshot in JSON format",
+        inputSchema: {
+          type: "object",
+          properties: {
+            portfolio_id: { type: "string", description: "Portfolio ID" },
+            save_to_file: { type: "boolean", description: "Save snapshot to file", default: false }
+          },
+          required: ["portfolio_id"]
+        }
+      },
+      {
+        name: "generate_llm_analysis_prompt",
+        description: "Generate a comprehensive analysis prompt with portfolio data for LLM consumption",
+        inputSchema: {
+          type: "object",
+          properties: {
+            portfolio_id: { type: "string", description: "Portfolio ID" },
+            save_to_file: { type: "boolean", description: "Save prompt to file", default: false }
+          },
+          required: ["portfolio_id"]
+        }
       }
     ]
   };
@@ -690,6 +716,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
         
         output = await executePythonCommand('portfolio_cli.py', valueArgs);
+        result = { output: output.trim() };
+        break;
+        
+      // LLM Export Tools
+      case "generate_portfolio_snapshot":
+        const snapshotArgs = ['portfolio_snapshot', String(args.portfolio_id || '')];
+        if (args.save_to_file) {
+          snapshotArgs.push('--save');
+        }
+        
+        output = await executePythonCommand('llm_export_cli.py', snapshotArgs);
+        
+        // Try to parse as JSON first, fallback to raw output
+        try {
+          result = JSON.parse(output);
+        } catch {
+          result = { output: output.trim() };
+        }
+        break;
+        
+      case "generate_llm_analysis_prompt":
+        const promptArgs = ['llm_analysis_prompt', String(args.portfolio_id || '')];
+        if (args.save_to_file) {
+          promptArgs.push('--save');
+        }
+        
+        output = await executePythonCommand('llm_export_cli.py', promptArgs);
         result = { output: output.trim() };
         break;
         

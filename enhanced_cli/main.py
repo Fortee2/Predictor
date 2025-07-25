@@ -102,6 +102,7 @@ class EnhancedCLI:
         from enhanced_cli.cash_management_views import register_cash_management_commands as real_register_cash_management_commands
         from enhanced_cli.data_views import register_data_commands as real_register_data_commands
         from enhanced_cli.comprehensive_analysis_views import register_comprehensive_analysis_commands
+        from enhanced_cli.llm_export_views import register_llm_export_commands
         
         # Register actual commands from each module
         real_register_portfolio_commands(self.command_registry)
@@ -112,6 +113,7 @@ class EnhancedCLI:
         real_register_cash_management_commands(self.command_registry)
         real_register_data_commands(self.command_registry)
         register_comprehensive_analysis_commands(self.command_registry)
+        register_llm_export_commands(self.command_registry)
     
     def display_header(self):
         """Display application header."""
@@ -244,7 +246,9 @@ class EnhancedCLI:
             "3": "Comprehensive Analysis",
             "4": "View Saved Metrics",
             "5": "Update Benchmark Data",
-            "6": "Back to Main Menu"
+            "6": "Portfolio Snapshot (LLM-Ready)",
+            "7": "Generate LLM Analysis Prompt",
+            "8": "Back to Main Menu"
         }
         
         choice = ui.menu("Analysis Tools", options)
@@ -259,7 +263,11 @@ class EnhancedCLI:
             self.command_registry.execute("view_saved_metrics", self)
         elif choice == "5":
             self.command_registry.execute("update_benchmark_data", self)
-        # choice 6 returns to main menu
+        elif choice == "6":
+            self.command_registry.execute("portfolio_snapshot", self, portfolio_id=self.selected_portfolio)
+        elif choice == "7":
+            self.command_registry.execute("llm_analysis_prompt", self, portfolio_id=self.selected_portfolio)
+        # choice 8 returns to main menu
     
     def show_watchlist_menu(self):
         """Display the watch list management menu."""
