@@ -273,3 +273,26 @@ class WatchListDAO:
         except mysql.connector.Error as e:
             print(f"Error updating ticker notes: {e}")
             return False
+        
+    def get_all_watchlist_tickers(self):
+        """
+        Get all tickers across all watch lists
+        
+        Returns:
+            list: A list of dictionaries with watch list and ticker information
+        """
+        try:
+            cursor = self.connection.cursor()
+            query = """
+                SELECT distinct
+                       t.id as id,
+                       t.ticker as symbol
+                FROM watch_lists w
+                JOIN watch_list_tickers wlt ON w.id = wlt.watch_list_id
+                JOIN tickers t ON wlt.ticker_id = t.id
+            """
+            cursor.execute(query)
+            return cursor.fetchall()
+        except mysql.connector.Error as e:
+            print(f"Error retrieving all watch list tickers: {e}")
+            return []

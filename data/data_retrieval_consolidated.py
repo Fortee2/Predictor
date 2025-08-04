@@ -11,6 +11,7 @@ import yfinance as yf
 from dotenv import load_dotenv
 
 from data.portfolio_dao import PortfolioDAO
+from data.watch_list_dao import WatchListDAO
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
 from data.fundamental_data_dao import FundamentalDataDAO
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
@@ -26,6 +27,8 @@ class DataRetrieval:
         self.portfolio_dao.open_connection()
         self.portfolio_transactions_dao = PortfolioTransactionsDAO(db_user, db_password, db_host, db_name)
         self.portfolio_transactions_dao.open_connection()
+        self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
+        self.watch_list_dao.open_connection()
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
         self.fundamental_dao.open_connection()
         self.sentiment_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
@@ -102,9 +105,6 @@ class DataRetrieval:
                         
                         # Try to use fast_info first for better performance
                         try:
-                            # Get basic info using fast_info
-                            fast_info = ticker.fast_info
-                            
                             # We still need to get industry and sector from regular info
                             # as they're not available in fast_info
                             time.sleep(random.randint(1, 3))  # Small delay before API call
@@ -219,7 +219,7 @@ class DataRetrieval:
                     print(f"Using fast_info for {symbol} market cap: {market_cap}")
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
-                        print(f"Rate limit hit when accessing fast_info for fundamentals. Will retry.")
+                        print("Rate limit hit when accessing fast_info for fundamentals. Will retry.")
                         continue
                     print(f"Error accessing fast_info for {symbol} fundamentals: {str(e)}")
                 
@@ -390,7 +390,7 @@ class DataRetrieval:
                             hist = ticker.history(interval="1d", start=start, end=end)
                     else:
                         # For new tickers, use 6 months of history to reduce initial data load
-                        period = '6mo'
+                        period = 'max'
                         print(f"No previous data for {symbol}. Getting {period} of history.")
                         hist = ticker.history(period=period)
                 
@@ -467,6 +467,11 @@ class DataRetrieval:
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
             portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
+            watchlist_tickers = self.watch_list_dao.get_all_watchlist_tickers()
+
+            portfolio_tickers.extend(watchlist_tickers)
+            portfolio_tickers = list(set(portfolio_tickers))  # Remove duplicates
+            
             if not portfolio_tickers:
                 print("No tickers found in portfolios")
                 return
@@ -479,15 +484,12 @@ class DataRetrieval:
             # Add some randomization to the ticker order
             random.shuffle(portfolio_tickers)
 
-            for symbol in portfolio_tickers:
+            for ticker_id, symbol in portfolio_tickers:
                 try:
-                    ticker_id = self.dao.get_ticker_id(symbol)
-                    if not ticker_id:
-                        print(f"Error: Could not get ticker_id for symbol {symbol}")
-                        continue
+                   
 
                     print(f"\nProcessing {symbol} (ID: {ticker_id})")
-                    
+
                     # Add a small random delay between requests to avoid pattern detection
                     if count > 0:
                         jitter = random.randint(1, 5)

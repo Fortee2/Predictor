@@ -5,12 +5,9 @@ This module provides commands for transaction management operations such as
 logging transactions and viewing transaction history.
 """
 
-from typing import Optional, Dict, List, Any
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
+from rich.prompt import Prompt
 from datetime import datetime
 
-from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 

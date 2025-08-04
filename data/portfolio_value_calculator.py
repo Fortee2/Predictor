@@ -62,7 +62,7 @@ class PortfolioValueCalculator:
             cost_basis = {}
             
             for transaction in transactions:
-                transaction_type, transaction_date, shares, price, amount, ticker_id, symbol = transaction
+                transaction_type, _, shares, price, amount, ticker_id, symbol = transaction
                 ticker_symbols[ticker_id] = symbol
                 
                 # Convert Decimal types to float for calculation
@@ -119,7 +119,6 @@ class PortfolioValueCalculator:
                     if hist_result:
                         activity_date, close = hist_result
                         stock_prices[ticker_id] = float(close)
-                        print(f"  {symbol}: Using price from database ({activity_date}): ${close:.2f}")
                         continue
                     else:
                         print(f"  {symbol}: No historical price data found in database, trying yfinance")
@@ -180,9 +179,9 @@ class PortfolioValueCalculator:
                     share_count = float(shares)
                     price = stock_prices[ticker_id]
                     position_value = share_count * price
-                    avg_cost = cost_basis[ticker_id] / share_count if share_count > 0 else 0
+                    #avg_cost = cost_basis[ticker_id] / share_count if share_count > 0 else 0
                     
-                    print(f"  {symbol}: {share_count} shares @ ${price:.2f} = ${position_value:.2f} (avg cost: ${avg_cost:.2f})")
+                    #print(f"  {symbol}: {share_count} shares @ ${price:.2f} = ${position_value:.2f} (avg cost: ${avg_cost:.2f})")
                     portfolio_value += position_value
 
             # Add any dividend amounts received

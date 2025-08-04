@@ -43,3 +43,86 @@
 2025-07-22 12:17:07,286 - moving_averages - INFO - Moving averages initialized with database connection pool
 2025-07-22 15:48:39,231 - moving_averages - INFO - Moving averages initialized with database connection pool
 2025-07-24 09:54:43,525 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-24 19:05:43,143 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-24 19:22:27,769 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-25 18:46:52,440 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:22:37,359 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:27:22,536 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:29:43,316 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:32:13,958 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:35:28,819 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:37:42,694 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-27 15:42:23,605 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-28 19:31:15,434 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-28 19:41:58,053 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 08:32:14,477 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 18:38:56,726 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:16:44,103 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:22:15,297 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:26:04,907 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:37:05,253 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:42:15,110 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:46:02,647 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 19:57:05,632 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-29 21:40:57,722 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-30 07:10:37,864 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-30 18:31:05,368 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-30 18:52:31,013 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-30 19:23:46,436 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-07-31 08:31:20,770 - moving_averages - ERROR - Failed to initialize database connection pool: 2003 (HY000): Can't connect to MySQL server on 'db.fenchurch.tech:3306' (60)
+2025-07-31 19:18:55,708 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-02 14:00:40,567 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 11:17:53,789 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 11:55:06,990 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 15:10:17,784 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 16:07:23,170 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 17:11:23,184 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 17:16:33,114 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 17:18:08,886 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:09,753 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:10,477 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:11,209 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:11,924 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:12,647 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:13,375 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:14,093 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:14,812 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:15,847 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:17,017 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:18,345 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:19,513 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:20,732 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:21,868 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:23,067 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:24,188 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:25,395 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:26,407 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:27,487 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:18:28,536 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 17:58:24,946 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 22:22:35,720 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 22:57:42,018 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-08-03 22:59:43,438 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:44,265 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:44,853 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:45,438 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:46,026 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:46,624 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:47,215 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:47,822 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:48,408 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:49,484 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:50,243 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:51,041 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:51,837 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:52,639 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:53,430 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:54,242 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:55,032 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:55,817 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:56,457 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:57,129 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 22:59:57,767 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
+2025-08-03 23:42:17,730 - yfinance - ERROR - $CWENA: possibly delisted; no price data found  (period=1y) (Yahoo error = "No data found, symbol may be delisted")
+2025-08-03 23:42:18,114 - yfinance - ERROR - $CWENA: possibly delisted; no price data found  (period=5d) (Yahoo error = "No data found, symbol may be delisted")
+2025-08-03 23:42:24,200 - yfinance - ERROR - $CWENA: possibly delisted; no timezone found
