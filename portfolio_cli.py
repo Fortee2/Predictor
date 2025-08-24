@@ -12,6 +12,7 @@ from data.macd import MACD
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 from data.data_retrieval_consolidated import DataRetrieval
 from data.portfolio_value_calculator import PortfolioValueCalculator
+from data.portfolio_value_service import PortfolioValueService
 from data.options_data import OptionsData
 from data.trend_analyzer import TrendAnalyzer
 from data.watch_list_dao import WatchListDAO
@@ -42,6 +43,7 @@ class PortfolioCLI:
         self.news_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
         self.value_calculator = PortfolioValueCalculator(db_user, db_password, db_host, db_name)
+        self.value_service = PortfolioValueService(db_user, db_password, db_host, db_name)
         self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
         self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
         self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
@@ -558,6 +560,7 @@ class PortfolioCLI:
         try:
             print("Updating data for all securities in portfolios...")
             self.data_retrieval.update_stock_activity()
+            
             print("Data update complete.")
         except Exception as e:
             print(f"Error updating data: {str(e)}")
@@ -953,6 +956,41 @@ class PortfolioCLI:
         except Exception as e:
             print(f"Error managing cash: {str(e)}")
 
+    def recalculating_portfolio_history(self, portfolio_id, from_date=None):
+        """
+        Recalculate historical values for a portfolio.
+        
+        This method will delete all existing historical values from the specified date
+        and recalculate them based on current transactions.
+        
+        Args:
+            portfolio_id (int): The portfolio ID
+            from_date (str, optional): Date in YYYY-MM-DD format to start recalculation from.
+                                       If not provided, will use earliest transaction date.
+        """
+        try:
+            # Verify portfolio exists
+            portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
+            if not portfolio:
+                print(f"Error: Portfolio {portfolio_id} does not exist.")
+                return
+
+            print(f"\nRecalculating historical values for portfolio: {portfolio['name']}")
+            if from_date:
+                print(f"Starting from: {from_date}")
+            else:
+                print("Starting from earliest transaction date")
+
+            # Call the recalculate method
+            result = self.value_calculator.recalculate_historical_values(portfolio_id, from_date)
+            
+            if result:
+                print("\nPortfolio historical values have been successfully recalculated.")
+            else:
+                print("\nFailed to recalculate portfolio historical values.")
+                
+        except Exception as e:
+            print(f"Error recalculating portfolio history: {str(e)}")
 def main():
     parser = argparse.ArgumentParser(description='Portfolio Management CLI')
     subparsers = parser.add_subparsers(dest='command', help='Commands')

@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import os
 from io import BytesIO
 import base64
+from data.fifo_cost_basis_calculator import calculate_fifo_position_from_transactions
 
 class PortfolioValueCalculator:
     def __init__(self, db_user, db_password, db_host, db_name):
@@ -54,38 +55,52 @@ class PortfolioValueCalculator:
                 print(f"No transactions found for portfolio {portfolio_id} before {calculation_date}")
                 return 0.0
 
-            # Calculate the number of shares held for each stock
-            shares_held = {}
+            # Calculate positions using FIFO cost basis method
+            # Group transactions by ticker for FIFO processing
+            transactions_by_ticker = {}
             ticker_symbols = {}  # Map ticker_id to symbol for easier lookup
             
-            # Track cost basis for debugging
-            cost_basis = {}
-            
             for transaction in transactions:
-                transaction_type, _, shares, price, amount, ticker_id, symbol = transaction
+                transaction_type, trans_date, shares, price, amount, ticker_id, symbol = transaction
                 ticker_symbols[ticker_id] = symbol
                 
                 # Convert Decimal types to float for calculation
                 shares = float(shares) if shares is not None else 0
                 price = float(price) if price is not None else 0
-                amount = float(amount) if amount is not None else 0
                 
-                if transaction_type == 'buy':
-                    if ticker_id in shares_held:
-                        shares_held[ticker_id] += shares
-                        cost_basis[ticker_id] += shares * price
-                    else:
-                        shares_held[ticker_id] = shares
-                        cost_basis[ticker_id] = shares * price
-                elif transaction_type == 'sell':
-                    if ticker_id in shares_held:
-                        shares_held[ticker_id] -= shares
-                        # Adjust cost basis proportionally (simple average cost method)
-                        if shares_held[ticker_id] > 0:
-                            cost_basis[ticker_id] = cost_basis[ticker_id] * (1 - (shares / (shares_held[ticker_id] + shares)))
-                    else:
-                        shares_held[ticker_id] = -shares
-                        cost_basis[ticker_id] = 0
+                # Only process buy/sell transactions for position calculation
+                if transaction_type in ('buy', 'sell') and shares > 0 and price > 0:
+                    if ticker_id not in transactions_by_ticker:
+                        transactions_by_ticker[ticker_id] = []
+                    
+                    transactions_by_ticker[ticker_id].append({
+                        'transaction_type': transaction_type,
+                        'transaction_date': trans_date,
+                        'shares': shares,
+                        'price': price
+                    })
+            
+            # Calculate FIFO positions for each ticker
+            shares_held = {}
+            cost_basis_info = {}
+            
+            for ticker_id, ticker_transactions in transactions_by_ticker.items():
+                try:
+                    # Use FIFO calculator for this ticker
+                    fifo_calc = calculate_fifo_position_from_transactions(ticker_transactions)
+                    
+                    total_shares = float(fifo_calc.get_total_shares())
+                    if total_shares > 0:
+                        shares_held[ticker_id] = total_shares
+                        cost_basis_info[ticker_id] = {
+                            'total_cost_basis': float(fifo_calc.get_total_cost_basis()),
+                            'avg_cost_per_share': float(fifo_calc.get_average_cost_per_share()),
+                            'total_shares': total_shares
+                        }
+                except Exception as e:
+                    print(f"Warning: Error calculating FIFO position for {ticker_symbols.get(ticker_id, ticker_id)}: {e}")
+                    # Fall back to simple calculation for this ticker
+                    shares_held[ticker_id] = 0
 
             # Format the calculation date for yfinance
             calc_date_str = calculation_date.strftime('%Y-%m-%d')
@@ -119,6 +134,7 @@ class PortfolioValueCalculator:
                     if hist_result:
                         activity_date, close = hist_result
                         stock_prices[ticker_id] = float(close)
+                        print(f"  {symbol}: Using historical price from database: ${stock_prices[ticker_id]:.2f}")
                         continue
                     else:
                         print(f"  {symbol}: No historical price data found in database, trying yfinance")
@@ -144,6 +160,7 @@ class PortfolioValueCalculator:
                                 print(f"  Using last transaction price for {symbol}: ${stock_prices[ticker_id]:.2f}")
                                 break
                     else:
+                       
                         # Convert all timestamps to tz-naive for comparison to avoid timezone issues
                         hist_data.index = hist_data.index.tz_localize(None)
                         calc_timestamp = pd.Timestamp(calculation_date)
@@ -179,9 +196,20 @@ class PortfolioValueCalculator:
                     share_count = float(shares)
                     price = stock_prices[ticker_id]
                     position_value = share_count * price
-                    #avg_cost = cost_basis[ticker_id] / share_count if share_count > 0 else 0
                     
-                    #print(f"  {symbol}: {share_count} shares @ ${price:.2f} = ${position_value:.2f} (avg cost: ${avg_cost:.2f})")
+                    # Get FIFO cost basis information
+                    cost_info = cost_basis_info.get(ticker_id, {})
+                    avg_cost = cost_info.get('avg_cost_per_share', 0)
+                    total_cost_basis = cost_info.get('total_cost_basis', 0)
+                    
+                    # Calculate gain/loss
+                    unrealized_gain_loss = position_value - total_cost_basis
+                    gain_loss_pct = (unrealized_gain_loss / total_cost_basis * 100) if total_cost_basis > 0 else 0
+                    
+                    print(f"  {symbol}: {share_count:.4f} shares @ ${price:.2f} = ${position_value:.2f}")
+                    print(f"    FIFO avg cost: ${avg_cost:.2f}, Cost basis: ${total_cost_basis:.2f}")
+                    print(f"    Unrealized G/L: ${unrealized_gain_loss:.2f} ({gain_loss_pct:+.2f}%)")
+                    
                     portfolio_value += position_value
 
             # Add any dividend amounts received

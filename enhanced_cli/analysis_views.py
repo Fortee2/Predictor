@@ -186,11 +186,84 @@ class ViewPerformanceCommand(Command):
         
         with ui.progress("Calculating performance...") as progress:
             progress.add_task("", total=None)
-            # Use the CLI's view_portfolio_performance method
-            cli.cli.view_portfolio_performance(portfolio_id, days, start_date, end_date, generate_chart)
             
-        # Performance results are printed directly by the CLI view_portfolio_performance method
-        # After performance display is complete, wait for user input to continue
+            # Use the universal value service for consistent calculations
+            if start_date and end_date:
+                start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
+                end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
+            else:
+                from datetime import date
+                end_date_obj = date.today()
+                start_date_obj = end_date_obj - timedelta(days=days)
+                start_date = start_date_obj.strftime('%Y-%m-%d')
+                end_date = end_date_obj.strftime('%Y-%m-%d')
+            
+            # Get initial and final portfolio values using the universal service
+            initial_result = cli.cli.value_service.calculate_portfolio_value(
+                portfolio_id, 
+                calculation_date=start_date_obj,
+                include_cash=True, 
+                include_dividends=True,  # Include dividends in performance view
+                use_current_prices=False
+            )
+            
+            final_result = cli.cli.value_service.calculate_portfolio_value(
+                portfolio_id, 
+                calculation_date=end_date_obj,
+                include_cash=True, 
+                include_dividends=True,  # Include dividends in performance view
+                use_current_prices=(end_date_obj == date.today())
+            )
+        
+        # Display performance metrics
+        ui.console.print(f"\n[bold]Performance Metrics:[/bold]")
+        ui.console.print(f"Period: {start_date} to {end_date}")
+        ui.console.print(f"Initial Value: ${initial_result['total_value']:,.2f}")
+        ui.console.print(f"Final Value: ${final_result['total_value']:,.2f}")
+        
+        # Calculate returns
+        if initial_result['total_value'] > 0:
+            total_return = ((final_result['total_value'] / initial_result['total_value']) - 1) * 100
+            ui.console.print(f"Total Return: {total_return:+.2f}%")
+            
+            # Calculate annualized return if period is longer than a day
+            period_days = (end_date_obj - start_date_obj).days
+            if period_days > 0:
+                annualized_return = ((1 + (total_return/100)) ** (365/period_days) - 1) * 100
+                ui.console.print(f"Annualized Return: {annualized_return:+.2f}%")
+        else:
+            ui.console.print("Total Return: N/A (no initial value)")
+        
+        # Show breakdown
+        ui.console.print(f"\n[bold]Value Breakdown:[/bold]")
+        ui.console.print(f"Stock Value: ${final_result['stock_value']:,.2f}")
+        ui.console.print(f"Cash Balance: ${final_result['cash_balance']:,.2f}")
+        if final_result['dividend_value'] > 0:
+            ui.console.print(f"Cumulative Dividends: ${final_result['dividend_value']:,.2f}")
+        
+        # Generate chart if requested
+        if generate_chart:
+            try:
+                chart_path = cli.cli.value_calculator.generate_performance_chart(portfolio_id, start_date, end_date)
+                if chart_path:
+                    ui.console.print(f"\n[green]Performance chart saved to:[/green] {chart_path}")
+                    # Try to open the chart
+                    try:
+                        import platform
+                        import os
+                        system = platform.system()
+                        if system == "Darwin":  # macOS
+                            os.system(f"open {chart_path}")
+                        elif system == "Windows":
+                            os.system(f"start {chart_path}")
+                        elif system == "Linux":
+                            os.system(f"xdg-open {chart_path}")
+                    except Exception as e:
+                        ui.console.print(f"[yellow]Note: Could not automatically open the chart: {e}[/yellow]")
+            except Exception as e:
+                ui.console.print(f"[red]Error generating chart: {e}[/red]")
+        
+        # Wait for user input to continue
         ui.wait_for_user()
 
 

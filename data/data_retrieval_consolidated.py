@@ -286,15 +286,11 @@ class DataRetrieval:
                     print(f"Retry attempt {attempt+1}/{self.max_retries} for {symbol} after {retry_delay} seconds...")
                     time.sleep(retry_delay)
                 
-                time.sleep(random.randint(1, 3))  # Small delay before API call
                 ticker = yf.Ticker(symbol)
                 
                 # Try to use fast_info first to check if the ticker is valid
                 is_delisted = False
                 try:
-                    # Add small delay before accessing fast_info
-                    time.sleep(random.randint(1, 3))
-                    
                     fast_info = ticker.fast_info
                     # If we can get the last price, the stock is likely active
                     last_price = getattr(fast_info, 'last_price', None)
@@ -309,9 +305,6 @@ class DataRetrieval:
                     print(f"Error accessing fast_info for {symbol} history check: {str(e)}")
                     # Fall back to traditional method
                     try:
-                        # Add small delay before accessing info
-                        time.sleep(random.randint(1, 3))
-                        
                         info = ticker.info if hasattr(ticker, 'info') else {}
                         
                         if not info:
@@ -466,6 +459,14 @@ class DataRetrieval:
     def update_stock_activity(self):
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
+            
+            trading_day = datetime.today()
+            is_weekday = trading_day.weekday() < 5  # 0-4 are weekdays, 5-6 are weekend
+            
+            while not is_weekday:
+                trading_day += timedelta(days=-1)
+                is_weekday = trading_day.weekday() < 5    
+                            
             portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
             watchlist_tickers = self.watch_list_dao.get_all_watchlist_tickers()
 
@@ -480,14 +481,13 @@ class DataRetrieval:
             count = 0
             error_count = 0
             max_consecutive_errors = 3
-            
-            # Add some randomization to the ticker order
-            random.shuffle(portfolio_tickers)
 
-            for ticker_id, symbol in portfolio_tickers:
+            for ticker_id, symbol, last_update in portfolio_tickers:
                 try:
-                   
-
+                    if last_update >= trading_day.date():
+                        print(f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})")
+                        continue
+                    
                     print(f"\nProcessing {symbol} (ID: {ticker_id})")
 
                     # Add a small random delay between requests to avoid pattern detection

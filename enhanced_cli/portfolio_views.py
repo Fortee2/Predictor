@@ -179,11 +179,16 @@ class ViewPortfolioCommand(Command):
         cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
         ui.console.print(f"[bold]Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]")
         
-        # Get current positions
-        with ui.progress("Loading positions...") as progress:
+        # Use the universal value service for consistent calculations
+        with ui.progress("Calculating portfolio value...") as progress:
             progress.add_task("", total=None)
-            positions = cli.cli.transactions_dao.get_current_positions(portfolio_id)
-            tickers = cli.cli.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
+            # Use the universal value service with current prices and include cash
+            portfolio_result = cli.cli.value_service.calculate_portfolio_value(
+                portfolio_id, 
+                include_cash=True, 
+                include_dividends=False,  # Don't include dividends in current view
+                use_current_prices=True
+            )
         
         # Current Holdings Table
         columns = [
@@ -197,58 +202,22 @@ class ViewPortfolioCommand(Command):
             {'header': 'Percent', 'justify': 'right'}
         ]
         
-        portfolio_value = 0
-        position_values = []  # Store position values for weight calculation
         rows = []
         
-        if positions:
-            # First pass: calculate all position values
-            for ticker_id, position in positions.items():
-                ticker_data = cli.cli.ticker_dao.get_ticker_data(ticker_id)
-                current_price = ticker_data.get('last_price', 0)
-                shares = float(position['shares']) if hasattr(position['shares'], 'as_tuple') else position['shares']
-                avg_price = position.get('avg_price', 0)
-                avg_price = float(avg_price) if hasattr(avg_price, 'as_tuple') else avg_price
-                value = shares * current_price
-                
-                portfolio_value += value
-                position_values.append({
-                    'ticker_id': ticker_id,
-                    'position': position,
-                    'ticker_data': ticker_data,
-                    'current_price': current_price,
-                    'shares': shares,
-                    'avg_price': avg_price,
-                    'value': value
-                })
-            
-            # Second pass: create table rows with weight calculations
-            for pos_data in position_values:
-                position = pos_data['position']
-                current_price = pos_data['current_price']
-                shares = pos_data['shares']
-                avg_price = pos_data['avg_price']
-                value = pos_data['value']
-                
-                # Calculate weight percentage
-                weight_percent = (value / portfolio_value * 100) if portfolio_value > 0 else 0
-                
-                # Calculate gain/loss
-                gain_loss = value - (shares * avg_price)
-                percent_change = (gain_loss / (shares * avg_price)) * 100 if avg_price > 0 else 0
-                
+        if portfolio_result['positions']:
+            for ticker_id, position in portfolio_result['positions'].items():
                 # Color formatting for gain/loss values
-                gl_color = "green" if gain_loss >= 0 else "red"
-                gl_formatted = f"[{gl_color}]${gain_loss:.2f}[/{gl_color}]"
-                percent_formatted = f"[{gl_color}]{percent_change:.2f}%[/{gl_color}]"
+                gl_color = "green" if position['gain_loss'] >= 0 else "red"
+                gl_formatted = f"[{gl_color}]${position['gain_loss']:.2f}[/{gl_color}]"
+                percent_formatted = f"[{gl_color}]{position['gain_loss_pct']:.2f}%[/{gl_color}]"
                 
                 rows.append([
                     position['symbol'],
-                    f"{shares:.2f}",
-                    f"${avg_price:.2f}",
-                    f"${current_price:.2f}",
-                    f"${value:.2f}",
-                    f"{weight_percent:.1f}%",
+                    f"{position['shares']:.2f}",
+                    f"${position['avg_price']:.2f}",
+                    f"${position['current_price']:.2f}",
+                    f"${position['position_value']:.2f}",
+                    f"{position['weight_pct']:.1f}%",
                     gl_formatted,
                     percent_formatted
                 ])
@@ -258,11 +227,10 @@ class ViewPortfolioCommand(Command):
         holdings_table = ui.data_table("Current Holdings", columns, rows)
         ui.console.print(holdings_table)
         
-        # Add cash to total portfolio value
-        total_value = portfolio_value + cash_balance
-        ui.console.print(f"[bold]Stock Value:[/bold] [green]${portfolio_value:.2f}[/green]")
-        ui.console.print(f"[bold]Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]")
-        ui.console.print(f"[bold]Total Portfolio Value:[/bold] [green]${total_value:.2f}[/green]")
+        # Display portfolio value summary
+        ui.console.print(f"[bold]Stock Value:[/bold] [green]${portfolio_result['stock_value']:.2f}[/green]")
+        ui.console.print(f"[bold]Cash Balance:[/bold] [green]${portfolio_result['cash_balance']:.2f}[/green]")
+        ui.console.print(f"[bold]Total Portfolio Value:[/bold] [green]${portfolio_result['total_value']:.2f}[/green]")
         
         # Portfolio Actions Menu
         options = {

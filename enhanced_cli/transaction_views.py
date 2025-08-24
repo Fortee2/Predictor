@@ -153,6 +153,23 @@ class LogTransactionCommand(Command):
             ui.console.print(f"{action_label} Amount: ${abs(amount):.2f}")
         
         if ui.confirm_action("Log this transaction?"):
+            # Get portfolio value before transaction for comparison
+            try:
+                from datetime import timedelta
+                transaction_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                
+                # Get portfolio value before transaction (previous day or same day before transaction)
+                before_date = transaction_date - timedelta(days=1)
+                portfolio_before = cli.cli.value_service.calculate_portfolio_value(
+                    portfolio_id,
+                    calculation_date=before_date,
+                    include_cash=True,
+                    include_dividends=False,
+                    use_current_prices=False
+                )
+            except Exception:
+                portfolio_before = None
+            
             # Use a separate status for each operation
             with ui.progress("Logging transaction...") as progress:
                 progress.add_task("", total=None)
@@ -163,9 +180,36 @@ class LogTransactionCommand(Command):
             # Only show the confirmation after the status context is completed
             ui.status_message("Transaction logged successfully", "success")
             
+            # Show updated portfolio information
+            ui.console.print("\n[bold]Portfolio Update:[/bold]")
+            
             # Check cash balance after transaction
             cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
             ui.console.print(f"[bold]Current Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]")
+            
+            # Get current portfolio value after transaction
+            try:
+                portfolio_after = cli.cli.value_service.calculate_portfolio_value(
+                    portfolio_id,
+                    include_cash=True,
+                    include_dividends=False,
+                    use_current_prices=True
+                )
+                
+                ui.console.print(f"[bold]Current Portfolio Value:[/bold] [green]${portfolio_after['total_value']:,.2f}[/green]")
+                
+                # Show change if we have before value
+                if portfolio_before and portfolio_before['total_value'] > 0:
+                    value_change = portfolio_after['total_value'] - portfolio_before['total_value']
+                    change_pct = (value_change / portfolio_before['total_value']) * 100
+                    
+                    change_color = "green" if value_change >= 0 else "red"
+                    change_sign = "+" if value_change >= 0 else ""
+                    
+                    ui.console.print(f"[bold]Value Change:[/bold] [{change_color}]{change_sign}${value_change:,.2f} ({change_sign}{change_pct:.2f}%)[/{change_color}]")
+                    
+            except Exception as e:
+                ui.console.print(f"[yellow]Could not calculate portfolio value change: {e}[/yellow]")
             
             # Separate prompt for recalculation
             if ui.confirm_action("Would you like to recalculate portfolio history with this new transaction?"):

@@ -123,50 +123,41 @@ class PortfolioSnapshotCommand(Command):
                 "last_updated": datetime.now().isoformat()
             }
             
-            # Financial summary
+            # Financial summary using universal value service
             progress.update(task, advance=10)
-            cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
-            positions = cli.cli.transactions_dao.get_current_positions(portfolio_id)
             
-            total_stock_value = 0
+            # Use universal value service for consistent calculations
+            portfolio_result = cli.cli.value_service.calculate_portfolio_value(
+                portfolio_id,
+                include_cash=True,
+                include_dividends=True,  # Include for comprehensive LLM analysis
+                use_current_prices=True
+            )
+            
             holdings_data = []
-            
-            if positions:
-                for ticker_id, position in positions.items():
+            if portfolio_result['positions']:
+                for ticker_id, position in portfolio_result['positions'].items():
+                    # Get additional ticker data for company name
                     ticker_data = cli.cli.ticker_dao.get_ticker_data(ticker_id)
-                    current_price = ticker_data.get('last_price', 0)
-                    shares = float(position['shares']) if hasattr(position['shares'], 'as_tuple') else position['shares']
-                    avg_price = position.get('avg_price', 0)
-                    avg_price = float(avg_price) if hasattr(avg_price, 'as_tuple') else avg_price
-                    value = shares * current_price
-                    total_stock_value += value
-                    
-                    # Calculate metrics
-                    gain_loss = value - (shares * avg_price)
-                    percent_change = (gain_loss / (shares * avg_price)) * 100 if avg_price > 0 else 0
                     
                     holding = {
                         "symbol": position['symbol'],
                         "company_name": ticker_data.get('name', ''),
-                        "shares": shares,
-                        "average_cost": avg_price,
-                        "current_price": current_price,
-                        "market_value": value,
-                        "unrealized_gain_loss": gain_loss,
-                        "unrealized_gain_loss_percent": percent_change,
-                        "weight_percent": 0  # Will calculate after total is known
+                        "shares": position['shares'],
+                        "average_cost": position['avg_price'],
+                        "current_price": position['current_price'],
+                        "market_value": position['position_value'],
+                        "unrealized_gain_loss": position['gain_loss'],
+                        "unrealized_gain_loss_percent": position['gain_loss_pct'],
+                        "weight_percent": position['weight_pct']
                     }
                     holdings_data.append(holding)
             
-            # Calculate weights
-            total_portfolio_value = total_stock_value + cash_balance
-            for holding in holdings_data:
-                holding["weight_percent"] = (holding["market_value"] / total_portfolio_value * 100) if total_portfolio_value > 0 else 0
-            
             snapshot["financial_summary"] = {
-                "cash_balance": float(cash_balance),
-                "total_stock_value": total_stock_value,
-                "total_portfolio_value": total_portfolio_value,
+                "cash_balance": portfolio_result['cash_balance'],
+                "total_stock_value": portfolio_result['stock_value'],
+                "dividend_value": portfolio_result['dividend_value'],
+                "total_portfolio_value": portfolio_result['total_value'],
                 "number_of_holdings": len(holdings_data),
                 "currency": "USD"
             }
@@ -244,7 +235,7 @@ class PortfolioSnapshotCommand(Command):
             progress.update(task, advance=20)
             
             # Risk analysis
-            snapshot["risk_analysis"] = self._calculate_risk_metrics(holdings_data, total_portfolio_value)
+            snapshot["risk_analysis"] = self._calculate_risk_metrics(holdings_data, portfolio_result['total_value'])
             progress.update(task, advance=10)
             
             # Market context (news sentiment if available)

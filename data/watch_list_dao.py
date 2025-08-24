@@ -285,11 +285,15 @@ class WatchListDAO:
             cursor = self.connection.cursor()
             query = """
                 SELECT distinct
-                       t.id as id,
-                       t.ticker as symbol
+                    t.id as id,
+                    t.ticker as symbol,
+                    max(activity_date) as last_update
                 FROM watch_lists w
                 JOIN watch_list_tickers wlt ON w.id = wlt.watch_list_id
                 JOIN tickers t ON wlt.ticker_id = t.id
+                LEFT JOIN activity a ON t.id = a.ticker_id
+                    group by t.id, t.ticker
+                    order by 3;
             """
             cursor.execute(query)
             return cursor.fetchall()
