@@ -69,7 +69,14 @@ class PortfolioValueCalculator:
                 price = float(price) if price is not None else 0
                 
                 # Only process buy/sell transactions for position calculation
-                if transaction_type in ('buy', 'sell') and shares > 0 and price > 0:
+                if transaction_type in ('buy', 'sell',  'split_adjustment') and shares > 0:
+                    if transaction_type == 'split_adjustment':
+                        price = 0.0
+                    elif price <= 0:
+                        # Skip buy/sell transactions with invalid prices
+                        continue
+        
+                    
                     if ticker_id not in transactions_by_ticker:
                         transactions_by_ticker[ticker_id] = []
                     
@@ -207,8 +214,8 @@ class PortfolioValueCalculator:
                     gain_loss_pct = (unrealized_gain_loss / total_cost_basis * 100) if total_cost_basis > 0 else 0
                     
                     print(f"  {symbol}: {share_count:.4f} shares @ ${price:.2f} = ${position_value:.2f}")
-                    print(f"    FIFO avg cost: ${avg_cost:.2f}, Cost basis: ${total_cost_basis:.2f}")
-                    print(f"    Unrealized G/L: ${unrealized_gain_loss:.2f} ({gain_loss_pct:+.2f}%)")
+                    # print(f"    FIFO avg cost: ${avg_cost:.2f}, Cost basis: ${total_cost_basis:.2f}")
+                    # print(f"    Unrealized G/L: ${unrealized_gain_loss:.2f} ({gain_loss_pct:+.2f}%)")
                     
                     portfolio_value += position_value
 

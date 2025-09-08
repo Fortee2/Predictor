@@ -8,7 +8,7 @@ technical analysis and performance tracking.
 from typing import Optional, Dict, List, Any
 from rich.console import Console
 from rich.prompt import Prompt, Confirm
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 
 from portfolio_cli import PortfolioCLI
 from enhanced_cli.command import Command, CommandRegistry, error_handler
@@ -192,7 +192,6 @@ class ViewPerformanceCommand(Command):
                 start_date_obj = datetime.strptime(start_date, '%Y-%m-%d').date()
                 end_date_obj = datetime.strptime(end_date, '%Y-%m-%d').date()
             else:
-                from datetime import date
                 end_date_obj = date.today()
                 start_date_obj = end_date_obj - timedelta(days=days)
                 start_date = start_date_obj.strftime('%Y-%m-%d')

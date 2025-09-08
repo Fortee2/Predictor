@@ -16,6 +16,8 @@ from data.portfolio_value_service import PortfolioValueService
 from data.options_data import OptionsData
 from data.trend_analyzer import TrendAnalyzer
 from data.watch_list_dao import WatchListDAO
+from data.shared_analysis_metrics import SharedAnalysisMetrics
+from data.stochastic_oscillator import StochasticOscillator
 import datetime
 from dotenv import load_dotenv
 
@@ -47,6 +49,7 @@ class PortfolioCLI:
         self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
         self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
         self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
+        self.stochastic_analyzer = StochasticOscillator(db_user, db_password, db_host, db_name)
         
         # Open database connections for classes that need it
         self.portfolio_dao.open_connection()
@@ -59,6 +62,14 @@ class PortfolioCLI:
         self.macd_analyzer.open_connection()
         self.trend_analyzer.open_connection()
         self.watch_list_dao.open_connection()
+        self.stochastic_analyzer.open_connection()
+        
+        # Initialize shared analysis metrics with stochastic support
+        self.shared_metrics = SharedAnalysisMetrics(
+            self.rsi_calc, self.moving_avg, self.bb_analyzer, self.macd_analyzer,
+            self.fundamental_dao, self.news_analyzer, self.options_analyzer, self.trend_analyzer,
+            stochastic_analyzer=self.stochastic_analyzer
+        )
 
     def create_portfolio(self, name, description):
         try:
@@ -205,167 +216,30 @@ class PortfolioCLI:
                 try:
                     # Show shares held if this is a held position
                     shares_info = ""
+                    position_data = None
                     if ticker_id in current_positions:
-                        shares = current_positions[ticker_id]['shares']
+                        position = current_positions[ticker_id]
+                        shares = position['shares']
                         shares_info = f" ({shares} shares)"
+                        
+                        # Prepare position data for portfolio metrics
+                        position_data = {
+                            'shares': shares,
+                            'avg_price': position['avg_price'],
+                            'current_price': None  # Will be determined by the shared metrics
+                        }
                     
-                    print(f"║ {symbol}{shares_info:<56}║")
-                    print("║──────────────────────────────────────────────────────────║")
-
-                    # RSI Analysis
-                    try:
-                        self.rsi_calc.calculateRSI(ticker_id)  # Calculate latest RSI
-                        rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)  # Get the calculated RSI
-                        if not rsi_result.empty:
-                            latest_rsi = rsi_result.iloc[-1]
-                            rsi_value = latest_rsi['rsi']
-                            rsi_date = rsi_result.index[-1]
-                            rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
-                            print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
-                    except Exception as e:
-                        print(f"║ RSI: Unable to calculate (Error: {str(e)})             ║")
-
-                    # Moving Average with Trend Analysis
-                    try:
-                        ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
-                        if not ma_data.empty:
-                            latest_ma = ma_data.iloc[-1]
-                            # Parse date string from index
-                            date_str = str(ma_data.index[-1]).split()[0]
-                            dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-                            print(f"║ 20-day MA ({dt.strftime('%Y-%m-%d')}): {latest_ma.iloc[0]:.2f}{' ' * 45}║")
-                            
-                            # Get MA trend analysis
-                            try:
-                                ma_trend = self.trend_analyzer.analyze_ma_trend(ticker_id, 20)
-                                direction_emoji = "↗️" if ma_trend["direction"] == "UP" else "↘️" if ma_trend["direction"] == "DOWN" else "➡️"
-                                print(f"║ MA Trend: {direction_emoji} {ma_trend['direction']} ({ma_trend['strength']}){' ' * 34}║")
-                                if ma_trend["percent_change"] is not None:
-                                    print(f"║   Rate of Change: {ma_trend['percent_change']:.2f}%{' ' * 39}║")
-                            except Exception as e:
-                                print(f"║ MA Trend: Unable to analyze                                 ║")
-                            
-                            # Get price vs MA analysis
-                            try:
-                                price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(ticker_id, 20)
-                                if price_vs_ma["position"] != "UNKNOWN":
-                                    position_text = "Above MA" if price_vs_ma["position"] == "ABOVE_MA" else "Below MA" if price_vs_ma["position"] == "BELOW_MA" else "At MA"
-                                    distance_formatted = f"{price_vs_ma['distance_percent']:.2f}"
-                                    print(f"║ Price Position: {position_text} ({distance_formatted}% from MA){' ' * (29 - len(distance_formatted))}║")
-                            except Exception as e:
-                                print(f"║ Price Position: Unable to analyze                           ║")
-                    except Exception as e:
-                        print(f"║ Moving Average: Unable to calculate                          ║")
-
-                    # Bollinger Bands
-                    try:
-                        bb_data = self.bb_analyzer.generate_bollinger_band_data(ticker_id)
-                        if bb_data:
-                            bb_mean = bb_data['bollinger_bands']['mean']
-                            bb_stddev = bb_data['bollinger_bands']['stddev']
-                            print(f"║ Bollinger Bands:                                             ║")
-                            print(f"║   Mean: {bb_mean:.2f}{' ' * 49}║")
-                            print(f"║   StdDev: {bb_stddev:.2f}{' ' * 47}║")
-                    except Exception as e:
-                        print(f"║ Bollinger Bands: Unable to calculate                         ║")
-
-                    # MACD Analysis
-                    try:
-                        # Calculate MACD data once and reuse it
-                        macd_data = self.macd_analyzer.calculate_macd(ticker_id)
-                        if (macd_data is not None) and (not macd_data.empty):
-                            latest_macd = macd_data.iloc[-1]
-                            macd_date = macd_data.index[-1]
-                            print(f"║ MACD ({macd_date.strftime('%Y-%m-%d')}):                                ║")
-                            print(f"║   MACD Line: {latest_macd['macd']:.2f}{' ' * 44}║")
-                            print(f"║   Signal Line: {latest_macd['signal_line']:.2f}{' ' * 42}║")
-                            print(f"║   Histogram: {latest_macd['histogram']:.2f}{' ' * 44}║")
-
-                            # Determine current MACD signal based on latest values (same date as MACD data)
-                            if latest_macd['macd'] > latest_macd['signal_line']:
-                                current_signal = "BUY"
-                                signal_strength = "Strong" if latest_macd['histogram'] > 0.1 else "Weak"
-                            else:
-                                current_signal = "SELL" 
-                                signal_strength = "Strong" if latest_macd['histogram'] < -0.1 else "Weak"
-                            
-                            # Show current MACD signal for the same date as the data
-                            print(f"║ Current MACD Signal ({macd_date.strftime('%Y-%m-%d')}): {current_signal} ({signal_strength}){' ' * (25 - len(signal_strength))}║")
-                            
-                            # Show trend direction based on histogram
-                            if latest_macd['histogram'] > 0:
-                                trend_direction = "Strengthening" if len(macd_data) > 1 and latest_macd['histogram'] > macd_data.iloc[-2]['histogram'] else "Weakening"
-                            else:
-                                trend_direction = "Strengthening" if len(macd_data) > 1 and latest_macd['histogram'] > macd_data.iloc[-2]['histogram'] else "Weakening"
-                            
-                            print(f"║ MACD Momentum: {trend_direction}{' ' * (47 - len(trend_direction))}║")
-                    except Exception as e:
-                        print(f"║ MACD: Unable to calculate                                    ║")
-
-                    # Fundamental Data
-                    try:
-                        fundamental_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
-                        if fundamental_data:
-                            print("║ Fundamental Data:                                            ║")
-                            if fundamental_data.get('pe_ratio') is not None:
-                                print(f"║   P/E Ratio: {fundamental_data['pe_ratio']:.2f}{' ' * 44}║")
-                            if fundamental_data.get('market_cap') is not None:
-                                market_cap_str = f"{fundamental_data['market_cap']:,.2f}"
-                                print(f"║   Market Cap: ${market_cap_str}{' ' * (42 - len(market_cap_str))}║")
-                            if fundamental_data.get('dividend_yield'):
-                                print(f"║   Dividend Yield: {fundamental_data['dividend_yield']:.2f}%{' ' * 40}║")
-                    except Exception as e:
-                        print(f"║ Fundamental Data: Unable to retrieve                          ║")
-
-                    # News Sentiment
-                    try:
-                        sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id, symbol)
-                        if sentiment_data and sentiment_data['status'] != 'No sentiment data available':
-                            print(f"║ News Sentiment: {sentiment_data['status']:<47}║")
-                            print(f"║   Average Score: {sentiment_data['average_sentiment']:.2f}{' ' * 41}║")
-                            print(f"║   Articles Analyzed: {sentiment_data['article_count']}{' ' * 39}║")
-                        else:
-                            print("║ News Sentiment: No data available                              ║")
-                    except Exception as e:
-                        print(f"║ News Sentiment: Unable to analyze                             ║")
-
-                    print("════════════════════════════════════════════════════════════════")
-
-                    # Options Data
-                    try:
-                        options_summary = self.options_analyzer.get_options_summary(symbol)
-                        if options_summary:
-                            print("║ Options Data:                                                  ║")
-                            print(f"║   Available Expirations: {options_summary['num_expirations']}{' ' * 37}║")
-                            print(f"║   Nearest Expiry: {options_summary['nearest_expiration']}{' ' * 35}║")
-                            if 'calls_volume' in options_summary:
-                                calls_volume = options_summary['calls_volume']
-                                puts_volume = options_summary['puts_volume']
-                                put_call_ratio = 0
-                                try:
-                                    if calls_volume > 0:
-                                        put_call_ratio = puts_volume / calls_volume
-                                except (ZeroDivisionError, decimal.DivisionUndefined):
-                                    put_call_ratio = 0
-                                
-                                print(f"║   Total Calls Volume: {calls_volume:,}{' ' * (37 - len(str(calls_volume)))}║")
-                                print(f"║   Total Puts Volume: {puts_volume:,}{' ' * (38 - len(str(puts_volume)))}║")
-                                print(f"║   Put/Call Ratio: {put_call_ratio:.2f}{' ' * 42}║")
-                                sentiment = "Bearish" if put_call_ratio > 1 else "Bullish" if put_call_ratio < 1 else "Neutral"
-                                print(f"║   Volume Sentiment: {sentiment}{' ' * (42 - len(sentiment))}║")
-                                
-                                print("║   Implied Volatility Range:                                  ║")
-                                print(f"║     Calls: {options_summary['calls_iv_range']['min']:.2%} - {options_summary['calls_iv_range']['max']:.2%}{' ' * 35}║")
-                                print(f"║     Puts: {options_summary['puts_iv_range']['min']:.2%} - {options_summary['puts_iv_range']['max']:.2%}{' ' * 36}║")
-                                
-                                avg_call_iv = (options_summary['calls_iv_range']['min'] + options_summary['calls_iv_range']['max']) / 2
-                                print(f"║   Market Expectation: {'High Volatility' if avg_call_iv > 0.5 else 'Moderate Volatility' if avg_call_iv > 0.2 else 'Low Volatility':<42}║")
-                        else:
-                            print("║ Options Data: Not available                                   ║")
-                    except Exception as e:
-                        print(f"║ Options Data: Unable to analyze                               ║")
-
-                    print("════════════════════════════════════════════════════════════════")
+                    # Get comprehensive analysis using shared metrics
+                    analysis = self.shared_metrics.get_comprehensive_analysis(
+                        ticker_id, symbol, include_options=True, ma_period=20, position_data=position_data
+                    )
+                    
+                    # Format and display the analysis
+                    formatted_output = self.shared_metrics.format_analysis_output(
+                        analysis, shares_info=shares_info
+                    )
+                    print(formatted_output)
+                    
                 except (ZeroDivisionError, decimal.DivisionUndefined, decimal.InvalidOperation) as div_err:
                     print(f"║ Error analyzing {symbol}: Division error                        ║")
                     print("════════════════════════════════════════════════════════════════")
@@ -854,53 +728,28 @@ class PortfolioCLI:
             print("════════════════════════════════════════════════════════════════")
             
             for ticker_id, symbol in tickers:
-                print(f"║ {symbol:<56}║")
-                print("║──────────────────────────────────────────────────────────║")
-
-                # RSI Analysis
-                self.rsi_calc.calculateRSI(ticker_id)  # Calculate latest RSI
-                rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)  # Get the calculated RSI
-                if not rsi_result.empty:
-                    latest_rsi = rsi_result.iloc[-1]
-                    rsi_value = latest_rsi['rsi']
-                    rsi_date = rsi_result.index[-1]
-                    rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
-                    print(f"║ RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status:<45}║")
-
-                # Moving Average with Trend Analysis
-                ma_data = self.moving_avg.update_moving_averages(ticker_id, 20)
-                if not ma_data.empty:
-                    latest_ma = ma_data.iloc[-1]
-                    # Parse date string from index
-                    date_str = str(ma_data.index[-1]).split()[0]
-                    dt = datetime.datetime.strptime(date_str, '%Y-%m-%d')
-                    print(f"║ 20-day MA ({dt.strftime('%Y-%m-%d')}): {latest_ma.iloc[0]:.2f}{' ' * 45}║")
+                try:
+                    # Get notes if available
+                    notes = None
+                    for t in self.watch_list_dao.get_tickers_in_watch_list(watch_list_id):
+                        if t['symbol'] == symbol and t['notes']:
+                            notes = t['notes']
+                            break
                     
-                    # Get MA trend analysis
-                    ma_trend = self.trend_analyzer.analyze_ma_trend(ticker_id, 20)
-                    direction_emoji = "↗️" if ma_trend["direction"] == "UP" else "↘️" if ma_trend["direction"] == "DOWN" else "➡️"
-                    print(f"║ MA Trend: {direction_emoji} {ma_trend['direction']} ({ma_trend['strength']}){' ' * 34}║")
-                    if ma_trend["percent_change"] is not None:
-                        print(f"║   Rate of Change: {ma_trend['percent_change']:.2f}%{' ' * 39}║")
+                    # Get comprehensive analysis using shared metrics
+                    analysis = self.shared_metrics.get_comprehensive_analysis(
+                        ticker_id, symbol, include_options=True, ma_period=20
+                    )
                     
-                    # Get price vs MA analysis
-                    price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(ticker_id, 20)
-                    if price_vs_ma["position"] != "UNKNOWN":
-                        position_text = "Above MA" if price_vs_ma["position"] == "ABOVE_MA" else "Below MA" if price_vs_ma["position"] == "BELOW_MA" else "At MA"
-                        distance_formatted = f"{price_vs_ma['distance_percent']:.2f}"
-                        print(f"║ Price Position: {position_text} ({distance_formatted}% from MA){' ' * (29 - len(distance_formatted))}║")
-
-                # Show notes if available
-                notes = None
-                for t in self.watch_list_dao.get_tickers_in_watch_list(watch_list_id):
-                    if t['symbol'] == symbol and t['notes']:
-                        notes = t['notes']
-                if notes:
-                    print(f"║ Notes: {notes[:50]}{' ' * (51 - min(50, len(notes)))}║")
-                    if len(notes) > 50:
-                        print(f"║   {notes[50:100]}{' ' * (57 - min(50, len(notes) - 50))}║")
-
-                print("════════════════════════════════════════════════════════════════")
+                    # Format and display the analysis with notes
+                    formatted_output = self.shared_metrics.format_analysis_output(
+                        analysis, shares_info="", notes=notes
+                    )
+                    print(formatted_output)
+                    
+                except Exception as ticker_err:
+                    print(f"║ Error analyzing {symbol}: {str(ticker_err)[:40]}               ║")
+                    print("════════════════════════════════════════════════════════════════")
                 
         except Exception as e:
             print(f"Error analyzing watch list: {str(e)}")

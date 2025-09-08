@@ -36,25 +36,7 @@ def main():
             """
             cursor.execute(check_table_query)
             table_exists = cursor.fetchone()[0] > 0
-            
-            if not table_exists:
-                # Create the table if it doesn't exist
-                create_table_query = """
-                    CREATE TABLE cash_balance_history (
-                        id INT AUTO_INCREMENT PRIMARY KEY,
-                        portfolio_id INT NOT NULL,
-                        transaction_date DATETIME NOT NULL,
-                        amount DECIMAL(10,2) NOT NULL,
-                        transaction_type VARCHAR(20) NOT NULL,
-                        description VARCHAR(255),
-                        balance_after DECIMAL(10,2) NOT NULL,
-                        FOREIGN KEY (portfolio_id) REFERENCES portfolio(id)
-                    )
-                """
-                cursor.execute(create_table_query)
-                portfolio_dao.connection.commit()
-                print("Created cash_balance_history table")
-            
+
             # Delete existing history for this portfolio
             delete_query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
             cursor.execute(delete_query, (portfolio_id,))
@@ -62,7 +44,7 @@ def main():
             print("Cleared existing cash history")
             
             # Get initial portfolio funding
-            query = "SELECT date_added, cash_balance FROM portfolio WHERE id = %s"
+            query = "SELECT date_added, intial_funds FROM portfolio WHERE id = %s"
             cursor.execute(query, (portfolio_id,))
             result = cursor.fetchone()
             creation_date = result[0]

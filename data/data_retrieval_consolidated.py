@@ -2,7 +2,7 @@ import os
 import time
 import random
 import pandas as pd
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 
 from data import rsi_calculations as rsi_calc
 from data import ticker_dao
@@ -484,6 +484,8 @@ class DataRetrieval:
 
             for ticker_id, symbol, last_update in portfolio_tickers:
                 try:
+                    if last_update is None:
+                        last_update = date.today() - timedelta(days=365 * 5)  # Set to 5 years ago if never updated
                     if last_update >= trading_day.date():
                         print(f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})")
                         continue
