@@ -3,7 +3,7 @@ name = "predictor-management-system"
 version = "0.1.0"
 description = "Securities Portfolio Management System"
 authors = [
-    {name = "Randy Costner",email = "costner.randy@gmail.com"}
+    {name = "Randy Costner", email = "costner.randy@gmail.com"}
 ]
 readme = "README.md"
 requires-python = ">=3.12"
