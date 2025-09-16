@@ -7,4 +7,4 @@ with better separation of concerns and more consistent UI patterns.
 
 from enhanced_cli.main import EnhancedCLI, main
 
-__all__ = ['EnhancedCLI', 'main']
+__all__ = ["EnhancedCLI", "main"]

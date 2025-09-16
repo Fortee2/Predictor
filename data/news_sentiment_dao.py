@@ -1,7 +1,9 @@
-import mysql.connector
-from mysql.connector import errorcode
 from datetime import datetime
+
+import mysql.connector
 import pandas as pd
+from mysql.connector import errorcode
+
 
 class NewsSentimentDAO:
     def __init__(self, user, password, host, database):
@@ -17,7 +19,7 @@ class NewsSentimentDAO:
             user=self.db_user,
             password=self.db_password,
             host=self.db_host,
-            database=self.db_name
+            database=self.db_name,
         )
 
     def close_connection(self):
@@ -25,19 +27,28 @@ class NewsSentimentDAO:
         if self.current_connection:
             self.current_connection.close()
 
-    def save_sentiment(self, ticker_id, headline, publisher, publish_date, sentiment_score, confidence, article_link):
+    def save_sentiment(
+        self,
+        ticker_id,
+        headline,
+        publisher,
+        publish_date,
+        sentiment_score,
+        confidence,
+        article_link,
+    ):
         """
         Saves news sentiment data for a ticker to the database
         """
         try:
             sentiment_data = self.search_headlines(headline, ticker_id)
-            
+
             if sentiment_data:
                 print(f"Duplicate headline found: {headline}")
                 return False
-            
+
             cursor = self.current_connection.cursor()
-            
+
             sql = """
             INSERT INTO news_sentiment (
                 ticker_id, headline, publisher, publish_date,
@@ -46,7 +57,7 @@ class NewsSentimentDAO:
                 %s, %s, %s, %s, %s, %s, %s
             )
             """
-            
+
             values = (
                 ticker_id,
                 headline,
@@ -54,15 +65,15 @@ class NewsSentimentDAO:
                 publish_date,
                 sentiment_score,
                 confidence,
-                article_link
+                article_link,
             )
-            
+
             cursor.execute(sql, values)
             self.current_connection.commit()
             cursor.close()
-            
+
             return True
-            
+
         except mysql.connector.Error as err:
             print(f"Error saving news sentiment: {err}")
             return False
@@ -73,7 +84,7 @@ class NewsSentimentDAO:
         """
         try:
             cursor = self.current_connection.cursor(dictionary=True)
-            
+
             sql = """
             SELECT 
                 headline, publisher, publish_date,
@@ -83,13 +94,13 @@ class NewsSentimentDAO:
             ORDER BY publish_date DESC
             LIMIT %s
             """
-            
+
             cursor.execute(sql, (ticker_id, limit))
             results = cursor.fetchall()
             cursor.close()
-            
+
             return results
-            
+
         except mysql.connector.Error as err:
             print(f"Error retrieving sentiment data: {err}")
             return None
@@ -100,7 +111,7 @@ class NewsSentimentDAO:
         """
         try:
             cursor = self.current_connection.cursor()
-            
+
             sql = """
             SELECT 
                 DATE(publish_date) as date,
@@ -112,35 +123,35 @@ class NewsSentimentDAO:
             GROUP BY DATE(publish_date)
             ORDER BY date DESC
             """
-            
+
             cursor.execute(sql, (ticker_id, days))
-            columns = ['date', 'avg_sentiment', 'article_count']
+            columns = ["date", "avg_sentiment", "article_count"]
             df = pd.DataFrame(cursor.fetchall(), columns=columns)
             cursor.close()
-            
+
             if not df.empty:
-                df.set_index('date', inplace=True)
+                df.set_index("date", inplace=True)
                 return df
             return None
-            
+
         except mysql.connector.Error as err:
             print(f"Error retrieving sentiment history: {err}")
             return None
-            
+
     def search_headlines(self, search_term, ticker_id=None):
         """
         Searches for headlines containing the specified search term
-        
+
         Parameters:
         - search_term: The text to search for in headlines
         - ticker_id: Optional ticker ID to restrict search to a specific ticker
-        
+
         Returns:
         - A list of matching sentiment records
         """
         try:
             cursor = self.current_connection.cursor(dictionary=True)
-            
+
             if ticker_id:
                 sql = """
                 SELECT 
@@ -165,12 +176,12 @@ class NewsSentimentDAO:
                 ORDER BY ns.publish_date DESC
                 """
                 cursor.execute(sql, (f"%{search_term}%",))
-            
+
             results = cursor.fetchall()
             cursor.close()
-            
+
             return results
-            
+
         except mysql.connector.Error as err:
             print(f"Error searching headlines: {err}")
             return None

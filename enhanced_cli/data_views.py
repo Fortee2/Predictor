@@ -5,15 +5,16 @@ This module provides commands for data management operations such as
 updating data for all securities in portfolios.
 """
 
-from typing import Optional, Dict, List, Any
-from rich.console import Console
-from rich.prompt import Prompt, Confirm
 from datetime import datetime
-from rich.progress import Progress
+from typing import Any, Dict, List, Optional
 
-from portfolio_cli import PortfolioCLI
+from rich.console import Console
+from rich.progress import Progress
+from rich.prompt import Confirm, Prompt
+
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
+from portfolio_cli import PortfolioCLI
 
 # Import DataRetrieval lazily to avoid startup delay
 # This prevents the initial delay caused by DataRetrieval's initialization
@@ -21,15 +22,15 @@ from enhanced_cli.ui_components import ui
 
 class UpdateDataCommand(Command):
     """Command to update data for all securities in portfolios."""
-    
+
     def __init__(self):
         super().__init__("Update Data", "Update data for all securities in portfolios")
-    
+
     @error_handler("updating data")
     def execute(self, cli, *args, **kwargs) -> None:
         """
         Execute the command to update data for all securities.
-        
+
         Args:
             cli: The CLI instance
         """
@@ -38,31 +39,32 @@ class UpdateDataCommand(Command):
             "This may take some time. Continue?[/bold]"
         ):
             return
-        
+
         # Import here to avoid startup delay
-        from data.data_retrieval_consolidated import DataRetrieval
         import os
-        
+
+        from data.data_retrieval_consolidated import DataRetrieval
+
         # Get database credentials from PortfolioCLI instance
-        db_user = os.getenv('DB_USER')
-        db_password = os.getenv('DB_PASSWORD')
-        db_host = os.getenv('DB_HOST')
-        db_name = os.getenv('DB_NAME')
-        
+        db_user = os.getenv("DB_USER")
+        db_password = os.getenv("DB_PASSWORD")
+        db_host = os.getenv("DB_HOST")
+        db_name = os.getenv("DB_NAME")
+
         with ui.progress("Updating stock data...") as progress:
             progress.add_task("", total=None)
-            
+
             # Create DataRetrieval instance only when needed
             data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
             data_retrieval.update_stock_activity()
-        
+
         ui.status_message("Data update complete", "success")
 
 
 def register_data_commands(registry: CommandRegistry) -> None:
     """
     Register data management commands with the command registry.
-    
+
     Args:
         registry: The command registry to register commands with
     """

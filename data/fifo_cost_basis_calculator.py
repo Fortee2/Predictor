@@ -6,17 +6,17 @@ for portfolio management. FIFO is the most commonly used method for tax reportin
 and provides accurate tracking of realized and unrealized gains/losses.
 """
 
-from typing import List, Tuple, Dict, Any
-from decimal import Decimal, ROUND_HALF_UP
 from datetime import date
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Any, Dict, List, Tuple
 
 
 class FIFOLot:
     """Represents a single lot of shares purchased at a specific price and date."""
 
     def __init__(self, shares: float, price: float, purchase_date: date):
-        self.shares = Decimal(str(shares)).quantize(Decimal('0.0001'))
-        self.price = Decimal(str(price)).quantize(Decimal('0.01'))
+        self.shares = Decimal(str(shares)).quantize(Decimal("0.0001"))
+        self.price = Decimal(str(price)).quantize(Decimal("0.01"))
         self.purchase_date = purchase_date
         self.original_shares = self.shares
 
@@ -57,7 +57,9 @@ class FIFOCostBasisCalculator:
         lot = FIFOLot(shares, price, purchase_date)
         self.lots.append(lot)
 
-    def process_sale(self, shares_to_sell: float, sale_price: float, sale_date: date) -> Dict[str, Any]:
+    def process_sale(
+        self, shares_to_sell: float, sale_price: float, sale_date: date
+    ) -> Dict[str, Any]:
         """
         Process a sale transaction using FIFO method.
 
@@ -78,14 +80,15 @@ class FIFOCostBasisCalculator:
         if shares_to_sell <= 0 or sale_price <= 0:
             raise ValueError("Shares to sell and sale price must be positive")
 
-        shares_remaining_to_sell = Decimal(
-            str(shares_to_sell)).quantize(Decimal('0.0001'))
-        sale_price_decimal = Decimal(str(sale_price)).quantize(Decimal('0.01'))
+        shares_remaining_to_sell = Decimal(str(shares_to_sell)).quantize(
+            Decimal("0.0001")
+        )
+        sale_price_decimal = Decimal(str(sale_price)).quantize(Decimal("0.01"))
 
-        total_proceeds = Decimal('0')
-        total_cost_basis = Decimal('0')
+        total_proceeds = Decimal("0")
+        total_cost_basis = Decimal("0")
         lots_used = []
-        shares_actually_sold = Decimal('0')
+        shares_actually_sold = Decimal("0")
 
         # Process sale using FIFO method
         while shares_remaining_to_sell > 0 and self.lots:
@@ -110,14 +113,16 @@ class FIFOCostBasisCalculator:
             proceeds_from_lot = shares_from_lot * sale_price_decimal
             gain_loss_from_lot = proceeds_from_lot - cost_basis_from_lot
 
-            lots_used.append({
-                'shares': float(shares_from_lot),
-                'purchase_price': float(current_lot.price),
-                'purchase_date': current_lot.purchase_date,
-                'cost_basis': float(cost_basis_from_lot),
-                'proceeds': float(proceeds_from_lot),
-                'gain_loss': float(gain_loss_from_lot)
-            })
+            lots_used.append(
+                {
+                    "shares": float(shares_from_lot),
+                    "purchase_price": float(current_lot.price),
+                    "purchase_date": current_lot.purchase_date,
+                    "cost_basis": float(cost_basis_from_lot),
+                    "proceeds": float(proceeds_from_lot),
+                    "gain_loss": float(gain_loss_from_lot),
+                }
+            )
 
             total_proceeds += proceeds_from_lot
             total_cost_basis += cost_basis_from_lot
@@ -129,24 +134,26 @@ class FIFOCostBasisCalculator:
 
         # Record the realized gain/loss
         gain_loss_record = {
-            'sale_date': sale_date,
-            'shares_sold': float(shares_actually_sold),
-            'sale_price': float(sale_price_decimal),
-            'total_proceeds': float(total_proceeds),
-            'total_cost_basis': float(total_cost_basis),
-            'realized_gain_loss': float(realized_gain_loss),
-            'lots_used': lots_used
+            "sale_date": sale_date,
+            "shares_sold": float(shares_actually_sold),
+            "sale_price": float(sale_price_decimal),
+            "total_proceeds": float(total_proceeds),
+            "total_cost_basis": float(total_cost_basis),
+            "realized_gain_loss": float(realized_gain_loss),
+            "lots_used": lots_used,
         }
         self.realized_gains.append(gain_loss_record)
 
         return {
-            'shares_sold': shares_actually_sold,
-            'total_proceeds': total_proceeds,
-            'total_cost_basis': total_cost_basis,
-            'realized_gain_loss': realized_gain_loss,
-            'lots_used': lots_used,
-            'remaining_shares': self.get_total_shares(),
-            'oversold_shares': float(shares_remaining_to_sell) if shares_remaining_to_sell > 0 else 0
+            "shares_sold": shares_actually_sold,
+            "total_proceeds": total_proceeds,
+            "total_cost_basis": total_cost_basis,
+            "realized_gain_loss": realized_gain_loss,
+            "lots_used": lots_used,
+            "remaining_shares": self.get_total_shares(),
+            "oversold_shares": (
+                float(shares_remaining_to_sell) if shares_remaining_to_sell > 0 else 0
+            ),
         }
 
     def get_total_shares(self) -> Decimal:
@@ -161,8 +168,10 @@ class FIFOCostBasisCalculator:
         """Get average cost per share of all held shares."""
         total_shares = self.get_total_shares()
         if total_shares > 0:
-            return (self.get_total_cost_basis() / total_shares).quantize(Decimal('0.01'))
-        return Decimal('0')
+            return (self.get_total_cost_basis() / total_shares).quantize(
+                Decimal("0.01")
+            )
+        return Decimal("0")
 
     def get_unrealized_gain_loss(self, current_price: float) -> Dict[str, Any]:
         """
@@ -174,21 +183,24 @@ class FIFOCostBasisCalculator:
         Returns:
             Dict containing unrealized gain/loss details
         """
-        current_price_decimal = Decimal(
-            str(current_price)).quantize(Decimal('0.01'))
+        current_price_decimal = Decimal(str(current_price)).quantize(Decimal("0.01"))
         total_shares = self.get_total_shares()
         total_cost_basis = self.get_total_cost_basis()
         current_market_value = total_shares * current_price_decimal
         unrealized_gain_loss = current_market_value - total_cost_basis
 
         return {
-            'total_shares': float(total_shares),
-            'average_cost_per_share': float(self.get_average_cost_per_share()),
-            'total_cost_basis': float(total_cost_basis),
-            'current_price': float(current_price_decimal),
-            'current_market_value': float(current_market_value),
-            'unrealized_gain_loss': float(unrealized_gain_loss),
-            'unrealized_gain_loss_pct': float((unrealized_gain_loss / total_cost_basis * 100)) if total_cost_basis > 0 else 0
+            "total_shares": float(total_shares),
+            "average_cost_per_share": float(self.get_average_cost_per_share()),
+            "total_cost_basis": float(total_cost_basis),
+            "current_price": float(current_price_decimal),
+            "current_market_value": float(current_market_value),
+            "unrealized_gain_loss": float(unrealized_gain_loss),
+            "unrealized_gain_loss_pct": (
+                float((unrealized_gain_loss / total_cost_basis * 100))
+                if total_cost_basis > 0
+                else 0
+            ),
         }
 
     def get_position_summary(self, current_price: float = None) -> Dict[str, Any]:
@@ -206,12 +218,14 @@ class FIFOCostBasisCalculator:
         avg_cost = self.get_average_cost_per_share()
 
         summary = {
-            'total_shares': float(total_shares),
-            'total_cost_basis': float(total_cost_basis),
-            'average_cost_per_share': float(avg_cost),
-            'number_of_lots': len(self.lots),
-            'realized_transactions': len(self.realized_gains),
-            'total_realized_gain_loss': sum(rg['realized_gain_loss'] for rg in self.realized_gains)
+            "total_shares": float(total_shares),
+            "total_cost_basis": float(total_cost_basis),
+            "average_cost_per_share": float(avg_cost),
+            "number_of_lots": len(self.lots),
+            "realized_transactions": len(self.realized_gains),
+            "total_realized_gain_loss": sum(
+                rg["realized_gain_loss"] for rg in self.realized_gains
+            ),
         }
 
         if current_price is not None:
@@ -224,11 +238,11 @@ class FIFOCostBasisCalculator:
         """Get detailed information about all current lots."""
         return [
             {
-                'shares': float(lot.shares),
-                'price': float(lot.price),
-                'purchase_date': lot.purchase_date,
-                'cost_basis': float(lot.cost_basis),
-                'original_shares': float(lot.original_shares)
+                "shares": float(lot.shares),
+                "price": float(lot.price),
+                "purchase_date": lot.purchase_date,
+                "cost_basis": float(lot.cost_basis),
+                "original_shares": float(lot.original_shares),
             }
             for lot in self.lots
         ]
@@ -243,7 +257,9 @@ class FIFOCostBasisCalculator:
         self.realized_gains.clear()
 
 
-def calculate_fifo_position_from_transactions(transactions: List[Dict[str, Any]]) -> FIFOCostBasisCalculator:
+def calculate_fifo_position_from_transactions(
+    transactions: List[Dict[str, Any]],
+) -> FIFOCostBasisCalculator:
     """
     Create a FIFO calculator from a list of transactions.
 
@@ -260,22 +276,23 @@ def calculate_fifo_position_from_transactions(transactions: List[Dict[str, Any]]
     calculator = FIFOCostBasisCalculator()
 
     # Sort transactions by date to ensure proper chronological processing
-    sorted_transactions = sorted(transactions, key=lambda x: (
-        x['transaction_date'], x.get('id', 0)))
+    sorted_transactions = sorted(
+        transactions, key=lambda x: (x["transaction_date"], x.get("id", 0))
+    )
 
     for transaction in sorted_transactions:
-        trans_type = transaction['transaction_type']
-        trans_date = transaction['transaction_date']
-        shares = float(transaction['shares'] or 0)
-        price = float(transaction['price'] or 0)
+        trans_type = transaction["transaction_type"]
+        trans_date = transaction["transaction_date"]
+        shares = float(transaction["shares"] or 0)
+        price = float(transaction["price"] or 0)
 
         if shares <= 0 or price <= 0:
             continue
 
         try:
-            if trans_type in ('buy', 'split_adjustment'):
+            if trans_type in ("buy", "split_adjustment"):
                 calculator.add_purchase(shares, price, trans_date)
-            elif trans_type == 'sell':
+            elif trans_type == "sell":
                 calculator.process_sale(shares, price, trans_date)
         except ValueError as e:
             print(f"Warning: Skipping invalid transaction: {e}")

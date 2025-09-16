@@ -1,0 +1,24 @@
+[project]
+name = "predictor-managment-system"
+version = "0.1.0"
+description = "Securities Portfolio Managment System"
+authors = [
+    {name = "Randy Costner",email = "costner.randy@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "yfinance (>=0.2.65,<0.3.0)",
+    "rich (>=14.1.0,<15.0.0)",
+    "pandas (>=2.3.2,<3.0.0)",
+    "numpy (>=2.3.3,<3.0.0)"
+]
+
+[tool.poetry]
+
+[tool.poetry.group.dev.dependencies]
+black = "isort"
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"

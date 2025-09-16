@@ -5,7 +5,7 @@ Enhanced CLI wrapper for the Predictor portfolio management system.
 This script serves as an entry point to the enhanced CLI, delegating to the
 modular implementation in the enhanced_cli package.
 
-This module re-exports the EnhancedCLI class from enhanced_cli.main to 
+This module re-exports the EnhancedCLI class from enhanced_cli.main to
 maintain compatibility with code that imports from here.
 """
 

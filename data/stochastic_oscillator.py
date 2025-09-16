@@ -1,24 +1,26 @@
-import pandas as pd
-import numpy as np
-import mysql.connector
-from contextlib import contextmanager
-from data.utility import DatabaseConnectionPool
 import logging
+from contextlib import contextmanager
 from decimal import Decimal, DivisionUndefined
+
+import mysql.connector
+import numpy as np
+import pandas as pd
+
+from data.utility import DatabaseConnectionPool
 
 # Set up logging - consistent with existing pattern
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler("stochastic_oscillator.log")
-    ]
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("stochastic_oscillator.log")],
 )
 logger = logging.getLogger("stochastic_oscillator")
 
 # Ensure no console output
 for handler in logger.handlers[:]:
-    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+    if isinstance(handler, logging.StreamHandler) and not isinstance(
+        handler, logging.FileHandler
+    ):
         logger.removeHandler(handler)
 
 
@@ -27,18 +29,20 @@ class StochasticOscillator:
     Stochastic Oscillator implementation following DRY principles.
     Reuses existing database patterns, connection management, and analysis structure.
     """
-    
+
     def __init__(self, user, password, host, database):
         self.db_user = user
         self.db_password = password
         self.db_host = host
         self.db_name = database
-        
+
         # Initialize connection pool - reusing existing pattern
         try:
             self.pool = DatabaseConnectionPool(user, password, host, database)
             self.current_connection = None
-            logger.info("Stochastic Oscillator initialized with database connection pool")
+            logger.info(
+                "Stochastic Oscillator initialized with database connection pool"
+            )
         except Exception as e:
             logger.error(f"Failed to initialize database connection pool: {str(e)}")
             raise
@@ -48,7 +52,10 @@ class StochasticOscillator:
         """Context manager for database connections - reusing existing pattern."""
         connection = None
         try:
-            if self.current_connection is not None and self.current_connection.is_connected():
+            if (
+                self.current_connection is not None
+                and self.current_connection.is_connected()
+            ):
                 connection = self.current_connection
                 yield connection
             else:
@@ -64,7 +71,10 @@ class StochasticOscillator:
     def open_connection(self):
         """Open database connection - consistent with existing pattern."""
         try:
-            if self.current_connection is None or not self.current_connection.is_connected():
+            if (
+                self.current_connection is None
+                or not self.current_connection.is_connected()
+            ):
                 self.current_connection = self.pool.get_connection()
                 logger.debug("Opened new database connection")
             return self.current_connection
@@ -75,7 +85,10 @@ class StochasticOscillator:
     def close_connection(self):
         """Close database connection - consistent with existing pattern."""
         try:
-            if self.current_connection is not None and self.current_connection.is_connected():
+            if (
+                self.current_connection is not None
+                and self.current_connection.is_connected()
+            ):
                 self.current_connection.close()
                 logger.debug("Closed database connection")
                 self.current_connection = None
@@ -85,116 +98,174 @@ class StochasticOscillator:
     def calculate_stochastic(self, ticker_id, k_period=14, d_period=3):
         """
         Calculate Stochastic Oscillator %K and %D values.
-        
+
         Args:
             ticker_id (int): Ticker ID to calculate for
             k_period (int): Period for %K calculation (default: 14)
             d_period (int): Period for %D smoothing (default: 3)
-            
+
         Returns:
             pd.DataFrame: DataFrame with stochastic values
         """
-        logger.info(f"Calculating Stochastic Oscillator for ticker {ticker_id}, K period: {k_period}, D period: {d_period}")
-        
+        logger.info(
+            f"Calculating Stochastic Oscillator for ticker {ticker_id}, K period: {k_period}, D period: {d_period}"
+        )
+
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                
+
                 # Get the last date for which stochastic was calculated - reusing existing pattern
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT MAX(activity_date) 
                     FROM investing.averages 
                     WHERE ticker_id = %s AND average_type = %s
-                """, (ticker_id, f'STOCH_K_{k_period}'))
+                """,
+                    (ticker_id, f"STOCH_K_{k_period}"),
+                )
                 result = cursor.fetchone()
                 last_date = result[0] if result else None
-                
+
                 # Set calculation start date - reusing existing logic
                 if last_date is None:
-                    last_date = '1900-01-01'
-                    logger.debug(f"No previous stochastic data found for ticker {ticker_id}, calculating all")
+                    last_date = "1900-01-01"
+                    logger.debug(
+                        f"No previous stochastic data found for ticker {ticker_id}, calculating all"
+                    )
                 else:
                     # Go back enough days to ensure we have sufficient data for calculation
                     from datetime import timedelta
+
                     last_date = last_date - timedelta(days=k_period + d_period)
-                    logger.debug(f"Last stochastic date for ticker {ticker_id}: {last_date}")
-                
+                    logger.debug(
+                        f"Last stochastic date for ticker {ticker_id}: {last_date}"
+                    )
+
                 # Retrieve price data - reusing existing query pattern
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT activity_date, high, low, close 
                     FROM investing.activity 
                     WHERE ticker_id = %s AND activity_date > %s
                     ORDER BY activity_date ASC
-                """, (ticker_id, last_date))
-                
+                """,
+                    (ticker_id, last_date),
+                )
+
                 # Convert to DataFrame - consistent with existing pattern
-                new_data = pd.DataFrame(cursor.fetchall(), columns=['activity_date', 'high', 'low', 'close'])
-                
+                new_data = pd.DataFrame(
+                    cursor.fetchall(), columns=["activity_date", "high", "low", "close"]
+                )
+
                 if not new_data.empty:
-                    logger.info(f"Found {len(new_data)} new data points to calculate stochastic")
-                    
-                    new_data['activity_date'] = pd.to_datetime(new_data['activity_date'])
-                    new_data = new_data.set_index('activity_date')
-                    
+                    logger.info(
+                        f"Found {len(new_data)} new data points to calculate stochastic"
+                    )
+
+                    new_data["activity_date"] = pd.to_datetime(
+                        new_data["activity_date"]
+                    )
+                    new_data = new_data.set_index("activity_date")
+
                     # Calculate %K - core stochastic formula
-                    new_data['lowest_low'] = new_data['low'].rolling(window=k_period, min_periods=k_period).min()
-                    new_data['highest_high'] = new_data['high'].rolling(window=k_period, min_periods=k_period).max()
-                    
+                    new_data["lowest_low"] = (
+                        new_data["low"]
+                        .rolling(window=k_period, min_periods=k_period)
+                        .min()
+                    )
+                    new_data["highest_high"] = (
+                        new_data["high"]
+                        .rolling(window=k_period, min_periods=k_period)
+                        .max()
+                    )
+
                     # Handle division by zero - consistent with existing error handling
                     def safe_stochastic_k(row):
                         try:
                             # Convert to float to handle Decimal/float arithmetic - consistent with existing patterns
-                            close = float(row['close'])
-                            highest_high = float(row['highest_high'])
-                            lowest_low = float(row['lowest_low'])
-                            
+                            close = float(row["close"])
+                            highest_high = float(row["highest_high"])
+                            lowest_low = float(row["lowest_low"])
+
                             denominator = highest_high - lowest_low
                             if abs(denominator) < 0.0001:
                                 return 50.0  # Neutral value when no price movement
                             return ((close - lowest_low) / denominator) * 100
-                        except (ZeroDivisionError, DivisionUndefined, ValueError, TypeError):
+                        except (
+                            ZeroDivisionError,
+                            DivisionUndefined,
+                            ValueError,
+                            TypeError,
+                        ):
                             return 50.0
-                    
-                    new_data['stoch_k'] = new_data.apply(safe_stochastic_k, axis=1)
-                    
+
+                    new_data["stoch_k"] = new_data.apply(safe_stochastic_k, axis=1)
+
                     # Calculate %D (smoothed %K) - reusing rolling calculation pattern
-                    new_data['stoch_d'] = new_data['stoch_k'].rolling(window=d_period, min_periods=d_period).mean()
-                    
+                    new_data["stoch_d"] = (
+                        new_data["stoch_k"]
+                        .rolling(window=d_period, min_periods=d_period)
+                        .mean()
+                    )
+
                     # Remove rows where calculations couldn't be completed
-                    complete_data = new_data.dropna(subset=['stoch_k', 'stoch_d'])
-                    
+                    complete_data = new_data.dropna(subset=["stoch_k", "stoch_d"])
+
                     if not complete_data.empty:
                         # Store in database - reusing existing storage pattern
                         rows_updated = 0
                         for index, row in complete_data.iterrows():
                             # Store %K
-                            cursor.execute("""
+                            cursor.execute(
+                                """
                                 INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
                                 VALUES (%s, %s, %s, %s)
                                 ON DUPLICATE KEY UPDATE value = VALUES(value)
-                            """, (ticker_id, index.date(), f'STOCH_K_{k_period}', float(row['stoch_k'])))
-                            
+                            """,
+                                (
+                                    ticker_id,
+                                    index.date(),
+                                    f"STOCH_K_{k_period}",
+                                    float(row["stoch_k"]),
+                                ),
+                            )
+
                             # Store %D
-                            cursor.execute("""
+                            cursor.execute(
+                                """
                                 INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
                                 VALUES (%s, %s, %s, %s)
                                 ON DUPLICATE KEY UPDATE value = VALUES(value)
-                            """, (ticker_id, index.date(), f'STOCH_D_{k_period}_{d_period}', float(row['stoch_d'])))
-                            
+                            """,
+                                (
+                                    ticker_id,
+                                    index.date(),
+                                    f"STOCH_D_{k_period}_{d_period}",
+                                    float(row["stoch_d"]),
+                                ),
+                            )
+
                             rows_updated += cursor.rowcount
-                        
+
                         connection.commit()
-                        logger.info(f"Updated {rows_updated} stochastic values for ticker {ticker_id}")
+                        logger.info(
+                            f"Updated {rows_updated} stochastic values for ticker {ticker_id}"
+                        )
                     else:
-                        logger.info(f"No complete stochastic data could be calculated for ticker {ticker_id}")
+                        logger.info(
+                            f"No complete stochastic data could be calculated for ticker {ticker_id}"
+                        )
                 else:
-                    logger.info(f"No new data found for ticker {ticker_id} since {last_date}")
-                
+                    logger.info(
+                        f"No new data found for ticker {ticker_id} since {last_date}"
+                    )
+
                 cursor.close()
-                
+
                 # Return the updated stochastic data - reusing existing return pattern
                 return self.load_stochastic_from_db(ticker_id, k_period, d_period)
-                
+
         except mysql.connector.Error as e:
             logger.error(f"Database error calculating stochastic: {str(e)}")
             raise
@@ -205,19 +276,19 @@ class StochasticOscillator:
     def load_stochastic_from_db(self, ticker_id, k_period=14, d_period=3):
         """
         Load stochastic data from database - reusing existing load pattern.
-        
+
         Args:
             ticker_id (int): Ticker ID
             k_period (int): K period used in calculation
             d_period (int): D period used in calculation
-            
+
         Returns:
             pd.DataFrame: Stochastic data
         """
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                
+
                 # Load both %K and %D - reusing existing query pattern
                 sql = """
                     SELECT a.activity_date, 
@@ -230,20 +301,24 @@ class StochasticOscillator:
                     GROUP BY a.activity_date
                     ORDER BY a.activity_date ASC
                 """
-                
-                k_type = f'STOCH_K_{k_period}'
-                d_type = f'STOCH_D_{k_period}_{d_period}'
-                
+
+                k_type = f"STOCH_K_{k_period}"
+                d_type = f"STOCH_D_{k_period}_{d_period}"
+
                 cursor.execute(sql, (k_type, d_type, ticker_id, k_type, d_type))
-                
-                df = pd.DataFrame(cursor.fetchall(), columns=['activity_date', 'stoch_k', 'stoch_d'])
-                df = df.set_index('activity_date')
-                
+
+                df = pd.DataFrame(
+                    cursor.fetchall(), columns=["activity_date", "stoch_k", "stoch_d"]
+                )
+                df = df.set_index("activity_date")
+
                 cursor.close()
-                
-                logger.debug(f"Loaded {len(df)} stochastic data points for ticker {ticker_id}")
+
+                logger.debug(
+                    f"Loaded {len(df)} stochastic data points for ticker {ticker_id}"
+                )
                 return df
-                
+
         except mysql.connector.Error as e:
             logger.error(f"Database error loading stochastic data: {str(e)}")
             raise
@@ -251,61 +326,65 @@ class StochasticOscillator:
             logger.error(f"Error loading stochastic data: {str(e)}")
             raise
 
-    def get_stochastic_signals(self, ticker_id, k_period=14, d_period=3, overbought=80, oversold=20):
+    def get_stochastic_signals(
+        self, ticker_id, k_period=14, d_period=3, overbought=80, oversold=20
+    ):
         """
         Generate trading signals based on stochastic levels - reusing existing signal pattern.
-        
+
         Args:
             ticker_id (int): Ticker ID
             k_period (int): K period
-            d_period (int): D period  
+            d_period (int): D period
             overbought (float): Overbought threshold (default: 80)
             oversold (float): Oversold threshold (default: 20)
-            
+
         Returns:
             dict: Current signal analysis
         """
         try:
             # Ensure data is up to date
             stoch_data = self.calculate_stochastic(ticker_id, k_period, d_period)
-            
+
             if stoch_data is None or stoch_data.empty:
-                return {
-                    'success': False,
-                    'error': 'No stochastic data available'
-                }
-            
+                return {"success": False, "error": "No stochastic data available"}
+
             # Get latest values - reusing existing pattern
             latest = stoch_data.iloc[-1]
             latest_date = stoch_data.index[-1]
-            
-            stoch_k = float(latest['stoch_k']) if not pd.isna(latest['stoch_k']) else None
-            stoch_d = float(latest['stoch_d']) if not pd.isna(latest['stoch_d']) else None
-            
+
+            stoch_k = (
+                float(latest["stoch_k"]) if not pd.isna(latest["stoch_k"]) else None
+            )
+            stoch_d = (
+                float(latest["stoch_d"]) if not pd.isna(latest["stoch_d"]) else None
+            )
+
             if stoch_k is None or stoch_d is None:
-                return {
-                    'success': False,
-                    'error': 'Invalid stochastic values'
-                }
-            
+                return {"success": False, "error": "Invalid stochastic values"}
+
             # Determine signal - reusing existing signal logic patterns
             if stoch_k >= overbought and stoch_d >= overbought:
                 signal = "OVERBOUGHT"
                 signal_strength = "Strong" if min(stoch_k, stoch_d) > 85 else "Moderate"
             elif stoch_k <= oversold and stoch_d <= oversold:
-                signal = "OVERSOLD" 
+                signal = "OVERSOLD"
                 signal_strength = "Strong" if max(stoch_k, stoch_d) < 15 else "Moderate"
             else:
                 signal = "NEUTRAL"
                 signal_strength = "N/A"
-            
+
             # Check for crossover signals if we have enough data
             crossover_signal = None
             if len(stoch_data) >= 2:
                 prev = stoch_data.iloc[-2]
-                prev_k = float(prev['stoch_k']) if not pd.isna(prev['stoch_k']) else None
-                prev_d = float(prev['stoch_d']) if not pd.isna(prev['stoch_d']) else None
-                
+                prev_k = (
+                    float(prev["stoch_k"]) if not pd.isna(prev["stoch_k"]) else None
+                )
+                prev_d = (
+                    float(prev["stoch_d"]) if not pd.isna(prev["stoch_d"]) else None
+                )
+
                 if prev_k is not None and prev_d is not None:
                     # Bullish crossover (%K crosses above %D)
                     if stoch_k > stoch_d and prev_k <= prev_d:
@@ -313,97 +392,113 @@ class StochasticOscillator:
                     # Bearish crossover (%K crosses below %D)
                     elif stoch_k < stoch_d and prev_k >= prev_d:
                         crossover_signal = "BEARISH_CROSSOVER"
-            
+
             return {
-                'success': True,
-                'stoch_k': stoch_k,
-                'stoch_d': stoch_d,
-                'date': latest_date,
-                'signal': signal,
-                'signal_strength': signal_strength,
-                'crossover_signal': crossover_signal,
-                'overbought_threshold': overbought,
-                'oversold_threshold': oversold,
-                'display_text': f"Stochastic ({latest_date.strftime('%Y-%m-%d')}): %K={stoch_k:.1f}, %D={stoch_d:.1f} - {signal}"
+                "success": True,
+                "stoch_k": stoch_k,
+                "stoch_d": stoch_d,
+                "date": latest_date,
+                "signal": signal,
+                "signal_strength": signal_strength,
+                "crossover_signal": crossover_signal,
+                "overbought_threshold": overbought,
+                "oversold_threshold": oversold,
+                "display_text": f"Stochastic ({latest_date.strftime('%Y-%m-%d')}): %K={stoch_k:.1f}, %D={stoch_d:.1f} - {signal}",
             }
-            
+
         except Exception as e:
             logger.error(f"Error generating stochastic signals: {str(e)}")
             return {
-                'success': False,
-                'error': f'Unable to generate stochastic signals: {str(e)}'
+                "success": False,
+                "error": f"Unable to generate stochastic signals: {str(e)}",
             }
 
     def analyze_divergence(self, ticker_id, k_period=14, d_period=3, lookback_days=20):
         """
         Analyze price vs stochastic divergence - reusing existing analysis patterns.
-        
+
         Args:
             ticker_id (int): Ticker ID
             k_period (int): K period
             d_period (int): D period
             lookback_days (int): Days to look back for divergence analysis
-            
+
         Returns:
             dict: Divergence analysis results
         """
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                
+
                 # Get recent price data
-                cursor.execute("""
+                cursor.execute(
+                    """
                     SELECT activity_date, close 
                     FROM investing.activity 
                     WHERE ticker_id = %s 
                     ORDER BY activity_date DESC 
                     LIMIT %s
-                """, (ticker_id, lookback_days))
-                
-                price_data = pd.DataFrame(cursor.fetchall(), columns=['activity_date', 'close'])
+                """,
+                    (ticker_id, lookback_days),
+                )
+
+                price_data = pd.DataFrame(
+                    cursor.fetchall(), columns=["activity_date", "close"]
+                )
                 cursor.close()
-                
+
                 if price_data.empty:
-                    return {'success': False, 'error': 'No price data available'}
-                
-                price_data = price_data.set_index('activity_date')
+                    return {"success": False, "error": "No price data available"}
+
+                price_data = price_data.set_index("activity_date")
                 price_data = price_data.sort_index()
-                
+
                 # Get stochastic data for same period
                 stoch_data = self.load_stochastic_from_db(ticker_id, k_period, d_period)
-                
+
                 if stoch_data.empty:
-                    return {'success': False, 'error': 'No stochastic data available'}
-                
+                    return {"success": False, "error": "No stochastic data available"}
+
                 # Merge data - reusing existing data merge patterns
-                combined = price_data.join(stoch_data, how='inner')
-                
+                combined = price_data.join(stoch_data, how="inner")
+
                 if len(combined) < 10:  # Need sufficient data for divergence analysis
-                    return {'success': False, 'error': 'Insufficient data for divergence analysis'}
-                
+                    return {
+                        "success": False,
+                        "error": "Insufficient data for divergence analysis",
+                    }
+
                 # Simple divergence detection - can be enhanced later
                 recent_data = combined.tail(10)
-                
-                price_trend = "UP" if recent_data['close'].iloc[-1] > recent_data['close'].iloc[0] else "DOWN"
-                stoch_trend = "UP" if recent_data['stoch_k'].iloc[-1] > recent_data['stoch_k'].iloc[0] else "DOWN"
-                
+
+                price_trend = (
+                    "UP"
+                    if recent_data["close"].iloc[-1] > recent_data["close"].iloc[0]
+                    else "DOWN"
+                )
+                stoch_trend = (
+                    "UP"
+                    if recent_data["stoch_k"].iloc[-1] > recent_data["stoch_k"].iloc[0]
+                    else "DOWN"
+                )
+
                 divergence = None
                 if price_trend == "UP" and stoch_trend == "DOWN":
                     divergence = "BEARISH_DIVERGENCE"
                 elif price_trend == "DOWN" and stoch_trend == "UP":
                     divergence = "BULLISH_DIVERGENCE"
-                
+
                 return {
-                    'success': True,
-                    'divergence': divergence,
-                    'price_trend': price_trend,
-                    'stoch_trend': stoch_trend,
-                    'display_text': f"Divergence Analysis: {divergence if divergence else 'No divergence detected'}"
+                    "success": True,
+                    "divergence": divergence,
+                    "price_trend": price_trend,
+                    "stoch_trend": stoch_trend,
+                    "display_text": f"Divergence Analysis: {divergence if divergence else 'No divergence detected'}",
                 }
-                
+
         except Exception as e:
             logger.error(f"Error analyzing divergence: {str(e)}")
             return {
-                'success': False,
-                'error': f'Unable to analyze divergence: {str(e)}'
+                "success": False,
+                "error": f"Unable to analyze divergence: {str(e)}",
             }
