@@ -1,7 +1,7 @@
 [project]
-name = "predictor-managment-system"
+name = "predictor-management-system"
 version = "0.1.0"
-description = "Securities Portfolio Managment System"
+description = "Securities Portfolio Management System"
 authors = [
     {name = "Randy Costner",email = "costner.randy@gmail.com"}
 ]
