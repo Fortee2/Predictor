@@ -149,7 +149,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                             continue
                         log_shares = None
                         log_price = None
-                    elif "CASH CONTRIBUTION" in action in action:
+                    elif "CASH CONTRIBUTION" in action:
                         # SPAXX is the cash holding security in Fidelity accounts.
                         # It pays interest which is treated as a dividend.
                         cli_transaction_type = "cash"
