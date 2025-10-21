@@ -5,16 +5,8 @@ This module provides commands for data management operations such as
 updating data for all securities in portfolios.
 """
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from rich.console import Console
-from rich.progress import Progress
-from rich.prompt import Confirm, Prompt
-
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
-from portfolio_cli import PortfolioCLI
 
 # Import DataRetrieval lazily to avoid startup delay
 # This prevents the initial delay caused by DataRetrieval's initialization

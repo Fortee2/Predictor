@@ -1,8 +1,7 @@
-from datetime import date
+from functools import lru_cache
 
 import mysql.connector
 import pandas as pd
-from mysql.connector import errorcode
 
 
 class TickerDao:
@@ -105,6 +104,7 @@ class TickerDao:
         except mysql.connector.Error as err:
             print(err)
 
+    @lru_cache(maxsize=128)
     def get_ticker_id(self, symbol):
         try:
             cursor = self.current_connection.cursor()
@@ -120,6 +120,7 @@ class TickerDao:
             print(err)
             return None
 
+    @lru_cache(maxsize=128)
     def get_ticker_symbol(self, ticker_id):
         try:
             cursor = self.current_connection.cursor()

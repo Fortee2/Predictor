@@ -8,7 +8,6 @@ to verify that cash management still functions correctly.
 """
 
 import os
-import sys
 import unittest
 
 from dotenv import load_dotenv

@@ -1,3 +1,8 @@
+"""
+Rebuild the cash balance history for a given portfolio based on its transactions.
+Useful for correcting discrepancies or initializing history for existing portfolios.
+"""
+
 import sys
 
 from data.config import Config
@@ -29,16 +34,6 @@ def main():
         cursor = portfolio_dao.connection.cursor()
 
         try:
-            # First check if cash_balance_history table exists
-            check_table_query = """
-                SELECT COUNT(*) as count 
-                FROM information_schema.tables 
-                WHERE table_schema = DATABASE() 
-                AND table_name = 'cash_balance_history'
-            """
-            cursor.execute(check_table_query)
-            table_exists = cursor.fetchone()[0] > 0
-
             # Delete existing history for this portfolio
             delete_query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
             cursor.execute(delete_query, (portfolio_id,))

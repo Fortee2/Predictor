@@ -1,7 +1,7 @@
 import os
 import random
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
@@ -111,6 +111,7 @@ class DataRetrieval:
                         or ticker_data["sector"] is None
                         or ticker_data["sector"] == "Unknown"
                     )
+                    
                     if should_update:
                         time.sleep(random.randint(1, 3))  # Small delay before API call
                         ticker = yf.Ticker(symbol)
@@ -281,7 +282,7 @@ class DataRetrieval:
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
                         print(
-                            f"Rate limit hit when accessing info for fundamentals. Will retry."
+                            "Rate limit hit when accessing info for fundamentals. Will retry."
                         )
                         continue
                     print(f"Error accessing info for {symbol}: {str(e)}")
@@ -613,21 +614,48 @@ class DataRetrieval:
         """Retrieve ticker history from the database"""
         return self.dao.retrieve_ticker_activity(ticker_id=ticker_id)
 
-    def update_stock_activity(self):
+    def _find_last_trading_day(self) -> datetime:
+        trading_day = datetime.today()
+        is_weekday = trading_day.weekday() < 5  # 0-4 are weekdays, 5-6 are weekend
+
+        while not is_weekday:
+            trading_day += timedelta(days=-1)
+            is_weekday = trading_day.weekday() < 5
+            
+        print(f"Last trading day determined to be: {trading_day.date()}")
+        return trading_day
+
+    def _already_updated_today(self, last_update_date, trading_day_date):
+        if last_update_date is None:
+            last_update_date = date.today() - timedelta(
+                days=365 * 5
+            )  # Set to 5 years ago if never updated
+        if last_update_date >= trading_day_date:
+            return True
+        
+        return False
+            
+    def update_stock_activity(self, update_watch_list=True):
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
 
-            trading_day = datetime.today()
-            is_weekday = trading_day.weekday() < 5  # 0-4 are weekdays, 5-6 are weekend
-
-            while not is_weekday:
-                trading_day += timedelta(days=-1)
-                is_weekday = trading_day.weekday() < 5
-
+            trading_day = self._find_last_trading_day()
+            #TODO: Pass in portfolio_id
             portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
-            watchlist_tickers = self.watch_list_dao.get_all_watchlist_tickers()
-
-            portfolio_tickers.extend(watchlist_tickers)
+            open_positions = self.portfolio_transactions_dao.get_current_positions(1)
+            loop_tickers = portfolio_tickers.copy()
+            
+            for security in loop_tickers:
+                if security[0] in open_positions:
+                    if open_positions[security[0]]["shares"] <= 0:
+                         portfolio_tickers.remove(security)
+                else:
+                    portfolio_tickers.remove(security)
+            
+            if update_watch_list:
+                watch_list_tickers = self.watch_list_dao.get_all_watchlist_tickers()
+                portfolio_tickers.extend(watch_list_tickers)
+                
             portfolio_tickers = list(set(portfolio_tickers))  # Remove duplicates
 
             if not portfolio_tickers:
@@ -641,11 +669,7 @@ class DataRetrieval:
 
             for ticker_id, symbol, last_update in portfolio_tickers:
                 try:
-                    if last_update is None:
-                        last_update = date.today() - timedelta(
-                            days=365 * 5
-                        )  # Set to 5 years ago if never updated
-                    if last_update >= trading_day.date():
+                    if self._already_updated_today(last_update, trading_day.date()):
                         print(
                             f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})"
                         )

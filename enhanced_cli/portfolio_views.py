@@ -273,18 +273,19 @@ class ViewPortfolioCommand(Command):
                     f"[{gl_color}]{position['gain_loss_pct']:.2f}%[/{gl_color}]"
                 )
 
-                rows.append(
-                    [
-                        position["symbol"],
-                        f"{position['shares']:.2f}",
-                        f"${position['avg_price']:.2f}",
-                        f"${position['current_price']:.2f}",
-                        f"${position['position_value']:.2f}",
-                        f"{position['weight_pct']:.1f}%",
-                        gl_formatted,
-                        percent_formatted,
-                    ]
-                )
+                if position["shares"] > 0:
+                    rows.append(
+                        [
+                            position["symbol"],
+                            f"{position['shares']:.2f}",
+                            f"${position['avg_price']:.2f}",
+                            f"${position['current_price']:.2f}",
+                            f"${position['position_value']:.2f}",
+                            f"{position['weight_pct']:.1f}%",
+                            gl_formatted,
+                            percent_formatted,
+                        ]
+                    )
         else:
             rows.append(
                 ["[italic]No current holdings[/italic]", "", "", "", "", "", "", ""]

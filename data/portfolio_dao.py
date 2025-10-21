@@ -1,4 +1,5 @@
 import datetime
+from functools import lru_cache
 
 import mysql.connector
 
@@ -269,6 +270,7 @@ class PortfolioDAO:
             print(f"Error withdrawing cash: {e}")
             return self.get_cash_balance(portfolio_id)
 
+    @lru_cache(maxsize=32)
     def read_portfolio(self, portfolio_id=None):
         try:
             cursor = self.connection.cursor(
@@ -417,6 +419,7 @@ class PortfolioDAO:
             print(f"Error retrieving portfolios with ticker: {e}")
             return []
 
+    @lru_cache(maxsize=32)
     def get_security_id(self, portfolio_id, ticker_id):
         try:
             cursor = self.connection.cursor()

@@ -4,3 +4,4 @@
 __pycache__
 venv/
 MCP/.DS_Store
+import_data/

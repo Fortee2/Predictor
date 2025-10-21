@@ -5,15 +5,10 @@ This module provides commands for managing application settings
 such as database connection, UI preferences, and analysis parameters.
 """
 
-from datetime import datetime
-from typing import Any, Dict, List, Optional
-
-from rich.console import Console
-from rich.prompt import Confirm, Prompt
+from rich.prompt import Prompt
 
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
-from portfolio_cli import PortfolioCLI
 
 
 class EditSettingsCommand(Command):
