@@ -1,0 +1,348 @@
+"""
+AI Assistant Views for Portfolio Analysis
+
+This module provides CLI interface for LLM-powered portfolio analysis.
+"""
+
+import os
+from rich.console import Console
+from rich.panel import Panel
+from rich.prompt import Prompt, Confirm
+from rich.markdown import Markdown
+from rich.text import Text
+from rich.live import Live
+from rich import print as rprint
+
+from data.llm_integration import LLMPortfolioAnalyzer
+from data.config import Config
+
+
+def register_ai_assistant_commands(command_registry):
+    """Register AI assistant commands with the command registry."""
+    
+    @command_registry.register("ai_chat", "AI Portfolio Assistant", "analysis")
+    def ai_chat_command(cli_instance, portfolio_id=None):
+        """Interactive chat with AI assistant."""
+        if not portfolio_id:
+            portfolio_id = cli_instance.selected_portfolio
+            
+        if not portfolio_id:
+            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
+            return
+            
+        ai_chat_interface(cli_instance.console, portfolio_id)
+    
+    @command_registry.register("weekly_recommendations", "Weekly Portfolio Recommendations", "analysis")
+    def weekly_recommendations_command(cli_instance, portfolio_id=None):
+        """Get weekly recommendations for portfolio."""
+        if not portfolio_id:
+            portfolio_id = cli_instance.selected_portfolio
+            
+        if not portfolio_id:
+            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
+            return
+            
+        get_weekly_recommendations(cli_instance.console, portfolio_id)
+    
+    @command_registry.register("portfolio_analysis", "Comprehensive Portfolio Analysis", "analysis")
+    def portfolio_analysis_command(cli_instance, portfolio_id=None):
+        """Get comprehensive portfolio analysis."""
+        if not portfolio_id:
+            portfolio_id = cli_instance.selected_portfolio
+            
+        if not portfolio_id:
+            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
+            return
+            
+        analyze_portfolio_performance(cli_instance.console, portfolio_id)
+    
+    @command_registry.register("ai_risk_assessment", "AI Risk Assessment", "analysis")
+    def risk_assessment_command(cli_instance, portfolio_id=None):
+        """Get AI-powered risk assessment."""
+        if not portfolio_id:
+            portfolio_id = cli_instance.selected_portfolio
+            
+        if not portfolio_id:
+            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
+            return
+            
+        get_risk_assessment(cli_instance.console, portfolio_id)
+
+
+def create_llm_analyzer():
+    """Create and configure the LLM analyzer."""
+    try:
+        config = Config()
+        db_config = config.get_database_config()
+        
+        analyzer = LLMPortfolioAnalyzer(
+            db_user=db_config["user"],
+            db_password=db_config["password"],
+            db_host=db_config["host"],
+            db_name=db_config["database"],
+            model_name="llama3.2:3b"
+        )
+        
+        analyzer.connect_to_database()
+        return analyzer
+        
+    except Exception as e:
+        print(f"Error creating LLM analyzer: {e}")
+        return None
+
+
+def ai_chat_interface(console: Console, portfolio_id: int):
+    """Interactive chat interface with the AI assistant."""
+    
+    console.print(Panel(
+        "[bold green]🤖 AI Portfolio Assistant[/bold green]\n\n"
+        "Ask me anything about your portfolio! I can help with:\n"
+        "• Portfolio performance analysis\n"
+        "• Weekly recommendations\n"
+        "• Risk assessment\n"
+        "• Technical analysis interpretation\n"
+        "• Investment suggestions\n\n"
+        "[yellow]Type 'exit' to return to main menu[/yellow]",
+        title="Welcome to AI Assistant",
+        border_style="green"
+    ))
+    
+    analyzer = create_llm_analyzer()
+    if not analyzer:
+        console.print("[red]Error: Could not connect to AI assistant. Please check your configuration.[/red]")
+        return
+    
+    try:
+        while True:
+            # Get user input
+            user_question = Prompt.ask(
+                "\n[bold blue]Ask your question[/bold blue]",
+                default=""
+            )
+            
+            if user_question.lower() in ['exit', 'quit', 'q']:
+                break
+                
+            if not user_question.strip():
+                continue
+            
+            # Show thinking indicator
+            with console.status("[bold green]🤖 Analyzing your portfolio...[/bold green]"):
+                try:
+                    response = analyzer.query_portfolio(portfolio_id, user_question)
+                except Exception as e:
+                    response = f"I encountered an error while analyzing your portfolio: {str(e)}"
+            
+            # Display response
+            console.print("\n" + "="*80)
+            console.print(Panel(
+                Markdown(response),
+                title="🤖 AI Assistant Response",
+                border_style="blue",
+                padding=(1, 2)
+            ))
+            console.print("="*80 + "\n")
+            
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Chat session ended.[/yellow]")
+    finally:
+        if analyzer:
+            analyzer.disconnect_from_database()
+
+
+def get_weekly_recommendations(console: Console, portfolio_id: int):
+    """Get and display weekly recommendations."""
+    
+    console.print(Panel(
+        "[bold blue]📈 Weekly Portfolio Recommendations[/bold blue]\n"
+        "Generating personalized recommendations based on your portfolio data...",
+        title="AI Analysis",
+        border_style="blue"
+    ))
+    
+    analyzer = create_llm_analyzer()
+    if not analyzer:
+        console.print("[red]Error: Could not connect to AI assistant.[/red]")
+        return
+    
+    try:
+        with console.status("[bold green]🤖 Analyzing market conditions and portfolio data...[/bold green]"):
+            recommendations = analyzer.get_weekly_recommendations(portfolio_id)
+        
+        console.print("\n" + "="*100)
+        console.print(Panel(
+            Markdown(recommendations),
+            title="📈 Weekly Recommendations",
+            border_style="green",
+            padding=(1, 2)
+        ))
+        console.print("="*100)
+        
+        # Ask if user wants to save recommendations
+        if Confirm.ask("\n[bold]Would you like to save these recommendations to a file?[/bold]"):
+            save_analysis_to_file(console, recommendations, f"weekly_recommendations_portfolio_{portfolio_id}")
+            
+    except Exception as e:
+        console.print(f"[red]Error generating recommendations: {str(e)}[/red]")
+    finally:
+        if analyzer:
+            analyzer.disconnect_from_database()
+
+
+def analyze_portfolio_performance(console: Console, portfolio_id: int):
+    """Get and display comprehensive portfolio analysis."""
+    
+    console.print(Panel(
+        "[bold blue]📊 Comprehensive Portfolio Analysis[/bold blue]\n"
+        "Performing deep analysis of your portfolio performance...",
+        title="AI Analysis",
+        border_style="blue"
+    ))
+    
+    analyzer = create_llm_analyzer()
+    if not analyzer:
+        console.print("[red]Error: Could not connect to AI assistant.[/red]")
+        return
+    
+    try:
+        with console.status("[bold green]🤖 Processing portfolio data and generating insights...[/bold green]"):
+            analysis = analyzer.analyze_portfolio_performance(portfolio_id)
+        
+        console.print("\n" + "="*100)
+        console.print(Panel(
+            Markdown(analysis),
+            title="📊 Portfolio Performance Analysis",
+            border_style="cyan",
+            padding=(1, 2)
+        ))
+        console.print("="*100)
+        
+        # Ask if user wants to save analysis
+        if Confirm.ask("\n[bold]Would you like to save this analysis to a file?[/bold]"):
+            save_analysis_to_file(console, analysis, f"portfolio_analysis_portfolio_{portfolio_id}")
+            
+    except Exception as e:
+        console.print(f"[red]Error generating analysis: {str(e)}[/red]")
+    finally:
+        if analyzer:
+            analyzer.disconnect_from_database()
+
+
+def get_risk_assessment(console: Console, portfolio_id: int):
+    """Get AI-powered risk assessment."""
+    
+    risk_prompt = """
+    Please provide a comprehensive risk assessment of this portfolio including:
+    
+    1. **Overall Risk Level** - Assess the portfolio's risk on a scale of 1-10
+    2. **Concentration Risk** - Analysis of sector/stock concentration
+    3. **Volatility Assessment** - Based on technical indicators and price movements  
+    4. **Market Risk Exposure** - How vulnerable is this portfolio to market downturns
+    5. **Specific Risk Factors** - Individual stocks or positions of concern
+    6. **Risk Mitigation Suggestions** - Concrete steps to reduce portfolio risk
+    7. **Diversification Recommendations** - How to improve portfolio balance
+    
+    Be specific with numbers and provide actionable recommendations.
+    """
+    
+    console.print(Panel(
+        "[bold red]⚠️  Portfolio Risk Assessment[/bold red]\n"
+        "Analyzing portfolio risks and generating mitigation strategies...",
+        title="Risk Analysis",
+        border_style="red"
+    ))
+    
+    analyzer = create_llm_analyzer()
+    if not analyzer:
+        console.print("[red]Error: Could not connect to AI assistant.[/red]")
+        return
+    
+    try:
+        with console.status("[bold green]🤖 Evaluating portfolio risks...[/bold green]"):
+            risk_analysis = analyzer.query_portfolio(portfolio_id, risk_prompt)
+        
+        console.print("\n" + "="*100)
+        console.print(Panel(
+            Markdown(risk_analysis),
+            title="⚠️ Risk Assessment Report",
+            border_style="red",
+            padding=(1, 2)
+        ))
+        console.print("="*100)
+        
+        # Ask if user wants to save analysis
+        if Confirm.ask("\n[bold]Would you like to save this risk assessment to a file?[/bold]"):
+            save_analysis_to_file(console, risk_analysis, f"risk_assessment_portfolio_{portfolio_id}")
+            
+    except Exception as e:
+        console.print(f"[red]Error generating risk assessment: {str(e)}[/red]")
+    finally:
+        if analyzer:
+            analyzer.disconnect_from_database()
+
+
+def save_analysis_to_file(console: Console, content: str, filename_prefix: str):
+    """Save analysis content to a file."""
+    try:
+        from datetime import datetime
+        
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{filename_prefix}_{timestamp}.md"
+        
+        with open(filename, 'w', encoding='utf-8') as f:
+            f.write(f"# Portfolio Analysis Report\n\n")
+            f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+            f.write(content)
+        
+        console.print(f"[green]✅ Analysis saved to: {filename}[/green]")
+        
+    except Exception as e:
+        console.print(f"[red]Error saving file: {str(e)}[/red]")
+
+
+def check_ollama_connection():
+    """Check if Ollama is running and accessible."""
+    try:
+        import requests
+        response = requests.get("http://localhost:11434/api/version", timeout=5)
+        return response.status_code == 200
+    except Exception:
+        return False
+
+
+def display_ai_setup_help(console: Console):
+    """Display help for setting up AI assistant."""
+    
+    setup_text = """
+    # 🤖 AI Assistant Setup Guide
+    
+    ## Prerequisites
+    
+    1. **Install Ollama**: Download from https://ollama.ai
+    2. **Pull llama3.2 model**: Run `ollama pull llama3.2:3b`
+    3. **Install Python packages**: Run `pip install -r requirements.txt`
+    
+    ## Verification
+    
+    - Check Ollama is running: Visit http://localhost:11434
+    - Test model: Run `ollama run llama3.2:3b "Hello"`
+    
+    ## Troubleshooting
+    
+    - **Connection Error**: Make sure Ollama is running (`ollama serve`)
+    - **Model Not Found**: Pull the model (`ollama pull llama3.2:3b`)
+    - **Slow Response**: Consider using smaller model (`llama3.2:1b`)
+    
+    ## Alternative Models
+    
+    - `llama3.2:1b` - Faster, good for basic analysis
+    - `llama3.2:3b` - Balanced performance (recommended)
+    - `mistral:7b` - Alternative option
+    """
+    
+    console.print(Panel(
+        Markdown(setup_text),
+        title="🤖 AI Assistant Setup",
+        border_style="yellow",
+        padding=(1, 2)
+    ))

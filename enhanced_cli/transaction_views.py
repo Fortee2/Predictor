@@ -251,10 +251,38 @@ class LogTransactionCommand(Command):
             ):
                 with ui.progress("Recalculating portfolio history...") as progress:
                     progress.add_task("", total=None)
-                    cli.cli.recalculate_portfolio_history(portfolio_id)
-                ui.status_message(
-                    "Portfolio history recalculated successfully", "success"
-                )
+                    
+                    # Use optimized recalculation starting from transaction date
+                    from data.optimized_portfolio_recalculator import OptimizedPortfolioRecalculator
+                    
+                    optimizer = OptimizedPortfolioRecalculator(
+                        cli.cli.config['database']['user'],
+                        cli.cli.config['database']['password'],
+                        cli.cli.config['database']['host'],
+                        cli.cli.config['database']['name']
+                    )
+                    
+                    try:
+                        transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+                        success = optimizer.smart_recalculate_from_transaction(portfolio_id, transaction_date)
+                        
+                        if success:
+                            ui.status_message(
+                                "Portfolio history recalculated successfully using optimized method", "success"
+                            )
+                        else:
+                            ui.status_message(
+                                "Recalculation completed with some issues - check output above", "warning"
+                            )
+                    except Exception as e:
+                        ui.status_message(f"Error in optimized recalculation: {e}", "error")
+                        # Fall back to original method
+                        cli.cli.recalculate_portfolio_history(portfolio_id)
+                        ui.status_message(
+                            "Fell back to standard recalculation method", "warning"
+                        )
+                    finally:
+                        optimizer.close_connection()
 
 
 class ViewTransactionsCommand(Command):

@@ -1128,3 +1128,8 @@
 2025-10-19 15:55:12,825 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
 2025-10-21 07:19:40,432 - moving_averages - INFO - Moving averages initialized with database connection pool
 2025-10-21 07:19:55,838 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-21 11:24:38,461 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-21 11:24:54,003 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-23 10:25:19,529 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-23 10:25:53,851 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-23 10:33:15,205 - moving_averages - ERROR - Failed to initialize database connection pool: 2005 (HY000): Unknown MySQL server host 'db.fenchurch.tech' (8)

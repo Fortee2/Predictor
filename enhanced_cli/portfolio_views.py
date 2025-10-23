@@ -572,12 +572,49 @@ class RecalculatePortfolioValuesCommand(Command):
             with ui.progress("Recalculating portfolio values...") as progress:
                 task = progress.add_task("Processing...", total=None)
 
-                # Call the recalculation method
-                result = cli.cli.recalculate_portfolio_history(portfolio_id, from_date)
+                # Use optimized recalculation method
+                from data.optimized_portfolio_recalculator import OptimizedPortfolioRecalculator
+                
+                optimizer = OptimizedPortfolioRecalculator(
+                    cli.cli.config['database']['user'],
+                    cli.cli.config['database']['password'],
+                    cli.cli.config['database']['host'],
+                    cli.cli.config['database']['name']
+                )
+                
+                try:
+                    if from_date:
+                        # Manual date specified - use specific date recalculation
+                        from_date_obj = datetime.strptime(from_date, "%Y-%m-%d").date()
+                        result = optimizer.recalculate_from_specific_date(
+                            portfolio_id, 
+                            from_date_obj,
+                            "Manual recalculation via CLI"
+                        )
+                    else:
+                        # No date specified - find earliest transaction and use optimized method
+                        info = optimizer.get_recalculation_info(portfolio_id)
+                        
+                        if info.get('transaction_info') and info['transaction_info']['earliest_transaction']:
+                            earliest_date = info['transaction_info']['earliest_transaction']
+                            if hasattr(earliest_date, 'date'):
+                                earliest_date = earliest_date.date()
+                            
+                            result = optimizer.smart_recalculate_from_transaction(
+                                portfolio_id, 
+                                earliest_date,
+                                force_full_recalc=True
+                            )
+                        else:
+                            ui.status_message("No transactions found for this portfolio", "warning")
+                            result = False
+                            
+                finally:
+                    optimizer.close_connection()
 
             if result:
                 ui.status_message(
-                    "Portfolio values have been successfully recalculated!", "success"
+                    "Portfolio values have been successfully recalculated using optimized method!", "success"
                 )
             else:
                 ui.status_message(

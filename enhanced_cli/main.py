@@ -105,6 +105,7 @@ class EnhancedCLI:
         from enhanced_cli.data_views import \
             register_data_commands as real_register_data_commands
         from enhanced_cli.llm_export_views import register_llm_export_commands
+        from enhanced_cli.ai_assistant_views import register_ai_assistant_commands
         from enhanced_cli.portfolio_views import \
             register_portfolio_commands as real_register_portfolio_commands
         from enhanced_cli.settings_views import \
@@ -124,6 +125,7 @@ class EnhancedCLI:
         real_register_data_commands(self.command_registry)
         register_comprehensive_analysis_commands(self.command_registry)
         register_llm_export_commands(self.command_registry)
+        register_ai_assistant_commands(self.command_registry)
 
     def display_header(self):
         """Display application header."""
@@ -270,7 +272,11 @@ class EnhancedCLI:
             "5": "Update Benchmark Data",
             "6": "Portfolio Snapshot (LLM-Ready)",
             "7": "Generate LLM Analysis Prompt",
-            "8": "Back to Main Menu",
+            "8": "🤖 AI Portfolio Assistant",
+            "9": "📈 Weekly AI Recommendations",
+            "10": "📊 AI Performance Analysis",
+            "11": "⚠️ AI Risk Assessment",
+            "12": "Back to Main Menu",
         }
 
         choice = ui.menu("Analysis Tools", options)
@@ -299,7 +305,23 @@ class EnhancedCLI:
             self.command_registry.execute(
                 "llm_analysis_prompt", self, portfolio_id=self.selected_portfolio
             )
-        # choice 8 returns to main menu
+        elif choice == "8":
+            self.command_registry.execute(
+                "ai_chat", self, portfolio_id=self.selected_portfolio
+            )
+        elif choice == "9":
+            self.command_registry.execute(
+                "weekly_recommendations", self, portfolio_id=self.selected_portfolio
+            )
+        elif choice == "10":
+            self.command_registry.execute(
+                "portfolio_analysis", self, portfolio_id=self.selected_portfolio
+            )
+        elif choice == "11":
+            self.command_registry.execute(
+                "ai_risk_assessment", self, portfolio_id=self.selected_portfolio
+            )
+        # choice 12 returns to main menu
 
     def show_watchlist_menu(self):
         """Display the watch list management menu."""
