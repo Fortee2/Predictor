@@ -248,18 +248,21 @@ class LLMPortfolioAnalyzer:
         """Create portfolio overview text."""
         try:
             cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
+            
+            # Get only tickers with active positions
+            positions = self.transactions_dao.get_current_positions(portfolio_id)
+            active_tickers = [position['symbol'] for position in positions.values()]
             
             text = f"""
             Portfolio Overview: {portfolio_info['name']}
             Description: {portfolio_info.get('description', 'No description available')}
             Creation Date: {portfolio_info.get('date_added', 'Unknown')}
             Current Cash Balance: ${cash_balance:.2f}
-            Number of Holdings: {len(tickers)}
-            Holdings: {', '.join(tickers)}
+            Number of Active Holdings: {len(active_tickers)}
+            Active Holdings: {', '.join(active_tickers) if active_tickers else 'No active positions'}
             Status: {'Active' if portfolio_info.get('active', True) else 'Inactive'}
             
-            This portfolio contains {len(tickers)} different stock positions with a cash balance of ${cash_balance:.2f}.
+            This portfolio contains {len(active_tickers)} active stock positions with a cash balance of ${cash_balance:.2f}.
             """
             return text.strip()
             
@@ -666,6 +669,11 @@ class LLMPortfolioAnalyzer:
         Returns:
             AI-generated weekly recommendations
         """
+        # Clear cached index to force rebuild with fresh data
+        if portfolio_id in self.vector_indices:
+            del self.vector_indices[portfolio_id]
+            self.logger.info(f"Cleared cached index for portfolio {portfolio_id}")
+        
         weekly_prompt = """
         Based on the portfolio data, technical indicators, news sentiment, and recent market activity, 
         please provide specific recommendations for the upcoming week. Include:
@@ -692,6 +700,11 @@ class LLMPortfolioAnalyzer:
         Returns:
             AI-generated performance analysis
         """
+        # Clear cached index to force rebuild with fresh data
+        if portfolio_id in self.vector_indices:
+            del self.vector_indices[portfolio_id]
+            self.logger.info(f"Cleared cached index for portfolio {portfolio_id}")
+        
         analysis_prompt = """
         Provide a comprehensive analysis of this portfolio's current performance including:
         

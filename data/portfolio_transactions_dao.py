@@ -236,7 +236,7 @@ class PortfolioTransactionsDAO:
             if current_ticker is not None and buy_queue:
                 self._store_position_data(positions, current_ticker, buy_queue, symbol)
 
-            return positions
+            return  positions
         except mysql.connector.Error as e:
             print(f"Error calculating current positions: {e}")
             return {}
@@ -252,12 +252,11 @@ class PortfolioTransactionsDAO:
                 total_cost += shares * price
 
             # Only include positions with positive shares and valid cost
-            if total_shares > 0:
+            rounded_shares = round(total_shares, 4)
+            if rounded_shares > 0:
                 positions_dict[ticker_id] = {
                     "symbol": symbol,
-                    "shares": round(
-                        total_shares, 4
-                    ),  # Round to 4 decimal places for fractional shares
+                    "shares": rounded_shares,
                     "avg_price": (
                         round(total_cost / total_shares, 2) if total_shares > 0 else 0
                     ),

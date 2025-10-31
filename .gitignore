@@ -7,3 +7,7 @@ MCP/.DS_Store
 import_data/
 analysis.log
 config.log
+stochastic_oscillator.log
+analysis.log.2025-08-28
+chroma_db/chroma.sqlite3
+moving_averages.log
