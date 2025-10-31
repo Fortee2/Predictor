@@ -3,8 +3,7 @@ import datetime
 import decimal
 import os
 
-from dotenv import load_dotenv
-
+from data.config import Config
 from data.bollinger_bands import BollingerBandAnalyzer
 from data.data_retrieval_consolidated import DataRetrieval
 from data.fundamental_data_dao import FundamentalDataDAO
@@ -26,13 +25,15 @@ from data.watch_list_dao import WatchListDAO
 
 class PortfolioCLI:
     def __init__(self):
-        load_dotenv()
-
-        # Get database credentials from environment variables
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-        db_host = os.getenv("DB_HOST")
-        db_name = os.getenv("DB_NAME")
+        # Initialize configuration
+        self.config = Config()
+        db_config = self.config.get_database_config()
+        
+        # Get database credentials from config
+        db_user = db_config['user']
+        db_password = db_config['password']
+        db_host = db_config['host']
+        db_name = db_config['database']
 
         # Initialize ticker_dao first since it's needed by BollingerBandAnalyzer
         self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)

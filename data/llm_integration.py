@@ -1,7 +1,7 @@
 """
 LLM Integration Module for Portfolio Analysis
 
-This module provides LLM-powered analysis of portfolio data using llama-index and Ollama.
+This module provides LLM-powered analysis of portfolio data using llama-index and AWS Bedrock.
 It creates vector indices of portfolio data and enables natural language queries.
 """
 
@@ -11,19 +11,25 @@ import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
+# Default Bedrock configuration
+DEFAULT_AWS_REGION = "us-east-1"
+DEFAULT_LLM_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
+DEFAULT_EMBED_MODEL = "amazon.titan-embed-text-v2:0"
+
 from llama_index.core import Document, VectorStoreIndex, Settings
 from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.ollama import OllamaEmbedding
-from llama_index.llms.ollama import Ollama
+from llama_index.embeddings.bedrock import BedrockEmbedding
+from llama_index.llms.bedrock_converse import BedrockConverse
 from llama_index.vector_stores.chroma import ChromaVectorStore
 import chromadb
+import boto3
 
 from data.portfolio_dao import PortfolioDAO
 from data.ticker_dao import TickerDao
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
 from data.rsi_calculations import rsi_calculations
-from data.moving_averages import MovingAverages
-from data.bollinger_bands import BollingerBands
+from data.moving_averages import moving_averages
+from data.bollinger_bands import BollingerBandAnalyzer
 from data.news_sentiment_dao import NewsSentimentDAO
 from data.fundamental_data_dao import FundamentalDataDAO
 
@@ -32,8 +38,9 @@ class LLMPortfolioAnalyzer:
     """Main class for LLM-powered portfolio analysis."""
     
     def __init__(self, db_user: str, db_password: str, db_host: str, db_name: str,
-                 ollama_host: str = "http://localhost:11434",
-                 model_name: str = "llama3.2:3b"):
+                 aws_region: str = DEFAULT_AWS_REGION,
+                 model_name: str = DEFAULT_LLM_MODEL,
+                 embed_model: str = DEFAULT_EMBED_MODEL):
         """
         Initialize the LLM Portfolio Analyzer.
         
@@ -42,15 +49,17 @@ class LLMPortfolioAnalyzer:
             db_password: Database password  
             db_host: Database host
             db_name: Database name
-            ollama_host: Ollama server URL
-            model_name: Name of the Ollama model to use
+            aws_region: AWS region for Bedrock
+            model_name: Name of the Bedrock model to use
+            embed_model: Name of the Bedrock embedding model to use
         """
         self.db_user = db_user
         self.db_password = db_password
         self.db_host = db_host
         self.db_name = db_name
-        self.ollama_host = ollama_host
+        self.aws_region = aws_region
         self.model_name = model_name
+        self.embed_model_name = embed_model
         
         # Initialize DAOs
         self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
@@ -61,8 +70,8 @@ class LLMPortfolioAnalyzer:
         
         # Initialize technical analysis tools
         self.rsi_calc = rsi_calculations(db_user, db_password, db_host, db_name)
-        self.ma_calc = MovingAverages(db_user, db_password, db_host, db_name)
-        self.bb_calc = BollingerBands(db_user, db_password, db_host, db_name)
+        self.ma_calc = moving_averages(db_user, db_password, db_host, db_name)
+        self.bb_calc = BollingerBandAnalyzer(self.ticker_dao)
         
         # LLM and embedding configuration
         self.llm = None
@@ -77,21 +86,26 @@ class LLMPortfolioAnalyzer:
         self._setup_vector_store()
 
     def _setup_llm(self):
-        """Set up the LLM and embedding models."""
+        """Set up the LLM and embedding models using AWS Bedrock."""
         try:
-            # Initialize Ollama LLM
-            self.llm = Ollama(
-                model=self.model_name,
-                base_url=self.ollama_host,
-                temperature=0.1,  # Lower temperature for more consistent financial analysis
-                request_timeout=120.0
+            # Initialize AWS Bedrock client
+            bedrock_client = boto3.client(
+                service_name='bedrock-runtime',
+                region_name=self.aws_region
             )
             
-            # Initialize Ollama embedding model
-            self.embed_model = OllamaEmbedding(
-                model_name="nomic-embed-text",  # Good embedding model for text
-                base_url=self.ollama_host,
-                request_timeout=60.0
+            # Initialize Bedrock Converse LLM
+            self.llm = BedrockConverse(
+                model=self.model_name,
+                client=bedrock_client,
+                temperature=0.1,  # Lower temperature for more consistent financial analysis
+                max_tokens=4096
+            )
+            
+            # Initialize Bedrock embedding model
+            self.embed_model = BedrockEmbedding(
+                model_name=self.embed_model_name,
+                client=bedrock_client
             )
             
             # Configure llama-index settings
@@ -99,10 +113,11 @@ class LLMPortfolioAnalyzer:
             Settings.embed_model = self.embed_model
             Settings.node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
             
-            self.logger.info(f"LLM setup completed with model: {self.model_name}")
+            self.logger.info(f"LLM setup completed with Bedrock model: {self.model_name}")
+            self.logger.info(f"Embedding model: {self.embed_model_name}")
             
         except Exception as e:
-            self.logger.error(f"Error setting up LLM: {e}")
+            self.logger.error(f"Error setting up Bedrock LLM: {e}")
             raise
 
     def _setup_vector_store(self):
@@ -125,7 +140,6 @@ class LLMPortfolioAnalyzer:
         self.fundamental_dao.open_connection()
         self.rsi_calc.open_connection()
         self.ma_calc.open_connection()
-        self.bb_calc.open_connection()
 
     def disconnect_from_database(self):
         """Disconnect from the database."""
@@ -136,7 +150,6 @@ class LLMPortfolioAnalyzer:
         self.fundamental_dao.close_connection()
         self.rsi_calc.close_connection()
         self.ma_calc.close_connection()
-        self.bb_calc.close_connection()
 
     def create_portfolio_documents(self, portfolio_id: int) -> List[Document]:
         """
@@ -315,21 +328,28 @@ class LLMPortfolioAnalyzer:
             return ""
 
     def _create_technical_analysis_text(self, portfolio_id: int) -> str:
-        """Create technical analysis summary text."""
+        """
+        Create technical analysis summary text for securities with active positions only.
+        
+        Args:
+            portfolio_id: The portfolio ID to analyze
+            
+        Returns:
+            str: Formatted text containing technical analysis (RSI, current price, etc.) 
+                 for each security with active positions, or empty string if no positions exist
+        """
         try:
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
-            if not tickers:
+            # Get only tickers with active positions
+            positions = self.transactions_dao.get_current_positions(portfolio_id)
+            if not positions:
                 return ""
                 
             analysis_parts = ["Technical Analysis Summary:\n"]
             
-            for ticker in tickers:
+            # Iterate through active positions only
+            for ticker_id, position in positions.items():
+                ticker = position['symbol']
                 ticker_analysis = []
-                
-                # Get ticker ID first
-                ticker_id = self.ticker_dao.get_ticker_id(ticker)
-                if not ticker_id:
-                    continue
                     
                 # RSI Analysis
                 try:
@@ -368,43 +388,53 @@ class LLMPortfolioAnalyzer:
             return ""
 
     def _create_fundamental_analysis_text(self, portfolio_id: int) -> str:
-        """Create fundamental analysis summary text."""
+        """
+        Create fundamental analysis summary text for securities with active positions only.
+        
+        Args:
+            portfolio_id: The portfolio ID to analyze
+            
+        Returns:
+            str: Formatted text containing fundamental metrics (P/E ratio, market cap, 
+                 dividend yield, growth metrics) for each security with active positions,
+                 or empty string if no positions exist
+        """
         try:
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
-            if not tickers:
+            # Get only tickers with active positions
+            positions = self.transactions_dao.get_current_positions(portfolio_id)
+            if not positions:
                 return ""
                 
             analysis_parts = ["Fundamental Analysis Summary:\n"]
             
-            for ticker in tickers:
+            # Iterate through active positions only
+            for ticker_id, position in positions.items():
+                ticker = position['symbol']
                 try:
-                    # Get ticker ID first
-                    ticker_id = self.ticker_dao.get_ticker_id(ticker)
-                    if ticker_id:
-                        fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
-                        if fund_data:
-                            ticker_info = []
+                    fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                    if fund_data:
+                        ticker_info = []
+                        
+                        # Valuation metrics
+                        if fund_data.get('pe_ratio'):
+                            ticker_info.append(f"P/E Ratio: {fund_data['pe_ratio']:.2f}")
+                        if fund_data.get('market_cap'):
+                            market_cap_b = fund_data['market_cap'] / 1e9
+                            ticker_info.append(f"Market Cap: ${market_cap_b:.1f}B")
+                        if fund_data.get('dividend_yield'):
+                            ticker_info.append(f"Dividend Yield: {fund_data['dividend_yield']:.2f}%")
+                        
+                        # Growth metrics
+                        if fund_data.get('eps_growth'):
+                            ticker_info.append(f"EPS Growth: {fund_data['eps_growth']:.1f}%")
+                        if fund_data.get('revenue_growth'):
+                            ticker_info.append(f"Revenue Growth: {fund_data['revenue_growth']:.1f}%")
+                        
+                        if ticker_info:
+                            analysis_parts.append(f"\n{ticker}:")
+                            for info in ticker_info:
+                                analysis_parts.append(f"  - {info}")
                             
-                            # Valuation metrics
-                            if fund_data.get('pe_ratio'):
-                                ticker_info.append(f"P/E Ratio: {fund_data['pe_ratio']:.2f}")
-                            if fund_data.get('market_cap'):
-                                market_cap_b = fund_data['market_cap'] / 1e9
-                                ticker_info.append(f"Market Cap: ${market_cap_b:.1f}B")
-                            if fund_data.get('dividend_yield'):
-                                ticker_info.append(f"Dividend Yield: {fund_data['dividend_yield']:.2f}%")
-                            
-                            # Growth metrics
-                            if fund_data.get('eps_growth'):
-                                ticker_info.append(f"EPS Growth: {fund_data['eps_growth']:.1f}%")
-                            if fund_data.get('revenue_growth'):
-                                ticker_info.append(f"Revenue Growth: {fund_data['revenue_growth']:.1f}%")
-                                
-                            if ticker_info:
-                                analysis_parts.append(f"\n{ticker}:")
-                                for info in ticker_info:
-                                    analysis_parts.append(f"  - {info}")
-                                
                 except Exception:
                     continue
             
@@ -415,46 +445,55 @@ class LLMPortfolioAnalyzer:
             return ""
 
     def _create_sentiment_analysis_text(self, portfolio_id: int) -> str:
-        """Create news sentiment analysis text."""
+        """
+        Create news sentiment analysis text for securities with active positions only.
+        
+        Args:
+            portfolio_id: The portfolio ID to analyze
+            
+        Returns:
+            str: Formatted text containing sentiment scores and recent headlines 
+                 for each security with active positions, or empty string if no positions exist
+        """
         try:
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
-            if not tickers:
+            # Get only tickers with active positions
+            positions = self.transactions_dao.get_current_positions(portfolio_id)
+            if not positions:
                 return ""
                 
             analysis_parts = ["News Sentiment Analysis (Last 7 Days):\n"]
             
-            for ticker in tickers:
+            # Iterate through active positions only
+            for ticker_id, position in positions.items():
+                ticker = position['symbol']
                 try:
-                    # Get ticker ID first
-                    ticker_id = self.ticker_dao.get_ticker_id(ticker)
-                    if ticker_id:
-                        # Get recent sentiment data
-                        sentiment_data = self.news_dao.get_latest_sentiment(ticker_id, limit=5)
-                        if sentiment_data:
-                            avg_sentiment = sum(s.get('sentiment_score', 0) for s in sentiment_data) / len(sentiment_data)
+                    # Get recent sentiment data
+                    sentiment_data = self.news_dao.get_latest_sentiment(ticker_id, limit=5)
+                    if sentiment_data:
+                        avg_sentiment = sum(s.get('sentiment_score', 0) for s in sentiment_data) / len(sentiment_data)
+                        
+                        if avg_sentiment > 0.1:
+                            sentiment_label = "Positive"
+                            sentiment_emoji = "📈"
+                        elif avg_sentiment < -0.1:
+                            sentiment_label = "Negative" 
+                            sentiment_emoji = "📉"
+                        else:
+                            sentiment_label = "Neutral"
+                            sentiment_emoji = "➡️"
                             
-                            if avg_sentiment > 0.1:
-                                sentiment_label = "Positive"
-                                sentiment_emoji = "📈"
-                            elif avg_sentiment < -0.1:
-                                sentiment_label = "Negative" 
-                                sentiment_emoji = "📉"
-                            else:
-                                sentiment_label = "Neutral"
-                                sentiment_emoji = "➡️"
+                        analysis_parts.append(f"\n{ticker}: {sentiment_label} {sentiment_emoji}")
+                        analysis_parts.append(f"  - Average Sentiment Score: {avg_sentiment:.3f}")
+                        analysis_parts.append(f"  - Based on {len(sentiment_data)} recent articles")
+                        
+                        # Recent headlines
+                        recent_headlines = sentiment_data[:3]  # Top 3 recent
+                        if recent_headlines:
+                            analysis_parts.append("  - Recent Headlines:")
+                            for headline_data in recent_headlines:
+                                headline = headline_data.get('headline', '')[:100]
+                                analysis_parts.append(f"    • {headline}...")
                                 
-                            analysis_parts.append(f"\n{ticker}: {sentiment_label} {sentiment_emoji}")
-                            analysis_parts.append(f"  - Average Sentiment Score: {avg_sentiment:.3f}")
-                            analysis_parts.append(f"  - Based on {len(sentiment_data)} recent articles")
-                            
-                            # Recent headlines
-                            recent_headlines = sentiment_data[:3]  # Top 3 recent
-                            if recent_headlines:
-                                analysis_parts.append("  - Recent Headlines:")
-                                for headline_data in recent_headlines:
-                                    headline = headline_data.get('headline', '')[:100]
-                                    analysis_parts.append(f"    • {headline}...")
-                                    
                 except Exception:
                     continue
             

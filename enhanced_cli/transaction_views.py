@@ -255,11 +255,13 @@ class LogTransactionCommand(Command):
                     # Use optimized recalculation starting from transaction date
                     from data.optimized_portfolio_recalculator import OptimizedPortfolioRecalculator
                     
+                    # Get database config using the proper method
+                    db_config = cli.cli.config.get_database_config()
                     optimizer = OptimizedPortfolioRecalculator(
-                        cli.cli.config['database']['user'],
-                        cli.cli.config['database']['password'],
-                        cli.cli.config['database']['host'],
-                        cli.cli.config['database']['name']
+                        db_config['user'],
+                        db_config['password'],
+                        db_config['host'],
+                        db_config['database']
                     )
                     
                     try:

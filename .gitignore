@@ -5,3 +5,5 @@ __pycache__
 venv/
 MCP/.DS_Store
 import_data/
+analysis.log
+config.log

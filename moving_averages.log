@@ -1133,3 +1133,34 @@
 2025-10-23 10:25:19,529 - moving_averages - INFO - Moving averages initialized with database connection pool
 2025-10-23 10:25:53,851 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
 2025-10-23 10:33:15,205 - moving_averages - ERROR - Failed to initialize database connection pool: 2005 (HY000): Unknown MySQL server host 'db.fenchurch.tech' (8)
+2025-10-26 15:10:02,346 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-26 15:10:36,120 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-27 19:22:24,080 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-27 19:22:44,907 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-27 19:29:47,126 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-27 19:29:59,694 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 11:56:35,516 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 11:56:47,352 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 11:58:19,002 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 11:58:30,959 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 12:00:33,842 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 12:00:54,292 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 16:04:15,252 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 16:04:41,756 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 16:07:03,249 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 16:07:26,934 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 16:15:31,992 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 16:15:50,169 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 16:34:04,039 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 16:34:19,379 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-28 16:49:13,937 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-28 16:49:48,162 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-29 19:52:25,156 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-29 19:52:58,152 - stochastic_oscillator - INFO - Stochastic Oscillator initialized with database connection pool
+2025-10-30 09:29:46,392 - moving_averages - ERROR - Failed to initialize database connection pool: 2003 (HY000): Can't connect to MySQL server on 'localhost:3306' (61)
+2025-10-30 09:32:04,631 - moving_averages - INFO - Moving averages initialized with database connection pool
+2025-10-30 09:32:04,861 - data.llm_integration - INFO - LLM setup completed with model: gpt-oss:20b
+2025-10-30 09:32:04,900 - chromadb.telemetry.product.posthog - INFO - Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2025-10-30 09:32:05,601 - data.llm_integration - INFO - ChromaDB vector store initialized
+2025-10-30 09:32:05,625 - data.llm_integration - ERROR - Error creating portfolio documents: 'NoneType' object has no attribute 'cursor'
+2025-10-30 09:32:05,625 - data.llm_integration - WARNING - No documents created for portfolio 1

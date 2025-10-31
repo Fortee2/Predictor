@@ -74,13 +74,15 @@ def create_llm_analyzer():
     try:
         config = Config()
         db_config = config.get_database_config()
-        
+        model_config = config.get_bedrock_config()
         analyzer = LLMPortfolioAnalyzer(
             db_user=db_config["user"],
             db_password=db_config["password"],
             db_host=db_config["host"],
             db_name=db_config["database"],
-            model_name="llama3.2:3b"
+            aws_region=model_config["aws_region"],
+            model_name=model_config["model"],
+            embed_model=model_config["embed_model"],
         )
         
         analyzer.connect_to_database()
@@ -300,12 +302,18 @@ def save_analysis_to_file(console: Console, content: str, filename_prefix: str):
         console.print(f"[red]Error saving file: {str(e)}[/red]")
 
 
-def check_ollama_connection():
-    """Check if Ollama is running and accessible."""
+def check_bedrock_connection():
+    """Check if AWS Bedrock credentials are configured."""
     try:
-        import requests
-        response = requests.get("http://localhost:11434/api/version", timeout=5)
-        return response.status_code == 200
+        import boto3
+        from botocore.exceptions import NoCredentialsError, ClientError
+        
+        client = boto3.client('bedrock-runtime', region_name='us-east-1')
+        # Try to list foundation models to verify connection
+        client.list_foundation_models()
+        return True
+    except (NoCredentialsError, ClientError):
+        return False
     except Exception:
         return False
 
@@ -314,35 +322,75 @@ def display_ai_setup_help(console: Console):
     """Display help for setting up AI assistant."""
     
     setup_text = """
-    # 🤖 AI Assistant Setup Guide
+    # 🤖 AI Assistant Setup Guide (AWS Bedrock)
     
     ## Prerequisites
     
-    1. **Install Ollama**: Download from https://ollama.ai
-    2. **Pull llama3.2 model**: Run `ollama pull llama3.2:3b`
-    3. **Install Python packages**: Run `pip install -r requirements.txt`
+    1. **AWS Account**: You need an active AWS account with Bedrock access
+    2. **AWS CLI**: Install and configure AWS CLI with your credentials
+    3. **Python packages**: Run `pip install -r requirements.txt`
+    4. **Bedrock Model Access**: Request access to Claude and Titan models in AWS Console
+    
+    ## Configuration
+    
+    ### Option 1: AWS CLI (Recommended)
+    ```bash
+    aws configure
+    # Enter your AWS Access Key ID
+    # Enter your AWS Secret Access Key
+    # Enter your default region (e.g., us-east-1)
+    ```
+    
+    ### Option 2: Environment Variables
+    Create a `.env` file in the project root:
+    ```
+    AWS_ACCESS_KEY_ID=your_access_key
+    AWS_SECRET_ACCESS_KEY=your_secret_key
+    AWS_REGION=us-east-1
+    BEDROCK_MODEL=anthropic.claude-3-5-sonnet-20241022-v2:0
+    BEDROCK_EMBED_MODEL=amazon.titan-embed-text-v2:0
+    ```
+    
+    ## Enable Bedrock Models
+    
+    1. Go to AWS Console → Amazon Bedrock
+    2. Navigate to "Model access" in the left sidebar
+    3. Request access to:
+       - **Anthropic Claude 3.5 Sonnet** (for AI analysis)
+       - **Amazon Titan Embeddings** (for vector search)
     
     ## Verification
     
-    - Check Ollama is running: Visit http://localhost:11434
-    - Test model: Run `ollama run llama3.2:3b "Hello"`
+    Test your AWS credentials:
+    ```bash
+    aws bedrock list-foundation-models --region us-east-1
+    ```
     
     ## Troubleshooting
     
-    - **Connection Error**: Make sure Ollama is running (`ollama serve`)
-    - **Model Not Found**: Pull the model (`ollama pull llama3.2:3b`)
-    - **Slow Response**: Consider using smaller model (`llama3.2:1b`)
+    - **Credentials Error**: Run `aws configure` to set up credentials
+    - **Access Denied**: Request model access in AWS Bedrock Console
+    - **Region Error**: Ensure Bedrock is available in your region (us-east-1, us-west-2)
+    - **Quota Exceeded**: Check your AWS Bedrock usage limits
     
-    ## Alternative Models
+    ## Available Models
     
-    - `llama3.2:1b` - Faster, good for basic analysis
-    - `llama3.2:3b` - Balanced performance (recommended)
-    - `mistral:7b` - Alternative option
+    - `anthropic.claude-3-5-sonnet-20241022-v2:0` - Advanced analysis (recommended)
+    - `anthropic.claude-3-haiku-20240307-v1:0` - Faster, lower cost
+    - `amazon.titan-embed-text-v2:0` - Embedding model for search
+    
+    ## Cost Considerations
+    
+    AWS Bedrock charges per API call. Typical costs:
+    - Claude 3.5 Sonnet: ~$3 per million input tokens
+    - Titan Embeddings: ~$0.10 per million tokens
+    
+    Monitor your usage in AWS Cost Explorer.
     """
     
     console.print(Panel(
         Markdown(setup_text),
-        title="🤖 AI Assistant Setup",
+        title="🤖 AI Assistant Setup (AWS Bedrock)",
         border_style="yellow",
         padding=(1, 2)
     ))

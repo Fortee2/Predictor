@@ -170,6 +170,15 @@ class Config:
         }
         return db_config
 
+    def get_bedrock_config(self):
+        """Get AWS Bedrock configuration from environment variables."""
+        bedrock_config = {
+            "aws_region": os.getenv("AWS_REGION", "us-east-1"),
+            "model": os.getenv("BEDROCK_MODEL", "anthropic.claude-3-5-sonnet-20241022-v2:0"),
+            "embed_model": os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"),
+        }
+        return bedrock_config
+    
     def get_all(self):
         """Get the entire configuration."""
         return self.config

@@ -64,28 +64,68 @@ class CommandRegistry:
         self.console = console or Console()
 
     def register(
-        self, command_id: str, command: Command, category: str = "default"
-    ) -> None:
+        self, command_id: str, command_or_func: Any = None, category: str = "default"
+    ) -> Any:
         """
         Register a command with a unique ID in a specific category.
+        Can be used as a decorator or with a Command instance.
 
         Args:
             command_id: Unique identifier for the command
-            command: Command instance to register
+            command_or_func: Either a Command instance or a function to wrap
             category: Category to group the command under
+
+        Returns:
+            The original function if used as a decorator, otherwise None
         """
-        if command_id in self._commands:
-            self.console.print(
-                f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]"
-            )
+        if command_or_func is not None and isinstance(command_or_func, Command):
+            # Direct registration of a Command instance
+            command = command_or_func
+            
+            if command_id in self._commands:
+                self.console.print(
+                    f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]"
+                )
 
-        self._commands[command_id] = command
+            self._commands[command_id] = command
 
-        if category not in self._categories:
-            self._categories[category] = []
+            if category not in self._categories:
+                self._categories[category] = []
 
-        if command_id not in self._categories[category]:
-            self._categories[category].append(command_id)
+            if command_id not in self._categories[category]:
+                self._categories[category].append(command_id)
+                
+            return None
+        
+        # Decorator usage
+        def decorator(func):
+            # Create a Command instance from the function
+            class FunctionCommand(Command):
+                def __init__(self, func, name):
+                    super().__init__(name, func.__doc__ or "")
+                    self.func = func
+
+                def execute(self, cli, *args, **kwargs):
+                    return self.func(cli, *args, **kwargs)
+
+            command = FunctionCommand(func, command_id)
+
+            if command_id in self._commands:
+                self.console.print(
+                    f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]"
+                )
+
+            self._commands[command_id] = command
+
+            if category not in self._categories:
+                self._categories[category] = []
+
+            if command_id not in self._categories[category]:
+                self._categories[category].append(command_id)
+
+            return func
+
+        return decorator
 
     def get_command(self, command_id: str) -> Optional[Command]:
         """

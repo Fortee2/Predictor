@@ -5,12 +5,14 @@ This module contains the core CLI class that coordinates all components
 and provides the main menu and application flow.
 """
 
+from logging.handlers import TimedRotatingFileHandler
 import logging
 import os
+import re
 
 from rich.console import Console
 from rich.prompt import Prompt
-
+from logging_setup import setup_logging
 from enhanced_cli.command import CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 from portfolio_cli import PortfolioCLI
@@ -25,54 +27,9 @@ class EnhancedCLI:
         self.cli = PortfolioCLI()
         self.command_registry = CommandRegistry(self.console)
         self.selected_portfolio = None
-        self.configure_logging()
+        setup_logging()
         self.register_commands()
 
-    def configure_logging(self):
-        """Configure logging to redirect logs to a file."""
-        log_dir = os.path.dirname(os.path.abspath(__file__))
-        # Go up one directory since we're in the enhanced_cli subdirectory
-        log_dir = os.path.dirname(log_dir)
-        log_file = os.path.join(log_dir, "analysis.log")
-
-        # Remove existing handlers
-        root_logger = logging.getLogger()
-        for handler in root_logger.handlers[:]:
-            root_logger.removeHandler(handler)
-
-        # Configure root logger
-        logging.basicConfig(
-            level=logging.INFO,
-            format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-            filename=log_file,
-            filemode="a",
-        )
-
-        # Configure application loggers
-        loggers = [
-            logging.getLogger("moving_averages"),
-            logging.getLogger("config"),
-            logging.getLogger("portfolio_cli"),
-            logging.getLogger("bollinger_bands"),
-            logging.getLogger("data_retrieval_consolidated"),
-            logging.getLogger("ticker_dao"),
-            logging.getLogger("rsi_calculations"),
-            logging.getLogger("macd"),
-            logging.getLogger("options_data"),
-            logging.getLogger("news_sentiment"),
-        ]
-
-        # Set up file handler
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setFormatter(
-            logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        )
-
-        for logger in loggers:
-            for handler in logger.handlers[:]:
-                logger.removeHandler(handler)
-            logger.addHandler(file_handler)
-            logger.propagate = False
 
     def register_commands(self):
         """Register all available commands with the command registry."""
