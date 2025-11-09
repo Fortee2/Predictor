@@ -30,6 +30,9 @@ from data.portfolio_transactions_dao import PortfolioTransactionsDAO
 from data.rsi_calculations import rsi_calculations
 from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
+from data.macd import MACD
+from data.stochastic_oscillator import StochasticOscillator
+from data.options_data import OptionsData
 from data.news_sentiment_dao import NewsSentimentDAO
 from data.fundamental_data_dao import FundamentalDataDAO
 
@@ -72,6 +75,9 @@ class LLMPortfolioAnalyzer:
         self.rsi_calc = rsi_calculations(db_user, db_password, db_host, db_name)
         self.ma_calc = moving_averages(db_user, db_password, db_host, db_name)
         self.bb_calc = BollingerBandAnalyzer(self.ticker_dao)
+        self.macd_calc = MACD(db_user, db_password, db_host, db_name)
+        self.stoch_calc = StochasticOscillator(db_user, db_password, db_host, db_name)
+        self.options_calc = OptionsData(db_user, db_password, db_host, db_name)
         
         # LLM and embedding configuration
         self.llm = None
@@ -132,24 +138,59 @@ class LLMPortfolioAnalyzer:
             raise
 
     def connect_to_database(self):
-        """Connect to the database."""
+        """
+        Connect to the database.
+        Note: Individual components will open connections as needed to avoid pool exhaustion.
+        """
+        # Open connections for frequently used DAOs only
         self.portfolio_dao.open_connection()
         self.ticker_dao.open_connection()
         self.transactions_dao.open_connection()
-        self.news_dao.open_connection()
-        self.fundamental_dao.open_connection()
-        self.rsi_calc.open_connection()
-        self.ma_calc.open_connection()
+        # Other components will open connections on-demand
 
     def disconnect_from_database(self):
         """Disconnect from the database."""
-        self.portfolio_dao.close_connection()
-        self.ticker_dao.close_connection()
-        self.transactions_dao.close_connection()
-        self.news_dao.close_connection()
-        self.fundamental_dao.close_connection()
-        self.rsi_calc.close_connection()
-        self.ma_calc.close_connection()
+        # Close any open connections
+        try:
+            self.portfolio_dao.close_connection()
+        except:
+            pass
+        try:
+            self.ticker_dao.close_connection()
+        except:
+            pass
+        try:
+            self.transactions_dao.close_connection()
+        except:
+            pass
+        try:
+            self.news_dao.close_connection()
+        except:
+            pass
+        try:
+            self.fundamental_dao.close_connection()
+        except:
+            pass
+        try:
+            self.rsi_calc.close_connection()
+        except:
+            pass
+        try:
+            self.ma_calc.close_connection()
+        except:
+            pass
+        try:
+            self.macd_calc.close_connection()
+        except:
+            pass
+        try:
+            self.stoch_calc.close_connection()
+        except:
+            pass
+        try:
+            self.options_calc.close_connection()
+        except:
+            pass
 
     def create_portfolio_documents(self, portfolio_id: int) -> List[Document]:
         """
@@ -232,6 +273,18 @@ class LLMPortfolioAnalyzer:
                     text=transactions_text,
                     metadata={
                         "document_type": "recent_transactions",
+                        "portfolio_id": portfolio_id,
+                        "last_updated": datetime.now().isoformat()
+                    }
+                ))
+
+            # Options analysis document
+            options_text = self._create_options_analysis_text(portfolio_id)
+            if options_text:
+                documents.append(Document(
+                    text=options_text,
+                    metadata={
+                        "document_type": "options_analysis",
                         "portfolio_id": portfolio_id,
                         "last_updated": datetime.now().isoformat()
                     }
@@ -332,13 +385,15 @@ class LLMPortfolioAnalyzer:
 
     def _create_technical_analysis_text(self, portfolio_id: int) -> str:
         """
-        Create technical analysis summary text for securities with active positions only.
+        Create comprehensive technical analysis summary text for securities with active positions.
+        
+        Includes: RSI, Moving Averages (SMA/EMA), Bollinger Bands, MACD, Stochastic Oscillator
         
         Args:
             portfolio_id: The portfolio ID to analyze
             
         Returns:
-            str: Formatted text containing technical analysis (RSI, current price, etc.) 
+            str: Formatted text containing all available technical indicators
                  for each security with active positions, or empty string if no positions exist
         """
         try:
@@ -347,14 +402,24 @@ class LLMPortfolioAnalyzer:
             if not positions:
                 return ""
                 
-            analysis_parts = ["Technical Analysis Summary:\n"]
+            analysis_parts = ["Technical Analysis Summary (All Indicators):\n"]
             
             # Iterate through active positions only
             for ticker_id, position in positions.items():
                 ticker = position['symbol']
                 ticker_analysis = []
-                    
-                # RSI Analysis
+                
+                # Get current price first for context
+                current_price = 0
+                try:
+                    ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
+                    current_price = ticker_data.get('last_price', 0) if ticker_data else 0
+                    if current_price > 0:
+                        ticker_analysis.append(f"Current Price: ${current_price:.2f}")
+                except:
+                    pass
+                
+                # 1. RSI Analysis
                 try:
                     rsi_data = self.ticker_dao.retrieve_last_rsi(ticker_id)
                     if not rsi_data.empty:
@@ -365,20 +430,92 @@ class LLMPortfolioAnalyzer:
                             rsi_signal = "Oversold (Consider buying)"
                         else:
                             rsi_signal = "Neutral"
-                        ticker_analysis.append(f"RSI: {latest_rsi:.1f} - {rsi_signal}")
-                except:
-                    pass
+                        ticker_analysis.append(f"RSI (14): {latest_rsi:.1f} - {rsi_signal}")
+                except Exception as e:
+                    self.logger.debug(f"RSI calculation failed for {ticker}: {e}")
                 
-                # Get current price for technical analysis
+                # 2. Moving Averages Analysis
                 try:
-                    ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
-                    current_price = ticker_data.get('last_price', 0) if ticker_data else 0
+                    ma_data = self.ticker_dao.retrieve_last_moving_avg(ticker_id, '50SMA')
+                    if not ma_data.empty and current_price > 0:
+                        sma_50 = float(ma_data.iloc[0]['value'])
+                        ma_position = "above" if current_price > sma_50 else "below"
+                        ma_signal = "Bullish" if current_price > sma_50 else "Bearish"
+                        ticker_analysis.append(f"50-Day SMA: ${sma_50:.2f} (Price {ma_position} - {ma_signal})")
                     
-                    if current_price > 0:
-                        ticker_analysis.append(f"Current Price: ${current_price:.2f}")
-                except:
-                    pass
+                    ma_data_200 = self.ticker_dao.retrieve_last_moving_avg(ticker_id, '200SMA')
+                    if not ma_data_200.empty and current_price > 0:
+                        sma_200 = float(ma_data_200.iloc[0]['value'])
+                        ma_position = "above" if current_price > sma_200 else "below"
+                        ma_signal = "Bullish" if current_price > sma_200 else "Bearish"
+                        ticker_analysis.append(f"200-Day SMA: ${sma_200:.2f} (Price {ma_position} - {ma_signal})")
+                except Exception as e:
+                    self.logger.debug(f"Moving average calculation failed for {ticker}: {e}")
                 
+                # 3. Bollinger Bands Analysis
+                try:
+                    bb_data = self.bb_calc.calculate_bollinger_bands(ticker_id)
+                    if bb_data is not None and not bb_data.empty and current_price > 0:
+                        latest_bb = bb_data.iloc[-1]
+                        upper_band = float(latest_bb['upper_band'])
+                        lower_band = float(latest_bb['lower_band'])
+                        middle_band = float(latest_bb['middle_band'])
+                        
+                        # Determine position relative to bands
+                        if current_price > upper_band:
+                            bb_signal = "Above upper band (Overbought)"
+                        elif current_price < lower_band:
+                            bb_signal = "Below lower band (Oversold)"
+                        elif current_price > middle_band:
+                            bb_signal = "Above middle band (Bullish)"
+                        else:
+                            bb_signal = "Below middle band (Bearish)"
+                        
+                        ticker_analysis.append(f"Bollinger Bands: Upper ${upper_band:.2f}, Middle ${middle_band:.2f}, Lower ${lower_band:.2f}")
+                        ticker_analysis.append(f"  Position: {bb_signal}")
+                except Exception as e:
+                    self.logger.debug(f"Bollinger Bands calculation failed for {ticker}: {e}")
+                
+                # 4. MACD Analysis
+                try:
+                    macd_data = self.macd_calc.load_macd_from_db(ticker_id)
+                    if macd_data is not None and not macd_data.empty:
+                        latest_macd = macd_data.iloc[-1]
+                        macd_value = float(latest_macd['macd'])
+                        signal_line = float(latest_macd['signal_line'])
+                        histogram = float(latest_macd['histogram'])
+                        
+                        # Determine MACD signal
+                        if macd_value > signal_line and histogram > 0:
+                            macd_signal = "Bullish (MACD above signal)"
+                        elif macd_value < signal_line and histogram < 0:
+                            macd_signal = "Bearish (MACD below signal)"
+                        else:
+                            macd_signal = "Neutral"
+                        
+                        ticker_analysis.append(f"MACD: {macd_value:.2f}, Signal: {signal_line:.2f}, Histogram: {histogram:.2f}")
+                        ticker_analysis.append(f"  Signal: {macd_signal}")
+                except Exception as e:
+                    self.logger.debug(f"MACD calculation failed for {ticker}: {e}")
+                
+                # 5. Stochastic Oscillator Analysis
+                try:
+                    stoch_signals = self.stoch_calc.get_stochastic_signals(ticker_id)
+                    if stoch_signals and stoch_signals.get('success'):
+                        stoch_k = stoch_signals['stoch_k']
+                        stoch_d = stoch_signals['stoch_d']
+                        signal = stoch_signals['signal']
+                        signal_strength = stoch_signals['signal_strength']
+                        crossover = stoch_signals.get('crossover_signal')
+                        
+                        ticker_analysis.append(f"Stochastic Oscillator: %K={stoch_k:.1f}, %D={stoch_d:.1f}")
+                        ticker_analysis.append(f"  Signal: {signal} ({signal_strength})")
+                        if crossover:
+                            ticker_analysis.append(f"  Crossover: {crossover}")
+                except Exception as e:
+                    self.logger.debug(f"Stochastic calculation failed for {ticker}: {e}")
+                
+                # Add ticker analysis to main report if we have any indicators
                 if ticker_analysis:
                     analysis_parts.append(f"\n{ticker}:")
                     for analysis in ticker_analysis:
@@ -506,6 +643,107 @@ class LLMPortfolioAnalyzer:
             self.logger.error(f"Error creating sentiment analysis text: {e}")
             return ""
 
+    def _create_options_analysis_text(self, portfolio_id: int) -> str:
+        """
+        Create options analysis summary text for securities with active positions.
+        
+        Includes: Implied Volatility, Put/Call Ratio, Open Interest, Options Volume
+        
+        Args:
+            portfolio_id: The portfolio ID to analyze
+            
+        Returns:
+            str: Formatted text containing options market data for each security
+                 with active positions, or empty string if no positions exist
+        """
+        try:
+            # Get only tickers with active positions
+            positions = self.transactions_dao.get_current_positions(portfolio_id)
+            if not positions:
+                return ""
+                
+            analysis_parts = ["Options Market Analysis:\n"]
+            
+            # Iterate through active positions only
+            for ticker_id, position in positions.items():
+                ticker = position['symbol']
+                ticker_options = []
+                
+                try:
+                    # Get options summary for this ticker
+                    options_summary = self.options_calc.get_options_summary(ticker)
+                    
+                    if options_summary and options_summary.get('underlying_price'):
+                        # Basic options market data
+                        ticker_options.append(f"Underlying Price: ${options_summary['underlying_price']:.2f}")
+                        ticker_options.append(f"Available Expirations: {options_summary.get('num_expirations', 0)}")
+                        
+                        # Calls data
+                        if options_summary.get('calls_volume') is not None:
+                            calls_volume = options_summary['calls_volume']
+                            calls_oi = options_summary.get('calls_open_interest', 0)
+                            ticker_options.append(f"Calls Volume: {calls_volume:,.0f}, Open Interest: {calls_oi:,.0f}")
+                            
+                            # Implied volatility for calls
+                            if options_summary.get('calls_iv_range'):
+                                iv_range = options_summary['calls_iv_range']
+                                avg_iv = (iv_range['min'] + iv_range['max']) / 2
+                                avg_iv_pct = avg_iv * 100
+                                min_iv_pct = iv_range['min'] * 100
+                                max_iv_pct = iv_range['max'] * 100
+                                ticker_options.append(f"Calls Implied Volatility: {avg_iv_pct:.1f}% (Range: {min_iv_pct:.1f}% - {max_iv_pct:.1f}%)")
+                        
+                        # Puts data
+                        if options_summary.get('puts_volume') is not None:
+                            puts_volume = options_summary['puts_volume']
+                            puts_oi = options_summary.get('puts_open_interest', 0)
+                            ticker_options.append(f"Puts Volume: {puts_volume:,.0f}, Open Interest: {puts_oi:,.0f}")
+                            
+                            # Implied volatility for puts
+                            if options_summary.get('puts_iv_range'):
+                                iv_range = options_summary['puts_iv_range']
+                                avg_iv = (iv_range['min'] + iv_range['max']) / 2
+                                avg_iv_pct = avg_iv * 100
+                                min_iv_pct = iv_range['min'] * 100
+                                max_iv_pct = iv_range['max'] * 100
+                                ticker_options.append(f"Puts Implied Volatility: {avg_iv_pct:.1f}% (Range: {min_iv_pct:.1f}% - {max_iv_pct:.1f}%)")
+                        
+                        # Calculate Put/Call Ratio if both volumes exist
+                        if (options_summary.get('calls_volume') and options_summary.get('puts_volume') and 
+                            options_summary['calls_volume'] > 0):
+                            put_call_ratio = options_summary['puts_volume'] / options_summary['calls_volume']
+                            
+                            # Interpret Put/Call Ratio
+                            if put_call_ratio > 1.0:
+                                pc_signal = "Bearish sentiment (More puts than calls)"
+                            elif put_call_ratio < 0.7:
+                                pc_signal = "Bullish sentiment (More calls than puts)"
+                            else:
+                                pc_signal = "Neutral sentiment"
+                            
+                            ticker_options.append(f"Put/Call Ratio: {put_call_ratio:.2f} - {pc_signal}")
+                        
+                        # Nearest expiration info
+                        if options_summary.get('nearest_expiration'):
+                            ticker_options.append(f"Nearest Expiration: {options_summary['nearest_expiration']}")
+                    
+                except Exception as e:
+                    self.logger.debug(f"Options analysis failed for {ticker}: {e}")
+                    # If options data not available, note it
+                    ticker_options.append("Options data not available or stock does not have active options market")
+                
+                # Add ticker options analysis to main report if we have any data
+                if ticker_options:
+                    analysis_parts.append(f"\n{ticker}:")
+                    for option_info in ticker_options:
+                        analysis_parts.append(f"  - {option_info}")
+            
+            return "\n".join(analysis_parts)
+            
+        except Exception as e:
+            self.logger.error(f"Error creating options analysis text: {e}")
+            return ""
+
     def _create_transactions_text(self, portfolio_id: int) -> str:
         """Create recent transactions summary text."""
         try:
@@ -525,7 +763,6 @@ class LLMPortfolioAnalyzer:
                 if 'transaction_date' in trans and trans['transaction_date']:
                     trans_date = trans['transaction_date']
                     if isinstance(trans_date, str):
-                        from datetime import datetime
                         trans_date = datetime.strptime(trans_date, '%Y-%m-%d').date()
                     elif hasattr(trans_date, 'date'):
                         trans_date = trans_date.date()

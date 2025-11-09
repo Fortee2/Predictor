@@ -329,17 +329,35 @@ class PortfolioDAO:
             added_count = 0
             for symbol in ticker_symbols:
                 ticker_id = self.ticker_dao.get_ticker_id(symbol)
+                
+                # If ticker doesn't exist, create it first
+                if not ticker_id:
+                    print(f"Ticker {symbol} not found in database, creating it...")
+                    self.ticker_dao.insert_stock(symbol, symbol)  # Use symbol as name initially
+                    # Clear the cache and get the new ticker_id
+                    self.ticker_dao.get_ticker_id.cache_clear()
+                    ticker_id = self.ticker_dao.get_ticker_id(symbol)
+                
                 if ticker_id:
-                    values = (portfolio_id, ticker_id)
-                    cursor.execute(query, values)
-
-                    added_count += 1
+                    # Check if this ticker is already in the portfolio
+                    check_query = "SELECT COUNT(*) FROM portfolio_securities WHERE portfolio_id = %s AND ticker_id = %s"
+                    cursor.execute(check_query, (portfolio_id, ticker_id))
+                    exists = cursor.fetchone()[0] > 0
+                    
+                    if not exists:
+                        values = (portfolio_id, ticker_id)
+                        cursor.execute(query, values)
+                        added_count += 1
+                    else:
+                        print(f"Ticker {symbol} is already in portfolio {portfolio_id}")
                 else:
-                    print(f"Warning: Ticker symbol {symbol} not found")
+                    print(f"Error: Failed to create or find ticker {symbol}")
+                    
             self.connection.commit()
             print(f"Added {added_count} tickers to portfolio {portfolio_id}")
         except mysql.connector.Error as e:
             print(f"Error adding tickers to portfolio: {e}")
+            self.connection.rollback()
 
     def remove_tickers_from_portfolio(self, portfolio_id, ticker_symbols):
         try:

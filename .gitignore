@@ -11,3 +11,12 @@ stochastic_oscillator.log
 analysis.log.2025-08-28
 chroma_db/chroma.sqlite3
 moving_averages.log
+*.log.*
+*.log
+.DS_Store
+.venv
+.continue
+chroma_db/
+portfolio_*.json
+weekly_recommendations*.md
+daily_recommendations*.md

@@ -38,7 +38,7 @@ class DatabaseConnectionPool:
         host=None,
         database=None,
         pool_name="predictor_pool",
-        pool_size=5,
+        pool_size=20,
     ):
         # Only initialize once
         if hasattr(self, "initialized"):

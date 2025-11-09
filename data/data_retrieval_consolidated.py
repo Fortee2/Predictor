@@ -9,10 +9,14 @@ from dotenv import load_dotenv
 
 from data import rsi_calculations as rsi_calc
 from data import ticker_dao, utility
+from data.bollinger_bands import BollingerBandAnalyzer
 from data.fundamental_data_dao import FundamentalDataDAO
+from data.macd import MACD
+from data.moving_averages import moving_averages
 from data.news_sentiment_analyzer import NewsSentimentAnalyzer
 from data.portfolio_dao import PortfolioDAO
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
+from data.stochastic_oscillator import StochasticOscillator
 from data.watch_list_dao import WatchListDAO
 
 
@@ -38,6 +42,15 @@ class DataRetrieval:
         self.sentiment_analyzer = NewsSentimentAnalyzer(
             db_user, db_password, db_host, db_name
         )
+        
+        # Initialize technical indicator calculators
+        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
+        self.macd_analyzer.open_connection()
+        self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
+        self.moving_avg.open_connection()
+        self.bb_analyzer = BollingerBandAnalyzer(self.dao)
+        self.stochastic_analyzer = StochasticOscillator(db_user, db_password, db_host, db_name)
+        self.stochastic_analyzer.open_connection()
 
         # Enhanced configurations for rate limiting
         self.requests_per_batch = 1  # Process only one ticker at a time
@@ -708,6 +721,34 @@ class DataRetrieval:
                     except Exception as e:
                         print(f"Error calculating RSI for {symbol}: {str(e)}")
                         success = False
+
+                    # Calculate MACD
+                    try:
+                        self.macd_analyzer.calculate_macd(ticker_id)
+                        print(f"Updated MACD for {symbol}")
+                    except Exception as e:
+                        print(f"Error calculating MACD for {symbol}: {str(e)}")
+                        success = False
+
+                    # Calculate Moving Averages (multiple periods)
+                    try:
+                        for period in [20, 50, 200]:  # Calculate common MA periods
+                            self.moving_avg.update_moving_averages(ticker_id, period)
+                        print(f"Updated Moving Averages for {symbol}")
+                    except Exception as e:
+                        print(f"Error calculating Moving Averages for {symbol}: {str(e)}")
+                        success = False
+
+                    # Calculate Stochastic Oscillator
+                    try:
+                        self.stochastic_analyzer.calculate_stochastic(ticker_id)
+                        print(f"Updated Stochastic Oscillator for {symbol}")
+                    except Exception as e:
+                        print(f"Error calculating Stochastic for {symbol}: {str(e)}")
+                        success = False
+
+                    # Note: Bollinger Bands are calculated on-the-fly during analysis
+                    # as they depend on the period parameter specified at analysis time
 
                     # Handle success or error cases
                     if success:
