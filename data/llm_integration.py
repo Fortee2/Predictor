@@ -28,6 +28,7 @@ import boto3
 from data.portfolio_dao import PortfolioDAO
 from data.ticker_dao import TickerDao
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
+from data.watch_list_dao import WatchListDAO
 from data.rsi_calculations import rsi_calculations
 from data.moving_averages import moving_averages
 from data.bollinger_bands import BollingerBandAnalyzer
@@ -70,6 +71,7 @@ class LLMPortfolioAnalyzer:
         self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
         self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
         self.transactions_dao = PortfolioTransactionsDAO(db_user, db_password, db_host, db_name)
+        self.watchlist_dao = WatchListDAO(db_user, db_password, db_host, db_name)
         self.news_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
         
@@ -149,6 +151,7 @@ class LLMPortfolioAnalyzer:
         self.portfolio_dao.open_connection()
         self.ticker_dao.open_connection()
         self.transactions_dao.open_connection()
+        self.watchlist_dao.open_connection()
         # Other components will open connections on-demand
 
     def disconnect_from_database(self):
@@ -164,6 +167,10 @@ class LLMPortfolioAnalyzer:
             pass
         try:
             self.transactions_dao.close_connection()
+        except:
+            pass
+        try:
+            self.watchlist_dao.close_connection()
         except:
             pass
         try:
@@ -270,6 +277,17 @@ class LLMPortfolioAnalyzer:
                     }
                 ))
 
+            # Watchlist analysis document
+            watchlist_text = self._create_watchlist_analysis_text()
+            if watchlist_text:
+                documents.append(Document(
+                    text=watchlist_text,
+                    metadata={
+                        "document_type": "watchlist_analysis",
+                        "portfolio_id": portfolio_id,
+                        "last_updated": datetime.now().isoformat()
+                    }
+                ))
   
             self.logger.info(f"Created {len(documents)} documents for portfolio {portfolio_id}")
             return documents
@@ -546,6 +564,164 @@ class LLMPortfolioAnalyzer:
             
         except Exception as e:
             self.logger.error(f"Error creating transactions text: {e}")
+            return ""
+
+    def _create_watchlist_analysis_text(self) -> str:
+        """
+        Create comprehensive watchlist analysis text with technical indicators.
+        
+        This provides analysis of securities on watchlists as potential candidates
+        for adding to the portfolio.
+        
+        Returns:
+            str: Formatted text containing technical and fundamental analysis
+                 for each watchlist security, or empty string if no watchlists exist
+        """
+        try:
+            # Get all watchlists
+            watchlists = self.watchlist_dao.get_watch_list()
+            if not watchlists:
+                return ""
+            
+            analysis_parts = ["Watchlist Securities Analysis (Potential Portfolio Additions):\n"]
+            analysis_parts.append("=" * 80)
+            
+            # Track which tickers we've already analyzed to avoid duplicates
+            analyzed_tickers = set()
+            
+            for watchlist in watchlists:
+                watchlist_id = watchlist['id']
+                watchlist_name = watchlist['name']
+                watchlist_desc = watchlist.get('description', '')
+                
+                # Get tickers in this watchlist
+                tickers_in_watchlist = self.watchlist_dao.get_tickers_in_watch_list(watchlist_id)
+                
+                if not tickers_in_watchlist:
+                    continue
+                
+                analysis_parts.append(f"\n📋 Watchlist: {watchlist_name}")
+                if watchlist_desc:
+                    analysis_parts.append(f"Description: {watchlist_desc}")
+                analysis_parts.append("-" * 80)
+                
+                # Analyze each ticker in the watchlist
+                for ticker_info in tickers_in_watchlist:
+                    ticker_id = ticker_info['ticker_id']
+                    ticker_symbol = ticker_info['symbol']
+                    ticker_name = ticker_info.get('name', ticker_symbol)
+                    notes = ticker_info.get('notes', '')
+                    
+                    # Skip if we've already analyzed this ticker
+                    if ticker_symbol in analyzed_tickers:
+                        continue
+                    
+                    analyzed_tickers.add(ticker_symbol)
+                    
+                    analysis_parts.append(f"\n{ticker_symbol} ({ticker_name}):")
+                    if notes:
+                        analysis_parts.append(f"  Notes: {notes}")
+                    
+                    # Initialize shared metrics analyzer
+                    metrics = SharedAnalysisMetrics(
+                        self.rsi_calc,
+                        self.ma_calc,
+                        self.bb_calc,
+                        self.macd_calc,
+                        self.fundamental_dao,
+                        self.news_analyzer,
+                        self.options_calc,
+                        self.trend_analyzer,
+                        stochastic_analyzer=self.stoch_calc,
+                    )
+                    
+                    # Get comprehensive analysis
+                    analysis = metrics.get_comprehensive_analysis(
+                        ticker_id=ticker_id,
+                        symbol=ticker_symbol,
+                        include_options=True,
+                        include_stochastic=True
+                    )
+                    
+                    # Extract key metrics for summary
+                    ticker_summary = []
+                    
+                    # Current price
+                    try:
+                        ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
+                        if ticker_data and ticker_data.get('last_price'):
+                            current_price = ticker_data['last_price']
+                            ticker_summary.append(f"  Current Price: ${current_price:.2f}")
+                    except:
+                        pass
+                    
+                    # RSI
+                    if analysis.get('rsi', {}).get('success'):
+                        rsi = analysis['rsi']
+                        ticker_summary.append(f"  RSI: {rsi['value']:.2f} ({rsi['status']})")
+                    
+                    # Moving Average trend
+                    if analysis.get('moving_average', {}).get('success'):
+                        ma = analysis['moving_average']
+                        if ma.get('trend', {}).get('direction'):
+                            trend_dir = ma['trend']['direction']
+                            trend_str = ma['trend']['strength']
+                            ticker_summary.append(f"  Trend: {trend_dir} ({trend_str})")
+                    
+                    # MACD signal
+                    if analysis.get('macd', {}).get('success'):
+                        macd = analysis['macd']
+                        ticker_summary.append(f"  MACD Signal: {macd['current_signal']} ({macd['signal_strength']})")
+                    
+                    # Fundamental metrics
+                    if analysis.get('fundamental', {}).get('success'):
+                        fund = analysis['fundamental']['data']
+                        fund_items = []
+                        if fund.get('pe_ratio'):
+                            fund_items.append(f"P/E: {fund['pe_ratio']:.2f}")
+                        if fund.get('market_cap'):
+                            market_cap_b = fund['market_cap'] / 1e9
+                            fund_items.append(f"Market Cap: ${market_cap_b:.1f}B")
+                        if fund.get('dividend_yield'):
+                            fund_items.append(f"Div Yield: {fund['dividend_yield']:.2f}%")
+                        if fund_items:
+                            ticker_summary.append(f"  Fundamentals: {', '.join(fund_items)}")
+                    
+                    # News sentiment
+                    if analysis.get('news_sentiment', {}).get('success'):
+                        news = analysis['news_sentiment']
+                        ticker_summary.append(f"  News Sentiment: {news['status']} (Avg: {news['average_sentiment']:.2f})")
+                    
+                    # Stochastic
+                    if analysis.get('stochastic', {}).get('success'):
+                        stoch = analysis['stochastic']
+                        ticker_summary.append(f"  Stochastic: {stoch['signal']} ({stoch['signal_strength']})")
+                    
+                    # Options sentiment
+                    if analysis.get('options', {}).get('success') and 'put_call_ratio' in analysis['options']:
+                        options = analysis['options']
+                        ticker_summary.append(f"  Options P/C Ratio: {options['put_call_ratio']:.2f} ({options['volume_sentiment']})")
+                    
+                    # Add summary to analysis
+                    if ticker_summary:
+                        analysis_parts.extend(ticker_summary)
+                    else:
+                        analysis_parts.append("  Analysis data not available")
+                    
+                    analysis_parts.append("")  # Empty line for spacing
+            
+            if len(analyzed_tickers) == 0:
+                return ""
+            
+            analysis_parts.append("=" * 80)
+            analysis_parts.append(f"\nTotal watchlist securities analyzed: {len(analyzed_tickers)}")
+            analysis_parts.append("\nThese securities are being monitored as potential additions to the portfolio.")
+            analysis_parts.append("Consider their technical signals, fundamental metrics, and overall market conditions when making investment decisions.")
+            
+            return "\n".join(analysis_parts)
+            
+        except Exception as e:
+            self.logger.error(f"Error creating watchlist analysis text: {e}")
             return ""
 
     def build_portfolio_index(self, portfolio_id: int) -> VectorStoreIndex:
