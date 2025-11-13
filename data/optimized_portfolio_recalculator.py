@@ -71,7 +71,7 @@ class OptimizedPortfolioRecalculator:
             cursor = self.connection.cursor()
             today = date.today()
             
-            print(f"\n🔄 Starting optimized portfolio recalculation...")
+            print("\n🔄 Starting optimized portfolio recalculation...")
             print(f"📅 Transaction Date: {transaction_date}")
             
             # Determine the optimal starting date

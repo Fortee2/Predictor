@@ -805,6 +805,146 @@ class PortfolioCLI:
         except Exception as e:
             print(f"Error recalculating portfolio history: {str(e)}")
 
+    # Watchlist methods required by Enhanced CLI
+    def create_watch_list(self, name, description=None):
+        """Create a new watch list"""
+        try:
+            watch_list_id = self.watch_list_dao.create_watch_list(name, description)
+            return watch_list_id
+        except Exception as e:
+            print(f"Error creating watch list: {str(e)}")
+            return None
+
+    def add_watch_list_ticker(self, watch_list_id, ticker_symbols, notes=None):
+        """Add ticker(s) to a watch list"""
+        try:
+            # Verify watch list exists
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
+            if not watch_list:
+                print(f"Error: Watch list {watch_list_id} does not exist.")
+                return
+
+            # Add tickers
+            added_count = 0
+            for symbol in ticker_symbols:
+                if self.watch_list_dao.add_ticker_to_watch_list(
+                    watch_list_id, symbol, notes
+                ):
+                    added_count += 1
+
+            return added_count > 0
+        except Exception as e:
+            print(f"Error adding ticker(s) to watch list: {str(e)}")
+            return False
+
+    def remove_watch_list_ticker(self, watch_list_id, ticker_symbols):
+        """Remove ticker(s) from a watch list"""
+        try:
+            # Verify watch list exists
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
+            if not watch_list:
+                print(f"Error: Watch list {watch_list_id} does not exist.")
+                return False
+
+            # Remove tickers
+            removed_count = 0
+            for symbol in ticker_symbols:
+                if self.watch_list_dao.remove_ticker_from_watch_list(
+                    watch_list_id, symbol
+                ):
+                    removed_count += 1
+
+            return removed_count > 0
+        except Exception as e:
+            print(f"Error removing ticker(s) from watch list: {str(e)}")
+            return False
+
+    def update_watch_list_ticker_notes(self, watch_list_id, ticker_symbol, notes):
+        """Update notes for a ticker in a watch list"""
+        try:
+            # Verify watch list exists
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
+            if not watch_list:
+                print(f"Error: Watch list {watch_list_id} does not exist.")
+                return False
+
+            # Update notes
+            return self.watch_list_dao.update_ticker_notes(
+                watch_list_id, ticker_symbol, notes
+            )
+        except Exception as e:
+            print(f"Error updating ticker notes: {str(e)}")
+            return False
+
+    def delete_watch_list(self, watch_list_id):
+        """Delete a watch list"""
+        try:
+            # Verify watch list exists
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
+            if not watch_list:
+                print(f"Error: Watch list {watch_list_id} does not exist.")
+                return False
+
+            # Delete watch list
+            return self.watch_list_dao.delete_watch_list(watch_list_id)
+        except Exception as e:
+            print(f"Error deleting watch list: {str(e)}")
+            return False
+
+    def analyze_watch_list(self, watch_list_id, ticker_symbol=None):
+        """Analyze tickers in a watch list with comprehensive technical analysis"""
+        try:
+            # Verify watch list exists
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
+            if not watch_list:
+                print(f"Error: Watch list {watch_list_id} does not exist.")
+                return
+
+            # Get tickers in watch list
+            if ticker_symbol:
+                # Check if ticker is in watch list
+                if not self.watch_list_dao.is_ticker_in_watch_list(
+                    watch_list_id, ticker_symbol
+                ):
+                    print(
+                        f"Error: {ticker_symbol} is not in watch list {watch_list_id}."
+                    )
+                    return
+                ticker_id = self.ticker_dao.get_ticker_id(ticker_symbol)
+                if not ticker_id:
+                    print(f"Error: Ticker symbol {ticker_symbol} not found.")
+                    return
+                tickers = [(ticker_id, ticker_symbol)]
+            else:
+                # Get all tickers in watch list
+                ticker_data = self.watch_list_dao.get_tickers_in_watch_list(
+                    watch_list_id
+                )
+                if not ticker_data:
+                    print(f"Watch list {watch_list_id} has no tickers to analyze.")
+                    return
+                tickers = [(t["ticker_id"], t["symbol"]) for t in ticker_data]
+
+            print(f"\nComprehensive Watch List Analysis: {watch_list['name']}")
+            print("════════════════════════════════════════════════════════════════")
+
+            for ticker_id, symbol in tickers:
+                try:
+                    print(f"║ {symbol:<56}║")
+                    print(
+                        "║──────────────────────────────────────────────────────────║"
+                    )
+
+                    # Use shared analysis metrics for comprehensive analysis
+                    self.shared_metrics.analyze_ticker_comprehensive(ticker_id, symbol)
+
+                except Exception as e:
+                    print(f"║ Error analyzing {symbol}: {str(e):<42}║")
+
+            print("════════════════════════════════════════════════════════════════")
+        except Exception as e:
+            print(f"Error analyzing watch list: {str(e)}")
+
 
 def main():
     parser = argparse.ArgumentParser(description="Portfolio Management CLI")

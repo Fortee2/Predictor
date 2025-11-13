@@ -603,6 +603,7 @@ class AnalyzeWatchListCommand(Command):
 
         with ui.progress("Running analysis...") as progress:
             progress.add_task("", total=None)
+
             # Use the CLI's analyze_watch_list method
             cli.cli.analyze_watch_list(watch_list_id, ticker_symbol)
 

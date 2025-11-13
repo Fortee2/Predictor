@@ -5,11 +5,12 @@ This module provides LLM-powered analysis of portfolio data using llama-index an
 It creates vector indices of portfolio data and enables natural language queries.
 """
 
-import json
 import logging
-import os
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Any
+from typing import Dict, List
+
+from data.news_sentiment_analyzer import NewsSentimentAnalyzer
+from data.trend_analyzer import TrendAnalyzer
 
 # Default Bedrock configuration
 DEFAULT_AWS_REGION = "us-east-1"
@@ -33,8 +34,9 @@ from data.bollinger_bands import BollingerBandAnalyzer
 from data.macd import MACD
 from data.stochastic_oscillator import StochasticOscillator
 from data.options_data import OptionsData
-from data.news_sentiment_dao import NewsSentimentDAO
 from data.fundamental_data_dao import FundamentalDataDAO
+
+from data.shared_analysis_metrics import SharedAnalysisMetrics
 
 
 class LLMPortfolioAnalyzer:
@@ -68,7 +70,7 @@ class LLMPortfolioAnalyzer:
         self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
         self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
         self.transactions_dao = PortfolioTransactionsDAO(db_user, db_password, db_host, db_name)
-        self.news_dao = NewsSentimentDAO(db_user, db_password, db_host, db_name)
+        self.news_analyzer = NewsSentimentAnalyzer(db_user, db_password, db_host, db_name)
         self.fundamental_dao = FundamentalDataDAO(db_user, db_password, db_host, db_name)
         
         # Initialize technical analysis tools
@@ -78,6 +80,7 @@ class LLMPortfolioAnalyzer:
         self.macd_calc = MACD(db_user, db_password, db_host, db_name)
         self.stoch_calc = StochasticOscillator(db_user, db_password, db_host, db_name)
         self.options_calc = OptionsData(db_user, db_password, db_host, db_name)
+        self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
         
         # LLM and embedding configuration
         self.llm = None
@@ -164,7 +167,7 @@ class LLMPortfolioAnalyzer:
         except:
             pass
         try:
-            self.news_dao.close_connection()
+            self.news_analyzer.close_connection()
         except:
             pass
         try:
@@ -254,18 +257,7 @@ class LLMPortfolioAnalyzer:
                     }
                 ))
 
-            # News sentiment document
-            sentiment_text = self._create_sentiment_analysis_text(portfolio_id)
-            if sentiment_text:
-                documents.append(Document(
-                    text=sentiment_text,
-                    metadata={
-                        "document_type": "sentiment_analysis",
-                        "portfolio_id": portfolio_id,
-                        "last_updated": datetime.now().isoformat()
-                    }
-                ))
-
+     
             # Recent transactions document
             transactions_text = self._create_transactions_text(portfolio_id)
             if transactions_text:
@@ -278,18 +270,7 @@ class LLMPortfolioAnalyzer:
                     }
                 ))
 
-            # Options analysis document
-            options_text = self._create_options_analysis_text(portfolio_id)
-            if options_text:
-                documents.append(Document(
-                    text=options_text,
-                    metadata={
-                        "document_type": "options_analysis",
-                        "portfolio_id": portfolio_id,
-                        "last_updated": datetime.now().isoformat()
-                    }
-                ))
-
+  
             self.logger.info(f"Created {len(documents)} documents for portfolio {portfolio_id}")
             return documents
             
@@ -419,110 +400,38 @@ class LLMPortfolioAnalyzer:
                 except:
                     pass
                 
-                # 1. RSI Analysis
-                try:
-                    rsi_data = self.ticker_dao.retrieve_last_rsi(ticker_id)
-                    if not rsi_data.empty:
-                        latest_rsi = float(rsi_data.iloc[0]['rsi'])
-                        if latest_rsi > 70:
-                            rsi_signal = "Overbought (Consider selling)"
-                        elif latest_rsi < 30:
-                            rsi_signal = "Oversold (Consider buying)"
-                        else:
-                            rsi_signal = "Neutral"
-                        ticker_analysis.append(f"RSI (14): {latest_rsi:.1f} - {rsi_signal}")
-                except Exception as e:
-                    self.logger.debug(f"RSI calculation failed for {ticker}: {e}")
+                metrics  = SharedAnalysisMetrics(
+                    self.rsi_calc,
+                    self.ma_calc,
+                    self.bb_calc,
+                    self.macd_calc,
+                    self.fundamental_dao,
+                    self.news_analyzer,
+                    self.options_calc,
+                    self.trend_analyzer,
+                    stochastic_analyzer=self.stoch_calc,
+                )
+
+
+                analysis = metrics.get_comprehensive_analysis(
+                        ticker_id=ticker_id,
+                        symbol=ticker,
+                        position_data=position,
+                    )
                 
-                # 2. Moving Averages Analysis
-                try:
-                    ma_data = self.ticker_dao.retrieve_last_moving_avg(ticker_id, '50SMA')
-                    if not ma_data.empty and current_price > 0:
-                        sma_50 = float(ma_data.iloc[0]['value'])
-                        ma_position = "above" if current_price > sma_50 else "below"
-                        ma_signal = "Bullish" if current_price > sma_50 else "Bearish"
-                        ticker_analysis.append(f"50-Day SMA: ${sma_50:.2f} (Price {ma_position} - {ma_signal})")
-                    
-                    ma_data_200 = self.ticker_dao.retrieve_last_moving_avg(ticker_id, '200SMA')
-                    if not ma_data_200.empty and current_price > 0:
-                        sma_200 = float(ma_data_200.iloc[0]['value'])
-                        ma_position = "above" if current_price > sma_200 else "below"
-                        ma_signal = "Bullish" if current_price > sma_200 else "Bearish"
-                        ticker_analysis.append(f"200-Day SMA: ${sma_200:.2f} (Price {ma_position} - {ma_signal})")
-                except Exception as e:
-                    self.logger.debug(f"Moving average calculation failed for {ticker}: {e}")
-                
-                # 3. Bollinger Bands Analysis
-                try:
-                    bb_data = self.bb_calc.calculate_bollinger_bands(ticker_id)
-                    if bb_data is not None and not bb_data.empty and current_price > 0:
-                        latest_bb = bb_data.iloc[-1]
-                        upper_band = float(latest_bb['upper_band'])
-                        lower_band = float(latest_bb['lower_band'])
-                        middle_band = float(latest_bb['middle_band'])
-                        
-                        # Determine position relative to bands
-                        if current_price > upper_band:
-                            bb_signal = "Above upper band (Overbought)"
-                        elif current_price < lower_band:
-                            bb_signal = "Below lower band (Oversold)"
-                        elif current_price > middle_band:
-                            bb_signal = "Above middle band (Bullish)"
-                        else:
-                            bb_signal = "Below middle band (Bearish)"
-                        
-                        ticker_analysis.append(f"Bollinger Bands: Upper ${upper_band:.2f}, Middle ${middle_band:.2f}, Lower ${lower_band:.2f}")
-                        ticker_analysis.append(f"  Position: {bb_signal}")
-                except Exception as e:
-                    self.logger.debug(f"Bollinger Bands calculation failed for {ticker}: {e}")
-                
-                # 4. MACD Analysis
-                try:
-                    macd_data = self.macd_calc.load_macd_from_db(ticker_id)
-                    if macd_data is not None and not macd_data.empty:
-                        latest_macd = macd_data.iloc[-1]
-                        macd_value = float(latest_macd['macd'])
-                        signal_line = float(latest_macd['signal_line'])
-                        histogram = float(latest_macd['histogram'])
-                        
-                        # Determine MACD signal
-                        if macd_value > signal_line and histogram > 0:
-                            macd_signal = "Bullish (MACD above signal)"
-                        elif macd_value < signal_line and histogram < 0:
-                            macd_signal = "Bearish (MACD below signal)"
-                        else:
-                            macd_signal = "Neutral"
-                        
-                        ticker_analysis.append(f"MACD: {macd_value:.2f}, Signal: {signal_line:.2f}, Histogram: {histogram:.2f}")
-                        ticker_analysis.append(f"  Signal: {macd_signal}")
-                except Exception as e:
-                    self.logger.debug(f"MACD calculation failed for {ticker}: {e}")
-                
-                # 5. Stochastic Oscillator Analysis
-                try:
-                    stoch_signals = self.stoch_calc.get_stochastic_signals(ticker_id)
-                    if stoch_signals and stoch_signals.get('success'):
-                        stoch_k = stoch_signals['stoch_k']
-                        stoch_d = stoch_signals['stoch_d']
-                        signal = stoch_signals['signal']
-                        signal_strength = stoch_signals['signal_strength']
-                        crossover = stoch_signals.get('crossover_signal')
-                        
-                        ticker_analysis.append(f"Stochastic Oscillator: %K={stoch_k:.1f}, %D={stoch_d:.1f}")
-                        ticker_analysis.append(f"  Signal: {signal} ({signal_strength})")
-                        if crossover:
-                            ticker_analysis.append(f"  Crossover: {crossover}")
-                except Exception as e:
-                    self.logger.debug(f"Stochastic calculation failed for {ticker}: {e}")
-                
+                # Format and display the analysis
+                formatted_output = metrics.format_analysis_output(
+                    analysis, shares_info=position['shares']
+                )
+
                 # Add ticker analysis to main report if we have any indicators
-                if ticker_analysis:
-                    analysis_parts.append(f"\n{ticker}:")
-                    for analysis in ticker_analysis:
-                        analysis_parts.append(f"  - {analysis}")
-            
-            return "\n".join(analysis_parts)
-            
+                analysis_parts.append(f"\n{ticker}:")
+                analysis_parts.append(f"  - {formatted_output}")
+
+            tech_analysis = "\n".join(analysis_parts)
+            print(tech_analysis)
+            return tech_analysis
+
         except Exception as e:
             self.logger.error(f"Error creating technical analysis text: {e}")
             return ""
@@ -584,174 +493,13 @@ class LLMPortfolioAnalyzer:
             self.logger.error(f"Error creating fundamental analysis text: {e}")
             return ""
 
-    def _create_sentiment_analysis_text(self, portfolio_id: int) -> str:
-        """
-        Create news sentiment analysis text for securities with active positions only.
-        
-        Args:
-            portfolio_id: The portfolio ID to analyze
-            
-        Returns:
-            str: Formatted text containing sentiment scores and recent headlines 
-                 for each security with active positions, or empty string if no positions exist
-        """
-        try:
-            # Get only tickers with active positions
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-            if not positions:
-                return ""
-                
-            analysis_parts = ["News Sentiment Analysis (Last 7 Days):\n"]
-            
-            # Iterate through active positions only
-            for ticker_id, position in positions.items():
-                ticker = position['symbol']
-                try:
-                    # Get recent sentiment data
-                    sentiment_data = self.news_dao.get_latest_sentiment(ticker_id, limit=5)
-                    if sentiment_data:
-                        avg_sentiment = sum(s.get('sentiment_score', 0) for s in sentiment_data) / len(sentiment_data)
-                        
-                        if avg_sentiment > 0.1:
-                            sentiment_label = "Positive"
-                            sentiment_emoji = "📈"
-                        elif avg_sentiment < -0.1:
-                            sentiment_label = "Negative" 
-                            sentiment_emoji = "📉"
-                        else:
-                            sentiment_label = "Neutral"
-                            sentiment_emoji = "➡️"
-                            
-                        analysis_parts.append(f"\n{ticker}: {sentiment_label} {sentiment_emoji}")
-                        analysis_parts.append(f"  - Average Sentiment Score: {avg_sentiment:.3f}")
-                        analysis_parts.append(f"  - Based on {len(sentiment_data)} recent articles")
-                        
-                        # Recent headlines
-                        recent_headlines = sentiment_data[:3]  # Top 3 recent
-                        if recent_headlines:
-                            analysis_parts.append("  - Recent Headlines:")
-                            for headline_data in recent_headlines:
-                                headline = headline_data.get('headline', '')[:100]
-                                analysis_parts.append(f"    • {headline}...")
-                                
-                except Exception:
-                    continue
-            
-            return "\n".join(analysis_parts)
-            
-        except Exception as e:
-            self.logger.error(f"Error creating sentiment analysis text: {e}")
-            return ""
-
-    def _create_options_analysis_text(self, portfolio_id: int) -> str:
-        """
-        Create options analysis summary text for securities with active positions.
-        
-        Includes: Implied Volatility, Put/Call Ratio, Open Interest, Options Volume
-        
-        Args:
-            portfolio_id: The portfolio ID to analyze
-            
-        Returns:
-            str: Formatted text containing options market data for each security
-                 with active positions, or empty string if no positions exist
-        """
-        try:
-            # Get only tickers with active positions
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-            if not positions:
-                return ""
-                
-            analysis_parts = ["Options Market Analysis:\n"]
-            
-            # Iterate through active positions only
-            for ticker_id, position in positions.items():
-                ticker = position['symbol']
-                ticker_options = []
-                
-                try:
-                    # Get options summary for this ticker
-                    options_summary = self.options_calc.get_options_summary(ticker)
-                    
-                    if options_summary and options_summary.get('underlying_price'):
-                        # Basic options market data
-                        ticker_options.append(f"Underlying Price: ${options_summary['underlying_price']:.2f}")
-                        ticker_options.append(f"Available Expirations: {options_summary.get('num_expirations', 0)}")
-                        
-                        # Calls data
-                        if options_summary.get('calls_volume') is not None:
-                            calls_volume = options_summary['calls_volume']
-                            calls_oi = options_summary.get('calls_open_interest', 0)
-                            ticker_options.append(f"Calls Volume: {calls_volume:,.0f}, Open Interest: {calls_oi:,.0f}")
-                            
-                            # Implied volatility for calls
-                            if options_summary.get('calls_iv_range'):
-                                iv_range = options_summary['calls_iv_range']
-                                avg_iv = (iv_range['min'] + iv_range['max']) / 2
-                                avg_iv_pct = avg_iv * 100
-                                min_iv_pct = iv_range['min'] * 100
-                                max_iv_pct = iv_range['max'] * 100
-                                ticker_options.append(f"Calls Implied Volatility: {avg_iv_pct:.1f}% (Range: {min_iv_pct:.1f}% - {max_iv_pct:.1f}%)")
-                        
-                        # Puts data
-                        if options_summary.get('puts_volume') is not None:
-                            puts_volume = options_summary['puts_volume']
-                            puts_oi = options_summary.get('puts_open_interest', 0)
-                            ticker_options.append(f"Puts Volume: {puts_volume:,.0f}, Open Interest: {puts_oi:,.0f}")
-                            
-                            # Implied volatility for puts
-                            if options_summary.get('puts_iv_range'):
-                                iv_range = options_summary['puts_iv_range']
-                                avg_iv = (iv_range['min'] + iv_range['max']) / 2
-                                avg_iv_pct = avg_iv * 100
-                                min_iv_pct = iv_range['min'] * 100
-                                max_iv_pct = iv_range['max'] * 100
-                                ticker_options.append(f"Puts Implied Volatility: {avg_iv_pct:.1f}% (Range: {min_iv_pct:.1f}% - {max_iv_pct:.1f}%)")
-                        
-                        # Calculate Put/Call Ratio if both volumes exist
-                        if (options_summary.get('calls_volume') and options_summary.get('puts_volume') and 
-                            options_summary['calls_volume'] > 0):
-                            put_call_ratio = options_summary['puts_volume'] / options_summary['calls_volume']
-                            
-                            # Interpret Put/Call Ratio
-                            if put_call_ratio > 1.0:
-                                pc_signal = "Bearish sentiment (More puts than calls)"
-                            elif put_call_ratio < 0.7:
-                                pc_signal = "Bullish sentiment (More calls than puts)"
-                            else:
-                                pc_signal = "Neutral sentiment"
-                            
-                            ticker_options.append(f"Put/Call Ratio: {put_call_ratio:.2f} - {pc_signal}")
-                        
-                        # Nearest expiration info
-                        if options_summary.get('nearest_expiration'):
-                            ticker_options.append(f"Nearest Expiration: {options_summary['nearest_expiration']}")
-                    
-                except Exception as e:
-                    self.logger.debug(f"Options analysis failed for {ticker}: {e}")
-                    # If options data not available, note it
-                    ticker_options.append("Options data not available or stock does not have active options market")
-                
-                # Add ticker options analysis to main report if we have any data
-                if ticker_options:
-                    analysis_parts.append(f"\n{ticker}:")
-                    for option_info in ticker_options:
-                        analysis_parts.append(f"  - {option_info}")
-            
-            return "\n".join(analysis_parts)
-            
-        except Exception as e:
-            self.logger.error(f"Error creating options analysis text: {e}")
-            return ""
-
     def _create_transactions_text(self, portfolio_id: int) -> str:
         """Create recent transactions summary text."""
         try:
             # Get transactions from last 30 days
             end_date = datetime.now()
             start_date = end_date - timedelta(days=30)
-            
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
+
             all_transactions = []
             
             # Use the transaction history method that exists
