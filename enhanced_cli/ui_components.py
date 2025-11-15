@@ -6,11 +6,10 @@ to ensure a consistent look and feel across the application.
 """
 
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from rich import box
 from rich.console import Console
-from rich.layout import Layout
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
@@ -151,7 +150,7 @@ class UIComponents:
                         )
                     except ValueError:
                         self.console.print(
-                            f"[bold red]Invalid date format. Using default.[/bold red]"
+                            "[bold red]Invalid date format. Using default.[/bold red]"
                         )
                         result[name] = default or datetime.now()
                 else:

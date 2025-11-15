@@ -7,8 +7,8 @@ and provides accurate tracking of realized and unrealized gains/losses.
 """
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
-from typing import Any, Dict, List, Tuple
+from decimal import Decimal
+from typing import Any, Dict, List
 
 
 class FIFOLot:

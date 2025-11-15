@@ -1,11 +1,11 @@
 import logging
 from contextlib import contextmanager
-from decimal import Decimal, DivisionUndefined
+from decimal import DivisionUndefined
 
 import mysql.connector
-import numpy as np
 import pandas as pd
 
+from data.base_dao import BaseDAO
 from data.utility import DatabaseConnectionPool
 
 # Set up logging - consistent with existing pattern
@@ -24,28 +24,14 @@ for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
 
-class StochasticOscillator:
+class StochasticOscillator(BaseDAO):
     """
     Stochastic Oscillator implementation following DRY principles.
     Reuses existing database patterns, connection management, and analysis structure.
     """
 
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
-
-        # Initialize connection pool - reusing existing pattern
-        try:
-            self.pool = DatabaseConnectionPool(user, password, host, database)
-            self.current_connection = None
-            logger.info(
-                "Stochastic Oscillator initialized with database connection pool"
-            )
-        except Exception as e:
-            logger.error(f"Failed to initialize database connection pool: {str(e)}")
-            raise
+    def __init__(self, pool: DatabaseConnectionPool):
+        super().__init__(pool)
 
     @contextmanager
     def get_connection(self):
@@ -67,33 +53,6 @@ class StochasticOscillator:
             raise
         finally:
             pass
-
-    def open_connection(self):
-        """Open database connection - consistent with existing pattern."""
-        try:
-            if (
-                self.current_connection is None
-                or not self.current_connection.is_connected()
-            ):
-                self.current_connection = self.pool.get_connection()
-                logger.debug("Opened new database connection")
-            return self.current_connection
-        except mysql.connector.Error as e:
-            logger.error(f"Failed to open database connection: {str(e)}")
-            raise
-
-    def close_connection(self):
-        """Close database connection - consistent with existing pattern."""
-        try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
-                self.current_connection.close()
-                logger.debug("Closed database connection")
-                self.current_connection = None
-        except mysql.connector.Error as e:
-            logger.error(f"Error closing database connection: {str(e)}")
 
     def calculate_stochastic(self, ticker_id, k_period=14, d_period=3):
         """

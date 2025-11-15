@@ -1,6 +1,7 @@
 import logging
 import logging.config
 
+
 def setup_logging():
     """
     Set up logging configuration with timed rotating file handler.

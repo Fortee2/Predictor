@@ -8,13 +8,12 @@ and provides accurate results for various transaction scenarios.
 
 import os
 import sys
-from datetime import date, timedelta
+from datetime import date
 
 # Add the current directory to the path so we can import our modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data.fifo_cost_basis_calculator import (
-    FIFOCostBasisCalculator, calculate_fifo_position_from_transactions)
+from data.fifo_cost_basis_calculator import FIFOCostBasisCalculator, calculate_fifo_position_from_transactions
 
 
 def test_basic_fifo_scenarios():
@@ -58,7 +57,7 @@ def test_basic_fifo_scenarios():
     # Check remaining position
     remaining_summary = calc2.get_position_summary(55.00)
     print(f"  Remaining avg cost: ${remaining_summary['average_cost_per_share']:.2f}")
-    print(f"  Expected avg cost: $56.67 (50 @ $50 + 100 @ $60 = $8500 / 150 shares)")
+    print("  Expected avg cost: $56.67 (50 @ $50 + 100 @ $60 = $8500 / 150 shares)")
     print()
 
     # Test 3: Partial lot sale
@@ -75,7 +74,7 @@ def test_basic_fifo_scenarios():
 
     remaining_summary = calc3.get_position_summary(50.00)
     print(f"  Remaining avg cost: ${remaining_summary['average_cost_per_share']:.2f}")
-    print(f"  Expected avg cost: $45.00 (same as original purchase)")
+    print("  Expected avg cost: $45.00 (same as original purchase)")
     print()
 
     # Test 4: Multiple sales
@@ -98,7 +97,7 @@ def test_basic_fifo_scenarios():
     remaining_summary = calc4.get_position_summary(45.00)
     print(f"  Remaining shares: {remaining_summary['total_shares']}")
     print(f"  Remaining avg cost: ${remaining_summary['average_cost_per_share']:.2f}")
-    print(f"  Expected: 150 shares @ $40.00")
+    print("  Expected: 150 shares @ $40.00")
     print()
 
     return True
@@ -146,7 +145,6 @@ def test_transaction_list_processing():
     calc = calculate_fifo_position_from_transactions(transactions)
 
     summary = calc.get_position_summary(34.00)
-    realized_gains = calc.get_realized_gains_summary()
 
     print(f"  Final position: {summary['total_shares']} shares")
     print(f"  Average cost: ${summary['average_cost_per_share']:.2f}")
@@ -162,8 +160,8 @@ def test_transaction_list_processing():
     # Remaining: 150 @ $30 + 100 @ $32 = $4500 + $3200 = $7700 total cost basis
     # Average: $7700 / 250 = $30.80
 
-    print(f"  Expected avg cost: $30.80")
-    print(f"  Expected realized G/L: $1250.00")
+    print("  Expected avg cost: $30.80")
+    print("  Expected realized G/L: $1250.00")
     print()
 
     return True

@@ -10,7 +10,7 @@ maintain compatibility with code that imports from here.
 """
 
 # Re-export the EnhancedCLI class for backward compatibility
-from enhanced_cli.main import EnhancedCLI, main
+from enhanced_cli.main import main
 
 if __name__ == "__main__":
     main()

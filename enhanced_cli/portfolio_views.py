@@ -570,8 +570,6 @@ class RecalculatePortfolioValuesCommand(Command):
 
         if ui.confirm_action("Proceed with portfolio value recalculation?"):
             with ui.progress("Recalculating portfolio values...") as progress:
-                task = progress.add_task("Processing...", total=None)
-
                 # Use optimized recalculation method
                 from data.optimized_portfolio_recalculator import OptimizedPortfolioRecalculator
                 

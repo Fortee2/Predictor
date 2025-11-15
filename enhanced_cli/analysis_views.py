@@ -253,7 +253,7 @@ class ViewPerformanceCommand(Command):
             )
 
         # Display performance metrics
-        ui.console.print(f"\n[bold]Performance Metrics:[/bold]")
+        ui.console.print("\n[bold]Performance Metrics:[/bold]")
         ui.console.print(f"Period: {start_date} to {end_date}")
         ui.console.print(f"Initial Value: ${initial_result['total_value']:,.2f}")
         ui.console.print(f"Final Value: ${final_result['total_value']:,.2f}")
@@ -276,7 +276,7 @@ class ViewPerformanceCommand(Command):
             ui.console.print("Total Return: N/A (no initial value)")
 
         # Show breakdown
-        ui.console.print(f"\n[bold]Value Breakdown:[/bold]")
+        ui.console.print("\n[bold]Value Breakdown:[/bold]")
         ui.console.print(f"Stock Value: ${final_result['stock_value']:,.2f}")
         ui.console.print(f"Cash Balance: ${final_result['cash_balance']:,.2f}")
         if final_result["dividend_value"] > 0:

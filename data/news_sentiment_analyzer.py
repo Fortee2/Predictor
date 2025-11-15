@@ -7,8 +7,8 @@ from data.news_sentiment_dao import NewsSentimentDAO
 
 
 class NewsSentimentAnalyzer:
-    def __init__(self, db_user, db_password, db_host, db_name):
-        self.sentiment_dao = NewsSentimentDAO(db_user, db_password, db_host, db_name)
+    def __init__(self, pool: DatabaseConnectionPool):
+        self.sentiment_dao = NewsSentimentDAO(pool=self.db_pool)
         self.sentiment_dao.open_connection()
 
         # Initialize FinBERT model

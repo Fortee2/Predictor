@@ -16,13 +16,11 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv()
 
 from data.bollinger_bands import BollingerBandAnalyzer
-from data.fundamental_data_dao import FundamentalDataDAO
 from data.macd import MACD
 from data.moving_averages import moving_averages
-from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.options_data import OptionsData
 from data.rsi_calculations import rsi_calculations
 from data.shared_analysis_metrics import SharedAnalysisMetrics
+
 # Import required modules - following existing patterns
 from data.stochastic_oscillator import StochasticOscillator
 from data.ticker_dao import TickerDao
@@ -51,7 +49,7 @@ def test_stochastic_basic_functionality():
         stoch_data = stoch_analyzer.calculate_stochastic(ticker_id)
 
         if stoch_data is not None and not stoch_data.empty:
-            print(f"   ✓ Successfully calculated stochastic data")
+            print("   ✓ Successfully calculated stochastic data")
             print(f"   ✓ Data points: {len(stoch_data)}")
             print(f"   ✓ Latest %K: {stoch_data.iloc[-1]['stoch_k']:.2f}")
             print(f"   ✓ Latest %D: {stoch_data.iloc[-1]['stoch_d']:.2f}")
@@ -59,7 +57,7 @@ def test_stochastic_basic_functionality():
             print("   ✗ No stochastic data calculated")
             return False
 
-        print(f"\n2. Testing signal generation...")
+        print("\n2. Testing signal generation...")
         signals = stoch_analyzer.get_stochastic_signals(ticker_id)
 
         if signals.get("success"):
@@ -72,11 +70,11 @@ def test_stochastic_basic_functionality():
             print(f"   ✗ Signal generation failed: {signals.get('error')}")
             return False
 
-        print(f"\n3. Testing divergence analysis...")
+        print("\n3. Testing divergence analysis...")
         divergence = stoch_analyzer.analyze_divergence(ticker_id)
 
         if divergence.get("success"):
-            print(f"   ✓ Divergence analysis completed")
+            print("   ✓ Divergence analysis completed")
             print(f"   ✓ {divergence['display_text']}")
         else:
             print(f"   ⚠ Divergence analysis: {divergence.get('error')}")

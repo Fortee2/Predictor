@@ -1,49 +1,35 @@
-from decimal import Decimal, DivisionUndefined
+from decimal import Decimal
 
-import mysql.connector
 import numpy as np
 import pandas as pd
-from mysql.connector import errorcode
+
+from data.base_dao import BaseDAO
+from data.utility import DatabaseConnectionPool
 
 
-class rsi_calculations:
+class rsi_calculations (BaseDAO):
 
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
-
-        self.current_connection = None
-
-    def open_connection(self):
-        self.current_connection = mysql.connector.connect(
-            user=self.db_user,
-            password=self.db_password,
-            host=self.db_host,
-            database=self.db_name,
-        )
-
-    def close_connection(self):
-        self.current_connection.close()
+    def __init__(self, pool: DatabaseConnectionPool):
+        super().__init__(pool)
 
     def calculateRSI(self, ticker_id):
         self.calculateWeightedAverages(ticker_id)
 
     def averagesLastCalculated(self, ticker_id):
-        cursor = self.current_connection.cursor()
+        with self.get_connection() as connection:
+            cursor = connection.cursor()
 
-        sql = "select max(a.id) from investing.activity a inner join investing.rsi r on a.ticker_id = r.ticker_id and a.activity_date = r.activity_date where a.ticker_id = %s limit 1;"
+            sql = "select max(a.id) from investing.activity a inner join investing.rsi r on a.ticker_id = r.ticker_id and a.activity_date = r.activity_date where a.ticker_id = %s limit 1;"
 
-        cursor.execute(sql, (int(ticker_id),))
-        df = pd.DataFrame(cursor.fetchall())
+            cursor.execute(sql, (int(ticker_id),))
+            df = pd.DataFrame(cursor.fetchall())
 
-        cursor.close()
+            cursor.close()
 
-        try:
-            return df.iloc[0, 0]
-        except:
-            return None
+            try:
+                return df.iloc[0, 0]
+            except:
+                return None
 
     def retrievePrices(self, id, ticker_id):
         """
@@ -87,25 +73,26 @@ class rsi_calculations:
         return df
 
     def createAverages(self, activity_date, ticker_id, avg_gain, avg_loss, rs, rsi):
-        cursor = self.current_connection.cursor()
+        with self.get_connection() as connection:
+            cursor = connection.cursor()
 
-        sql = "insert into investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) values (%s, %s, %s, %s, %s, %s);"
+            sql = "insert into investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) values (%s, %s, %s, %s, %s, %s);"
 
-        cursor.execute(
-            sql,
-            (
-                activity_date,
-                int(ticker_id),
-                float(avg_gain),
-                float(avg_loss),
-                float(rs),
-                float(rsi),
-            ),
-        )
-        df = pd.DataFrame(cursor.fetchall())
+            cursor.execute(
+                sql,
+                (
+                    activity_date,
+                    int(ticker_id),
+                    float(avg_gain),
+                    float(avg_loss),
+                    float(rs),
+                    float(rsi),
+                ),
+            )
+            df = pd.DataFrame(cursor.fetchall())
 
-        self.current_connection.commit()
-        cursor.close()
+            self.current_connection.commit()
+            cursor.close()
 
     def calculateWeightedAverages(self, ticker_id):
         # Check to see if this job has run before

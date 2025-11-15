@@ -118,7 +118,6 @@ class ManageCashCommand(Command):
                     return
 
             if ui.confirm_action(f"Withdraw ${amount:.2f} from {portfolio['name']}?"):
-                date_str = datetime.now().strftime("%Y-%m-%d")
                 description = f"Withdrawal from {portfolio['name']}"
 
                 with ui.progress("Processing withdrawal...") as progress:
@@ -160,11 +159,7 @@ class ManageCashCommand(Command):
             progress.add_task("", total=None)
             portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)
 
-            # Create a new approach that can track all cash movements
-            # First, get the current cash balance
-            current_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
-
-            # We'll use a direct SQL query to get the cash_balance_history
+           # We'll use a direct SQL query to get the cash_balance_history
             connection = cli.cli.portfolio_dao.connection
             cursor = connection.cursor(dictionary=True)
 

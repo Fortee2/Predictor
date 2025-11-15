@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import os
 
 import pandas as pd
 from dotenv import load_dotenv
@@ -13,22 +12,16 @@ class TickerCLI:
     def __init__(self):
         load_dotenv()
 
-        # Get database credentials from environment variables
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-        db_host = os.getenv("DB_HOST")
-        db_name = os.getenv("DB_NAME")
-
         # Initialize DAOs
-        self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
-        self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
+        self.ticker_dao = TickerDao(pool=self.db_pool)
+        self.data_retrieval = DataRetrieval(pool=self.db_pool)
         self.ticker_dao.open_connection()
 
     def add_ticker(self, symbol, name):
         """Add a new ticker to the database"""
         try:
             self.ticker_dao.insert_stock(symbol, name)
-            print(f"\nSuccessfully added new ticker:")
+            print("\nSuccessfully added new ticker:")
             print(f"Symbol: {symbol}")
             print(f"Name: {name}")
         except Exception as e:
@@ -126,10 +119,6 @@ def main():
     # Delist Ticker
     delist_parser = subparsers.add_parser("delist", help="Mark ticker as inactive")
     delist_parser.add_argument("symbol", help="Ticker symbol")
-
-    # List Tickers
-    list_parser = subparsers.add_parser("list", help="List all tickers")
-
     # Update Data
     update_data_parser = subparsers.add_parser(
         "update-data", help="Update ticker data using yfinance"

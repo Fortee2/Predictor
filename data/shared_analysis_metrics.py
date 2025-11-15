@@ -8,7 +8,7 @@ the DRY (Don't Repeat Yourself) principle.
 
 import datetime
 import decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 
 class SharedAnalysisMetrics:
@@ -755,7 +755,7 @@ class SharedAnalysisMetrics:
         bb = analysis.get("bollinger_bands", {})
         if bb.get("success"):
             output_lines.append(
-                f"║ Bollinger Bands:                                             ║"
+                "║ Bollinger Bands:                                             ║"
             )
             output_lines.append(f"║   Mean: {bb['mean']:.2f}{' ' * 49}║")
             output_lines.append(f"║   StdDev: {bb['stddev']:.2f}{' ' * 47}║")

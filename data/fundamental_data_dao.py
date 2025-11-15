@@ -2,15 +2,13 @@ from datetime import datetime
 
 import mysql.connector
 import pandas as pd
-from mysql.connector import errorcode
+
+from data.utility import DatabaseConnectionPool
 
 
 class FundamentalDataDAO:
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
+    def __init__(self, pool: DatabaseConnectionPool):
+        self.pool = pool
         self.current_connection = None
 
     def open_connection(self):

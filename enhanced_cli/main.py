@@ -5,16 +5,13 @@ This module contains the core CLI class that coordinates all components
 and provides the main menu and application flow.
 """
 
-from logging.handlers import TimedRotatingFileHandler
-import logging
-import os
-import re
 
 from rich.console import Console
 from rich.prompt import Prompt
-from logging_setup import setup_logging
+
 from enhanced_cli.command import CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
+from logging_setup import setup_logging
 from portfolio_cli import PortfolioCLI
 
 
@@ -34,13 +31,15 @@ class EnhancedCLI:
     def register_commands(self):
         """Register all available commands with the command registry."""
         # First use stubs to avoid circular imports during initialization
-        from enhanced_cli.stubs import (register_analysis_commands,
-                                        register_cash_management_commands,
-                                        register_data_commands,
-                                        register_portfolio_commands,
-                                        register_settings_commands,
-                                        register_transaction_commands,
-                                        register_watchlist_commands)
+        from enhanced_cli.stubs import (
+            register_analysis_commands,
+            register_cash_management_commands,
+            register_data_commands,
+            register_portfolio_commands,
+            register_settings_commands,
+            register_transaction_commands,
+            register_watchlist_commands,
+        )
 
         # Register stub commands initially
         register_portfolio_commands(self.command_registry)
@@ -52,25 +51,18 @@ class EnhancedCLI:
         register_data_commands(self.command_registry)
 
         # Now we can safely import the real implementations
-        from enhanced_cli.analysis_views import \
-            register_analysis_commands as real_register_analysis_commands
-        from enhanced_cli.cash_management_views import \
-            register_cash_management_commands as \
-            real_register_cash_management_commands
-        from enhanced_cli.comprehensive_analysis_views import \
-            register_comprehensive_analysis_commands
-        from enhanced_cli.data_views import \
-            register_data_commands as real_register_data_commands
-        from enhanced_cli.llm_export_views import register_llm_export_commands
         from enhanced_cli.ai_assistant_views import register_ai_assistant_commands
-        from enhanced_cli.portfolio_views import \
-            register_portfolio_commands as real_register_portfolio_commands
-        from enhanced_cli.settings_views import \
-            register_settings_commands as real_register_settings_commands
-        from enhanced_cli.transaction_views import \
-            register_transaction_commands as real_register_transaction_commands
-        from enhanced_cli.watchlist_views import \
-            register_watchlist_commands as real_register_watchlist_commands
+        from enhanced_cli.analysis_views import register_analysis_commands as real_register_analysis_commands
+        from enhanced_cli.cash_management_views import (
+            register_cash_management_commands as real_register_cash_management_commands,
+        )
+        from enhanced_cli.comprehensive_analysis_views import register_comprehensive_analysis_commands
+        from enhanced_cli.data_views import register_data_commands as real_register_data_commands
+        from enhanced_cli.llm_export_views import register_llm_export_commands
+        from enhanced_cli.portfolio_views import register_portfolio_commands as real_register_portfolio_commands
+        from enhanced_cli.settings_views import register_settings_commands as real_register_settings_commands
+        from enhanced_cli.transaction_views import register_transaction_commands as real_register_transaction_commands
+        from enhanced_cli.watchlist_views import register_watchlist_commands as real_register_watchlist_commands
 
         # Register actual commands from each module
         real_register_portfolio_commands(self.command_registry)

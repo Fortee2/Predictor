@@ -1,55 +1,71 @@
+import logging
+from contextlib import contextmanager
+
 import mysql.connector
+
+from data.utility import DatabaseConnectionPool
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioTransactionsDAO:
-    def __init__(self, db_user, db_password, db_host, db_name):
-        self.db_user = db_user
-        self.db_password = db_password
-        self.db_host = db_host
-        self.db_name = db_name
-        self.open_connection()
+    def __init__(self, pool: DatabaseConnectionPool):
+        """
+        Initialize DAO with a shared database connection pool.
+        
+        Args:
+            pool: DatabaseConnectionPool instance shared across all DAOs
+        """
+        self.pool = pool
+        self.current_connection = None
 
-    def open_connection(self):
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        connection = None
         try:
-            self.connection = mysql.connector.connect(
-                user=self.db_user,
-                password=self.db_password,
-                host=self.db_host,
-                database=self.db_name,
-            )
+            if self.current_connection is not None and self.current_connection.is_connected():
+                connection = self.current_connection
+                yield connection
+            else:
+                connection = self.pool.get_connection()
+                self.current_connection = connection
+                yield connection
         except mysql.connector.Error as e:
-            print(f"Error connecting to MySQL: {e}")
-
-    def close_connection(self):
-        if self.connection:
-            self.connection.close()
+            logger.error(f"Database connection error: {str(e)}")
+            raise
+        finally:
+            pass
 
     def get_transaction_history(self, portfolio_id, security_id=None):
         try:
-            cursor = self.connection.cursor(dictionary=True)
-            if security_id:
-                query = """
-                    SELECT t.*, s.ticker_id, tk.ticker as symbol 
-                    FROM portfolio_transactions t
-                    JOIN portfolio_securities s ON t.security_id = s.id
-                    JOIN tickers tk ON s.ticker_id = tk.id
-                    WHERE t.portfolio_id = %s AND t.security_id = %s
-                    ORDER BY t.transaction_date ASC, t.id ASC
-                """
-                cursor.execute(query, (portfolio_id, security_id))
-            else:
-                query = """
-                    SELECT t.*, s.ticker_id, tk.ticker as symbol 
-                    FROM portfolio_transactions t
-                    JOIN portfolio_securities s ON t.security_id = s.id
-                    JOIN tickers tk ON s.ticker_id = tk.id
-                    WHERE t.portfolio_id = %s
-                    ORDER BY t.transaction_date ASC, t.id ASC
-                """
-                cursor.execute(query, (portfolio_id,))
-            return cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                if security_id:
+                    query = """
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                        FROM portfolio_transactions t
+                        JOIN portfolio_securities s ON t.security_id = s.id
+                        JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s AND t.security_id = %s
+                        ORDER BY t.transaction_date ASC, t.id ASC
+                    """
+                    cursor.execute(query, (portfolio_id, security_id))
+                else:
+                    query = """
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                        FROM portfolio_transactions t
+                        JOIN portfolio_securities s ON t.security_id = s.id
+                        JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s
+                        ORDER BY t.transaction_date ASC, t.id ASC
+                    """
+                    cursor.execute(query, (portfolio_id,))
+                result = cursor.fetchall()
+                cursor.close()
+                return result
         except mysql.connector.Error as e:
-            print(f"Error retrieving transaction history: {e}")
+            logger.error(f"Error retrieving transaction history: {e}")
             return []
 
     def insert_transaction(
@@ -63,22 +79,25 @@ class PortfolioTransactionsDAO:
         amount=None,
     ):
         try:
-            cursor = self.connection.cursor()
-            query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
-            values = (
-                portfolio_id,
-                security_id,
-                transaction_type,
-                transaction_date,
-                shares,
-                price,
-                amount,
-            )
-            cursor.execute(query, values)
-            self.connection.commit()
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                values = (
+                    portfolio_id,
+                    security_id,
+                    transaction_type,
+                    transaction_date,
+                    shares,
+                    price,
+                    amount,
+                )
+                cursor.execute(query, values)
+                connection.commit()
+                cursor.close()
         except mysql.connector.Error as e:
-            print(f"Error inserting transaction: {e}")
-            self.connection.rollback()
+            logger.error(f"Error inserting transaction: {e}")
+            if connection:
+                connection.rollback()
 
     def get_transaction_id(
         self,
@@ -91,53 +110,58 @@ class PortfolioTransactionsDAO:
         amount=None,
     ) -> int | None:
         try:
-            cursor = self.connection.cursor()
-            query = """
-                SELECT id 
-                FROM portfolio_transactions 
-                WHERE portfolio_id = %s 
-                    AND security_id = %s 
-                    AND transaction_type = %s 
-                    AND transaction_date = %s"""
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = """
+                    SELECT id 
+                    FROM portfolio_transactions 
+                    WHERE portfolio_id = %s 
+                        AND security_id = %s 
+                        AND transaction_type = %s 
+                        AND transaction_date = %s"""
 
-            values = [portfolio_id, security_id, transaction_type, transaction_date]
+                values = [portfolio_id, security_id, transaction_type, transaction_date]
 
-            # TODO: Rounding issues are prevent the detection of duplicate transactions.
-            # Need to address this properly. For now, we are ignoring shares/price/amount in the lookup.
-            # This may lead to duplicate transactions being entered.
+                # TODO: Rounding issues are prevent the detection of duplicate transactions.
+                # Need to address this properly. For now, we are ignoring shares/price/amount in the lookup.
+                # This may lead to duplicate transactions being entered.
 
-            # if transaction_type in ('buy', 'sell'):
-            #     query += " AND shares = %s AND price = %s AND amount IS NULL;"
+                # if transaction_type in ('buy', 'sell'):
+                #     query += " AND shares = %s AND price = %s AND amount IS NULL;"
 
-            #     values.extend([
-            #         shares,
-            #         price
-            #     ])
+                #     values.extend([
+                #         shares,
+                #         price
+                #     ])
 
-            # elif transaction_type == 'dividend':
-            #     query += " AND shares IS NULL AND price IS NULL AND amount = %s;"
+                # elif transaction_type == 'dividend':
+                #     query += " AND shares IS NULL AND price IS NULL AND amount = %s;"
 
-            #     values.extend([
-            #         amount
-            #     ])
+                #     values.extend([
+                #         amount
+                #     ])
 
-            cursor.execute(query, tuple(values))
-            row = cursor.fetchone()
-            return row[0] if row else None
+                cursor.execute(query, tuple(values))
+                row = cursor.fetchone()
+                cursor.close()
+                return row[0] if row else None
         except mysql.connector.Error as e:
-            print(f"Error retrieving transaction: {e}")
+            logger.error(f"Error retrieving transaction: {e}")
             return None
 
     def delete_transactions_for_security(self, portfolio_id, security_id):
         try:
-            cursor = self.connection.cursor()
-            query = "DELETE FROM portfolio_transactions WHERE portfolio_id = %s AND security_id = %s"
-            values = (portfolio_id, security_id)
-            cursor.execute(query, values)
-            self.connection.commit()
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "DELETE FROM portfolio_transactions WHERE portfolio_id = %s AND security_id = %s"
+                values = (portfolio_id, security_id)
+                cursor.execute(query, values)
+                connection.commit()
+                cursor.close()
         except mysql.connector.Error as e:
-            print(f"Error deleting transactions: {e}")
-            self.connection.rollback()
+            logger.error(f"Error deleting transactions: {e}")
+            if connection:
+                connection.rollback()
 
     def get_current_positions(self, portfolio_id):
         """
@@ -146,27 +170,29 @@ class PortfolioTransactionsDAO:
         Implements FIFO (First-In-First-Out) method for cost basis calculation.
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
 
-            # Get all transactions for the portfolio in a single query to improve performance
-            query = """
-                SELECT 
-                    s.ticker_id, 
-                    s.id as security_id,
-                    tk.ticker as symbol,
-                    t.transaction_type,
-                    t.transaction_date,
-                    t.shares,
-                    t.price,
-                    t.amount
-                FROM portfolio_transactions t
-                JOIN portfolio_securities s ON t.security_id = s.id
-                JOIN tickers tk ON s.ticker_id = tk.id
-                WHERE t.portfolio_id = %s
-                ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
-            """
-            cursor.execute(query, (portfolio_id,))
-            all_transactions = cursor.fetchall()
+                # Get all transactions for the portfolio in a single query to improve performance
+                query = """
+                    SELECT 
+                        s.ticker_id, 
+                        s.id as security_id,
+                        tk.ticker as symbol,
+                        t.transaction_type,
+                        t.transaction_date,
+                        t.shares,
+                        t.price,
+                        t.amount
+                    FROM portfolio_transactions t
+                    JOIN portfolio_securities s ON t.security_id = s.id
+                    JOIN tickers tk ON s.ticker_id = tk.id
+                    WHERE t.portfolio_id = %s
+                    ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
+                """
+                cursor.execute(query, (portfolio_id,))
+                all_transactions = cursor.fetchall()
+                cursor.close()
 
             # Process transactions by ticker_id
             positions = {}
@@ -206,7 +232,7 @@ class PortfolioTransactionsDAO:
                     shares = float(transaction["shares"] or 0)
                     price = float(transaction["price"] or 0)
                 except (ValueError, TypeError) as e:
-                    print(f"Error converting transaction values for {ticker_id}: {e}")
+                    logger.error(f"Error converting transaction values for {ticker_id}: {e}")
                     continue
 
                 # Skip invalid transactions (missing essential data)
@@ -236,9 +262,9 @@ class PortfolioTransactionsDAO:
             if current_ticker is not None and buy_queue:
                 self._store_position_data(positions, current_ticker, buy_queue, symbol)
 
-            return  positions
+            return positions
         except mysql.connector.Error as e:
-            print(f"Error calculating current positions: {e}")
+            logger.error(f"Error calculating current positions: {e}")
             return {}
 
     def _store_position_data(self, positions_dict, ticker_id, buy_queue, symbol):
@@ -263,5 +289,5 @@ class PortfolioTransactionsDAO:
                 }
             return positions_dict
         except Exception as e:
-            print(f"Error storing position data for {ticker_id}: {e}")
+            logger.error(f"Error storing position data for {ticker_id}: {e}")
             return positions_dict

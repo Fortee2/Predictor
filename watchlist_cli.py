@@ -1,7 +1,6 @@
 import argparse
 import datetime
 import decimal
-import os
 
 from dotenv import load_dotenv
 
@@ -21,52 +20,34 @@ from data.shared_analysis_metrics import SharedAnalysisMetrics
 from data.stochastic_oscillator import StochasticOscillator
 from data.ticker_dao import TickerDao
 from data.trend_analyzer import TrendAnalyzer
+from data.utility import DatabaseConnectionPool
 from data.watch_list_dao import WatchListDAO
 
 
 class WatchListCLI:
-    def __init__(self):
+    def __init__(self, db_pool:DatabaseConnectionPool):
         load_dotenv()
-
-        # Get database credentials from environment variables
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-        db_host = os.getenv("DB_HOST")
-        db_name = os.getenv("DB_NAME")
-
         # Initialize ticker_dao first since it's needed by BollingerBandAnalyzer
-        self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
+        self.ticker_dao = TickerDao(pool=self.db_pool)
 
         # Initialize DAOs with database credentials
-        self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
-        self.transactions_dao = PortfolioTransactionsDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.rsi_calc = rsi_calculations(db_user, db_password, db_host, db_name)
-        self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
+        self.portfolio_dao = PortfolioDAO(pool=self.db_pool)
+        self.transactions_dao = PortfolioTransactionsDAO(pool=self.db_pool)
+        self.rsi_calc = rsi_calculations(pool=self.db_pool)
+        self.moving_avg = moving_averages(pool=self.db_pool)
         self.bb_analyzer = BollingerBandAnalyzer(
             self.ticker_dao
         )  # Pass ticker_dao instance
-        self.fundamental_dao = FundamentalDataDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
-        self.news_analyzer = NewsSentimentAnalyzer(
-            db_user, db_password, db_host, db_name
-        )
-        self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
-        self.value_calculator = PortfolioValueCalculator(
-            db_user, db_password, db_host, db_name
-        )
-        self.value_service = PortfolioValueService(
-            db_user, db_password, db_host, db_name
-        )
-        self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
-        self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
-        self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
-        self.stochastic_analyzer = StochasticOscillator(
-            db_user, db_password, db_host, db_name
-        )
+        self.fundamental_dao = FundamentalDataDAO(pool=self.db_pool)
+        self.macd_analyzer = MACD(pool=self.db_pool)
+        self.news_analyzer = NewsSentimentAnalyzer(pool=self.db_pool)
+        self.data_retrieval = DataRetrieval(pool=self.db_pool)
+        self.value_calculator = PortfolioValueCalculator(pool=self.db_pool)
+        self.value_service = PortfolioValueService(pool=self.db_pool)
+        self.options_analyzer = OptionsData(pool=self.db_pool)
+        self.trend_analyzer = TrendAnalyzer(pool=self.db_pool)
+        self.watch_list_dao = WatchListDAO(pool=self.db_pool)
+        self.stochastic_analyzer = StochasticOscillator(pool=self.db_pool)
 
         # Open database connections for classes that need it
         self.portfolio_dao.open_connection()
@@ -245,7 +226,7 @@ class WatchListCLI:
             if self.watch_list_dao.delete_watch_list(watch_list_id):
                 print(f"\nSuccessfully deleted watch list \"{watch_list['name']}\"")
             else:
-                print(f"Failed to delete watch list.")
+                print("Failed to delete watch list.")
         except Exception as e:
             print(f"Error deleting watch list: {str(e)}")
 
@@ -347,7 +328,7 @@ class WatchListCLI:
                                     )
                             except Exception:
                                 print(
-                                    f"║ MA Trend: Unable to analyze                                 ║"
+                                    "║ MA Trend: Unable to analyze                                 ║"
                                 )
 
                             # Get price vs MA analysis
@@ -371,13 +352,13 @@ class WatchListCLI:
                                     print(
                                         f"║ Price Position: {position_text} ({distance_formatted}% from MA){' ' * (29 - len(distance_formatted))}║"
                                     )
-                            except Exception as e:
+                            except Exception:
                                 print(
-                                    f"║ Price Position: Unable to analyze                           ║"
+                                    "║ Price Position: Unable to analyze                           ║"
                                 )
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ Moving Average: Unable to calculate                          ║"
+                            "║ Moving Average: Unable to calculate                          ║"
                         )
 
                     # Bollinger Bands
@@ -389,13 +370,13 @@ class WatchListCLI:
                             bb_mean = bb_data["bollinger_bands"]["mean"]
                             bb_stddev = bb_data["bollinger_bands"]["stddev"]
                             print(
-                                f"║ Bollinger Bands:                                             ║"
+                                "║ Bollinger Bands:                                             ║"
                             )
                             print(f"║   Mean: {bb_mean:.2f}{' ' * 49}║")
                             print(f"║   StdDev: {bb_stddev:.2f}{' ' * 47}║")
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ Bollinger Bands: Unable to calculate                         ║"
+                            "║ Bollinger Bands: Unable to calculate                         ║"
                         )
 
                     # MACD Analysis
@@ -460,9 +441,9 @@ class WatchListCLI:
                             print(
                                 f"║ MACD Momentum: {trend_direction}{' ' * (47 - len(trend_direction))}║"
                             )
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ MACD: Unable to calculate                                    ║"
+                            "║ MACD: Unable to calculate                                    ║"
                         )
 
                     # Fundamental Data
@@ -489,9 +470,9 @@ class WatchListCLI:
                                 print(
                                     f"║   Dividend Yield: {fundamental_data['dividend_yield']:.2f}%{' ' * 40}║"
                                 )
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ Fundamental Data: Unable to retrieve                          ║"
+                            "║ Fundamental Data: Unable to retrieve                          ║"
                         )
 
                     # News Sentiment
@@ -515,9 +496,9 @@ class WatchListCLI:
                             print(
                                 "║ News Sentiment: No data available                              ║"
                             )
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ News Sentiment: Unable to analyze                             ║"
+                            "║ News Sentiment: Unable to analyze                             ║"
                         )
 
                     print(
@@ -588,9 +569,9 @@ class WatchListCLI:
                             print(
                                 "║ Options Data: Not available                                   ║"
                             )
-                    except Exception as e:
+                    except Exception:
                         print(
-                            f"║ Options Data: Unable to analyze                               ║"
+                            "║ Options Data: Unable to analyze                               ║"
                         )
 
                     # Show notes if available
@@ -619,7 +600,7 @@ class WatchListCLI:
                     ZeroDivisionError,
                     decimal.DivisionUndefined,
                     decimal.InvalidOperation,
-                ) as div_err:
+                ):
                     print(
                         f"║ Error analyzing {symbol}: Division error                        ║"
                     )
@@ -653,11 +634,6 @@ def main():
     )
     create_wl_parser.add_argument("name", help="Watch list name")
     create_wl_parser.add_argument("--description", help="Watch list description")
-
-    # View Watch Lists
-    view_wl_parser = subparsers.add_parser(
-        "view-watchlists", help="View all watch lists"
-    )
 
     # View Watch List
     view_wl_details_parser = subparsers.add_parser(

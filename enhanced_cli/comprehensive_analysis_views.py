@@ -10,8 +10,7 @@ from typing import Dict
 
 from rich.prompt import Prompt
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui

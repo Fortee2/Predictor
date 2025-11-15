@@ -8,7 +8,6 @@ that might not be covered in the main test suite.
 import os
 import sys
 import unittest
-from datetime import date, timedelta
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
@@ -18,8 +17,7 @@ import pandas as pd
 # Add the project root to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
 

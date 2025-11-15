@@ -19,7 +19,7 @@ class PortfolioValueService:
     Universal service for calculating portfolio values consistently across the application.
     """
 
-    def __init__(self, db_user, db_password, db_host, db_name):
+    def __init__(self, pool: DatabaseConnectionPool):
         self.db_user = db_user
         self.db_password = db_password
         self.db_host = db_host
@@ -290,66 +290,60 @@ class PortfolioValueService:
         4. Use last transaction price as final fallback
         """
         try:
-            cursor = self.connection.cursor()
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                
+                # Try to get historical price from database
+                try:
+                    hist_query = """
+                        SELECT close
+                        FROM investing.activity 
+                        WHERE ticker_id = %s AND activity_date <= %s
+                        ORDER BY activity_date DESC
+                        LIMIT 1
+                    """
+                    cursor.execute(hist_query, (ticker_id, calculation_date))
+                    result = cursor.fetchone()
+                    if result and result[0]:
+                        return float(result[0])
+                except mysql.connector.Error:
+                    # investing.activity table might not exist
+                    pass
 
-            # # If using current prices, get latest from ticker table
-            # if use_current:
-            #     cursor.execute("SELECT last_price FROM tickers WHERE id = %s", (ticker_id,))
-            #     result = cursor.fetchone()
-            #     if result and result[0]:
-            #         return float(result[0])
+                # Try yfinance for historical data
+                try:
+                    stock = yf.Ticker(symbol)
+                    start_date = (calculation_date - timedelta(days=5)).strftime("%Y-%m-%d")
+                    end_date = (calculation_date + timedelta(days=1)).strftime("%Y-%m-%d")
+                    hist_data = stock.history(start=start_date, end=end_date)
 
-            # Try to get historical price from database
-            try:
-                hist_query = """
-                    SELECT close
-                    FROM investing.activity 
-                    WHERE ticker_id = %s AND activity_date <= %s
-                    ORDER BY activity_date DESC
+                    if not hist_data.empty:
+                        hist_data.index = hist_data.index.tz_localize(None)
+                        calc_timestamp = pd.Timestamp(calculation_date)
+
+                        valid_dates = hist_data.index[hist_data.index <= calc_timestamp]
+                        if len(valid_dates) > 0:
+                            closest_date = valid_dates[-1]
+                            return float(hist_data.loc[closest_date, "Close"])
+                except Exception:
+                    pass
+
+                # Final fallback: get last transaction price
+                cursor.execute(
+                    """
+                    SELECT price FROM portfolio_transactions pt
+                    JOIN portfolio_securities ps ON pt.security_id = ps.id
+                    WHERE ps.ticker_id = %s AND pt.price IS NOT NULL
+                    ORDER BY pt.transaction_date DESC, pt.id DESC
                     LIMIT 1
-                """
-                cursor.execute(hist_query, (ticker_id, calculation_date))
+                """,
+                    (ticker_id,),
+                )
                 result = cursor.fetchone()
                 if result and result[0]:
                     return float(result[0])
-            except mysql.connector.Error:
-                # investing.activity table might not exist
-                pass
 
-            # Try yfinance for historical data
-            try:
-                stock = yf.Ticker(symbol)
-                start_date = (calculation_date - timedelta(days=5)).strftime("%Y-%m-%d")
-                end_date = (calculation_date + timedelta(days=1)).strftime("%Y-%m-%d")
-                hist_data = stock.history(start=start_date, end=end_date)
-
-                if not hist_data.empty:
-                    hist_data.index = hist_data.index.tz_localize(None)
-                    calc_timestamp = pd.Timestamp(calculation_date)
-
-                    valid_dates = hist_data.index[hist_data.index <= calc_timestamp]
-                    if len(valid_dates) > 0:
-                        closest_date = valid_dates[-1]
-                        return float(hist_data.loc[closest_date, "Close"])
-            except Exception:
-                pass
-
-            # Final fallback: get last transaction price
-            cursor.execute(
-                """
-                SELECT price FROM portfolio_transactions pt
-                JOIN portfolio_securities ps ON pt.security_id = ps.id
-                WHERE ps.ticker_id = %s AND pt.price IS NOT NULL
-                ORDER BY pt.transaction_date DESC, pt.id DESC
-                LIMIT 1
-            """,
-                (ticker_id,),
-            )
-            result = cursor.fetchone()
-            if result and result[0]:
-                return float(result[0])
-
-            return None
+                return None
 
         except Exception as e:
             print(f"Error getting ticker price for {symbol}: {e}")
@@ -380,19 +374,20 @@ class PortfolioValueService:
     ) -> float:
         """Get cumulative dividends received up to calculation date."""
         try:
-            cursor = self.connection.cursor()
-            query = """
-                SELECT SUM(amount) as total_dividends
-                FROM portfolio_transactions
-                WHERE portfolio_id = %s 
-                AND transaction_type = 'dividend' 
-                AND transaction_date <= %s
-            """
-            cursor.execute(query, (portfolio_id, calculation_date))
-            result = cursor.fetchone()
-            if result and result[0]:
-                return float(result[0])
-            return 0.0
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = """
+                    SELECT SUM(amount) as total_dividends
+                    FROM portfolio_transactions
+                    WHERE portfolio_id = %s 
+                    AND transaction_type = 'dividend' 
+                    AND transaction_date <= %s
+                """
+                cursor.execute(query, (portfolio_id, calculation_date))
+                result = cursor.fetchone()
+                if result and result[0]:
+                    return float(result[0])
+                return 0.0
         except Exception as e:
             print(f"Error getting cumulative dividends: {e}")
             return 0.0

@@ -5,7 +5,7 @@ Quick Data Validation Script
 A simplified tool to quickly identify common data issues that cause portfolio value spikes.
 """
 
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 
 import mysql.connector
 

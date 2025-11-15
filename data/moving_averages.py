@@ -5,6 +5,7 @@ from datetime import timedelta
 import mysql.connector
 import pandas as pd
 
+from data.base_dao import BaseDAO
 from data.utility import DatabaseConnectionPool
 
 # Set up logging - Modified to only log to file, not console
@@ -26,74 +27,7 @@ for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
 
-class moving_averages:
-
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
-
-        # Initialize connection pool if not already initialized
-        try:
-            self.pool = DatabaseConnectionPool(user, password, host, database)
-            self.current_connection = None
-            logger.info("Moving averages initialized with database connection pool")
-        except Exception as e:
-            logger.error(f"Failed to initialize database connection pool: {str(e)}")
-            raise
-
-    @contextmanager
-    def get_connection(self):
-        """Context manager for database connections."""
-        connection = None
-        try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
-                # Use existing connection if it's still valid
-                connection = self.current_connection
-                yield connection
-            else:
-                # Get a new connection from the pool
-                connection = self.pool.get_connection()
-                self.current_connection = connection
-                yield connection
-        except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
-            raise
-        finally:
-            # Don't close the connection here, just pass
-            # The connection will be closed when open_connection() is explicitly called
-            pass
-
-    def open_connection(self):
-        """Open a new database connection or return the existing one if valid."""
-        try:
-            if (
-                self.current_connection is None
-                or not self.current_connection.is_connected()
-            ):
-                self.current_connection = self.pool.get_connection()
-                logger.debug("Opened new database connection")
-            return self.current_connection
-        except mysql.connector.Error as e:
-            logger.error(f"Failed to open database connection: {str(e)}")
-            raise
-
-    def close_connection(self):
-        """Close the current database connection if open."""
-        try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
-                self.current_connection.close()
-                logger.debug("Closed database connection")
-                self.current_connection = None
-        except mysql.connector.Error as e:
-            logger.error(f"Error closing database connection: {str(e)}")
+class moving_averages(BaseDAO):
 
     def calculateAverage(self, resultColumn, columnToAvg, interval, avgDataFrame):
         """Calculate moving average for a DataFrame column."""

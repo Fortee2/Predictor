@@ -134,7 +134,7 @@ def main():
             # Update portfolio's current cash balance
             portfolio_dao.update_cash_balance(portfolio_id, running_balance)
 
-            print(f"\nCash history rebuilt successfully")
+            print("\nCash history rebuilt successfully")
             print(f"Final cash balance: ${running_balance:.2f}")
             print(f"Processed {len(transactions)} transactions")
 

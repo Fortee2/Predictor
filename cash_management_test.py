@@ -7,7 +7,6 @@ to ensure it's working properly. It can be run after any code changes
 to verify that cash management still functions correctly.
 """
 
-import os
 import unittest
 
 from dotenv import load_dotenv
@@ -25,11 +24,6 @@ class CashManagementTests(unittest.TestCase):
         """Setup test environment once before all tests"""
         load_dotenv()
 
-        # Get database credentials from environment variables
-        cls.db_user = os.getenv("DB_USER")
-        cls.db_password = os.getenv("DB_PASSWORD")
-        cls.db_host = os.getenv("DB_HOST")
-        cls.db_name = os.getenv("DB_NAME")
 
         # Initialize DAOs and CLI
         cls.portfolio_dao = PortfolioDAO(
@@ -82,7 +76,7 @@ class CashManagementTests(unittest.TestCase):
         try:
             query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
             cursor.execute(query, (portfolio_id,))
-        except:
+        except Exception:
             pass  # Table might not exist
 
         # Delete portfolio transactions
@@ -179,7 +173,7 @@ class CashManagementTests(unittest.TestCase):
             self.assertEqual(latest["description"], "Test deposit transaction")
             self.assertEqual(float(latest["balance_after"]), expected)
             print(
-                f"✅ log_cash_transaction test passed. Transaction logged successfully."
+                "✅ log_cash_transaction test passed. Transaction logged successfully."
             )
         else:
             self.fail("No transaction history found")
@@ -192,7 +186,7 @@ class CashManagementTests(unittest.TestCase):
         excessive_amount = initial + 1000.0  # More than we have
 
         # Withdraw should give a warning but still allow the withdrawal
-        new_balance = self.portfolio_dao.withdraw_cash(
+        self.portfolio_dao.withdraw_cash(
             self.test_portfolio_id, excessive_amount
         )
 

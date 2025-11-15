@@ -8,9 +8,9 @@ to ensure accurate performance metrics, risk calculations, and benchmark compari
 import os
 import sys
 import unittest
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -18,8 +18,7 @@ import pandas as pd
 # Add the project root to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
 
@@ -162,7 +161,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         """Test maximum drawdown calculation."""
         # Create returns that will result in a known drawdown
         # Starting at 100, going to 110, then down to 95, then up to 105
-        prices = [100, 110, 95, 105]
+        # prices = [100, 110, 95, 105]
         returns = pd.Series([0.1, -0.136364, 0.105263])  # Calculated from prices
 
         metrics = self.analyzer.calculate_performance_metrics(returns)
@@ -602,7 +601,7 @@ if __name__ == "__main__":
 
     # Print summary
     print(f"\n{'='*60}")
-    print(f"TEST SUMMARY")
+    print("TEST SUMMARY")
     print(f"{'='*60}")
     print(f"Tests run: {result.testsRun}")
     print(f"Failures: {len(result.failures)}")
@@ -612,14 +611,14 @@ if __name__ == "__main__":
     )
 
     if result.failures:
-        print(f"\nFAILURES:")
+        print("\nFAILURES:")
         for test, traceback in result.failures:
             print(
                 f"- {test}: {traceback.split('AssertionError: ')[-1].split('\n')[0]}"
             )
 
     if result.errors:
-        print(f"\nERRORS:")
+        print("\nERRORS:")
         for test, traceback in result.errors:
             print(f"- {test}: {traceback.split('\n')[-2]}")
 

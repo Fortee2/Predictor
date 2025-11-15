@@ -30,15 +30,6 @@ def test_universal_value_service():
     # Load environment variables
     load_dotenv()
 
-    # Get database credentials
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
-    db_host = os.getenv("DB_HOST")
-    db_name = os.getenv("DB_NAME")
-
-    if not all([db_user, db_password, db_host, db_name]):
-        print("Error: Missing database credentials in environment variables")
-        return False
 
     try:
         # Initialize services
@@ -141,9 +132,9 @@ def test_universal_value_service():
                     )
 
                     if not shares_match or not price_match:
-                        print(f"    ⚠️  DISCREPANCY DETECTED!")
+                        print("    ⚠️  DISCREPANCY DETECTED!")
                     else:
-                        print(f"    ✅ Match")
+                        print("    ✅ Match")
 
         # Test 5: Summary comparison
         print("\nTest 5: Summary Comparison")

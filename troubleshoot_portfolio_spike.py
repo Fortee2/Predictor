@@ -6,9 +6,7 @@ This script helps identify data anomalies that could cause sharp spikes in portf
 It analyzes transactions, cash movements, and price data around suspicious time periods.
 """
 
-import json
 from datetime import date, datetime, timedelta
-from decimal import Decimal
 
 import mysql.connector
 import pandas as pd
@@ -129,7 +127,7 @@ class PortfolioSpikeTroubleshooter:
         # Identify significant spikes (>10% daily change)
         spikes = df[abs(df["daily_change_pct"]) > 10].copy()
 
-        print(f"\nSUMMARY:")
+        print("\nSUMMARY:")
         print(f"Date range: {df['date'].min()} to {df['date'].max()}")
         print(f"Starting value: ${df['total_value'].iloc[0]:,.2f}")
         print(f"Ending value: ${df['total_value'].iloc[-1]:,.2f}")
@@ -138,7 +136,7 @@ class PortfolioSpikeTroubleshooter:
         print(f"Number of significant spikes (>10%): {len(spikes)}")
 
         if not spikes.empty:
-            print(f"\nSIGNIFICANT SPIKES DETECTED:")
+            print("\nSIGNIFICANT SPIKES DETECTED:")
             print("-" * 80)
             for _, spike in spikes.iterrows():
                 print(f"Date: {spike['date']}")
@@ -451,7 +449,7 @@ class PortfolioSpikeTroubleshooter:
             spike_date (date, optional): Specific date where spike occurred
         """
         print(f"\n{'#'*80}")
-        print(f"COMPREHENSIVE PORTFOLIO SPIKE ANALYSIS")
+        print("COMPREHENSIVE PORTFOLIO SPIKE ANALYSIS")
         print(f"Portfolio ID: {portfolio_id}")
         if spike_date:
             print(f"Focus Date: {spike_date}")

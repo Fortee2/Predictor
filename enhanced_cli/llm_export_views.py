@@ -8,7 +8,7 @@ in structured JSON format for analysis and recommendations.
 import json
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 from rich.prompt import Prompt
 
@@ -185,8 +185,7 @@ class PortfolioSnapshotCommand(Command):
 
             # Performance metrics (if available)
             try:
-                from data.multi_timeframe_analyzer import \
-                    MultiTimeframeAnalyzer
+                from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
                 analyzer = MultiTimeframeAnalyzer()
                 portfolio_metrics = analyzer.get_portfolio_metrics(
