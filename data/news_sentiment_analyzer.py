@@ -3,13 +3,13 @@ from datetime import datetime
 import yfinance as yf
 from transformers import pipeline
 
-from data.news_sentiment_dao import NewsSentimentDAO
+from .news_sentiment_dao import NewsSentimentDAO
+from .utility import DatabaseConnectionPool
 
 
 class NewsSentimentAnalyzer:
     def __init__(self, pool: DatabaseConnectionPool):
-        self.sentiment_dao = NewsSentimentDAO(pool=self.db_pool)
-        self.sentiment_dao.open_connection()
+        self.sentiment_dao = NewsSentimentDAO(pool=pool)
 
         # Initialize FinBERT model
         print("Loading FinBERT model...")
@@ -17,10 +17,6 @@ class NewsSentimentAnalyzer:
             "sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True
         )
         print("FinBERT model loaded")
-
-    def close_connection(self):
-        """Closes the database connection"""
-        self.sentiment_dao.close_connection()
 
     def analyze_sentiment(self, text):
         """
@@ -177,7 +173,6 @@ class NewsSentimentAnalyzer:
                 }
 
             # Calculate average sentiment
-            total_sentiment = 0
             weighted_total = 0
             total_weight = 0
 

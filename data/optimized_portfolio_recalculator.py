@@ -6,13 +6,12 @@ from the transaction date instead of recalculating the entire history.
 """
 
 from datetime import date, timedelta
-from typing import Optional
 
 import mysql.connector
 
-from data.base_dao import BaseDAO
-from data.portfolio_value_calculator import PortfolioValueCalculator
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
+from .portfolio_value_calculator import PortfolioValueCalculator
+from .utility import DatabaseConnectionPool
 
 
 class OptimizedPortfolioRecalculator(BaseDAO):
@@ -23,10 +22,8 @@ class OptimizedPortfolioRecalculator(BaseDAO):
 
     def __init__(self, db_pool: DatabaseConnectionPool):
         super().__init__(db_pool)
-        self.calculator = PortfolioValueCalculator(
-            pool=db_pool
-        )
-        
+        self.calculator = PortfolioValueCalculator(pool=db_pool)
+
     def smart_recalculate_from_transaction(
         self, portfolio_id: int, transaction_date: date, force_full_recalc: bool = False
     ) -> bool:
@@ -88,9 +85,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
                     result = cursor.fetchone()
 
                     if result and result[0] > 0:
-                        print(
-                            f"💾 Preserving {result[0]} existing portfolio values before {start_date}"
-                        )
+                        print(f"💾 Preserving {result[0]} existing portfolio values before {start_date}")
                         print(f"📊 Latest preserved value date: {result[1]}")
 
                 # Delete portfolio values from start_date forward
@@ -99,13 +94,11 @@ class OptimizedPortfolioRecalculator(BaseDAO):
                     WHERE portfolio_id = %s AND calculation_date >= %s
                 """
                 cursor.execute(query, (portfolio_id, start_date))
-                self.connection.commit()
+                self.current_connection.commit()
                 deleted_rows = cursor.rowcount
 
                 if deleted_rows > 0:
-                    print(
-                        f"🗑️  Deleted {deleted_rows} portfolio value records from {start_date} onward"
-                    )
+                    print(f"🗑️  Deleted {deleted_rows} portfolio value records from {start_date} onward")
                 else:
                     print(f"ℹ️  No existing values found from {start_date} onward")
 
@@ -116,9 +109,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
 
                 # Limit excessive calculations
                 if days_to_calculate > 500:
-                    print(
-                        f"⚠️  Warning: {days_to_calculate} days is excessive. Limiting to 500 days."
-                    )
+                    print(f"⚠️  Warning: {days_to_calculate} days is excessive. Limiting to 500 days.")
                     days_to_calculate = 500
                     start_date = today - timedelta(days=499)
 
@@ -131,18 +122,11 @@ class OptimizedPortfolioRecalculator(BaseDAO):
 
                     try:
                         # Show progress for longer calculations
-                        if (
-                            days_to_calculate > 10
-                            and i % max(1, days_to_calculate // 10) == 0
-                        ):
+                        if days_to_calculate > 10 and i % max(1, days_to_calculate // 10) == 0:
                             progress_pct = (i / days_to_calculate) * 100
-                            print(
-                                f"📊 Progress: {progress_pct:.1f}% - Calculating {calc_date}"
-                            )
+                            print(f"📊 Progress: {progress_pct:.1f}% - Calculating {calc_date}")
 
-                        result = self.calculator.calculate_portfolio_value(
-                            portfolio_id, calc_date
-                        )
+                        result = self.calculator.calculate_portfolio_value(portfolio_id, calc_date)
 
                         if result is not None:
                             successful_calculations += 1
@@ -160,33 +144,27 @@ class OptimizedPortfolioRecalculator(BaseDAO):
                 if failed_calculations > 0:
                     print(f"❌ Failed calculations: {failed_calculations}")
 
-                efficiency_gain = self._calculate_efficiency_gain(
-                    transaction_date, start_date, force_full_recalc
-                )
+                efficiency_gain = self._calculate_efficiency_gain(transaction_date, start_date, force_full_recalc)
                 if efficiency_gain > 0:
-                    print(
-                        f"⚡ Efficiency Gain: Saved ~{efficiency_gain} days of calculations!"
-                    )
+                    print(f"⚡ Efficiency Gain: Saved ~{efficiency_gain} days of calculations!")
 
                 return successful_calculations > 0
 
         except mysql.connector.Error as db_error:
             print(f"💥 Database error during recalculation: {db_error}")
-            if self.connection:
-                self.connection.rollback()
+            if self.current_connection:
+                self.current_connection.rollback()
             return False
         except Exception as e:
             print(f"💥 Error during optimized recalculation: {e}")
-            if self.connection:
-                self.connection.rollback()
+            if self.current_connection:
+                self.current_connection.rollback()
             return False
         finally:
             if cursor:
                 cursor.close()
 
-    def _calculate_efficiency_gain(
-        self, transaction_date: date, actual_start_date: date, was_forced: bool
-    ) -> int:
+    def _calculate_efficiency_gain(self, transaction_date: date, actual_start_date: date, was_forced: bool) -> int:
         """
         Calculate how many days of calculation were saved by the optimization.
 
@@ -244,9 +222,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
             bool: True if successful, False otherwise
         """
         print(f"🔄 Manual recalculation requested: {reason}")
-        return self.smart_recalculate_from_transaction(
-            portfolio_id, from_date, force_full_recalc=True
-        )
+        return self.smart_recalculate_from_transaction(portfolio_id, from_date, force_full_recalc=True)
 
     def get_recalculation_info(self, portfolio_id: int) -> dict:
         """
@@ -259,7 +235,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
             dict: Information about recalculation scope
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
 
             # Get date range of existing portfolio values
             query = """
@@ -289,9 +265,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
                 "value_info": value_info,
                 "transaction_info": transaction_info,
                 "needs_full_recalc": (
-                    not value_info
-                    or not value_info["earliest_value"]
-                    or value_info["value_count"] == 0
+                    not value_info or not value_info["earliest_value"] or value_info["value_count"] == 0
                 ),
             }
 

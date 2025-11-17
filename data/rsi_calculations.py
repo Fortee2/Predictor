@@ -3,8 +3,8 @@ from decimal import Decimal
 import numpy as np
 import pandas as pd
 
-from data.base_dao import BaseDAO
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
+from .utility import DatabaseConnectionPool
 
 
 class rsi_calculations (BaseDAO):
@@ -89,7 +89,7 @@ class rsi_calculations (BaseDAO):
                     float(rsi),
                 ),
             )
-            df = pd.DataFrame(cursor.fetchall())
+            pd.DataFrame(cursor.fetchall())
 
             self.current_connection.commit()
             cursor.close()
@@ -186,7 +186,7 @@ class rsi_calculations (BaseDAO):
                     df_rs.iloc[rsi, rs_idx] = float(
                         df_rs.iloc[rsi, avgGain_idx] / df_rs.iloc[rsi, avgLoss_idx]
                     )
-            except (ZeroDivisionError, decimal.DivisionUndefined):
+            except (ZeroDivisionError):
                 # Handle any other division errors
                 df_rs.iloc[rsi, rs_idx] = 100.0
 

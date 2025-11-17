@@ -3,7 +3,7 @@ from contextlib import contextmanager
 
 import mysql.connector
 
-from data.utility import DatabaseConnectionPool
+from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class PortfolioTransactionsDAO:
                 self.current_connection = connection
                 yield connection
         except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
+            logger.error("Database connection error: %s", str(e))
             raise
         finally:
             pass
@@ -65,7 +65,7 @@ class PortfolioTransactionsDAO:
                 cursor.close()
                 return result
         except mysql.connector.Error as e:
-            logger.error(f"Error retrieving transaction history: {e}")
+            logger.error("Error retrieving transaction history: %s", e)
             return []
 
     def insert_transaction(
@@ -95,7 +95,7 @@ class PortfolioTransactionsDAO:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as e:
-            logger.error(f"Error inserting transaction: {e}")
+            logger.error("Error inserting transaction: %s", e)
             if connection:
                 connection.rollback()
 
@@ -146,7 +146,7 @@ class PortfolioTransactionsDAO:
                 cursor.close()
                 return row[0] if row else None
         except mysql.connector.Error as e:
-            logger.error(f"Error retrieving transaction: {e}")
+            logger.error("Error retrieving transaction: %s", e)
             return None
 
     def delete_transactions_for_security(self, portfolio_id, security_id):
@@ -159,7 +159,7 @@ class PortfolioTransactionsDAO:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as e:
-            logger.error(f"Error deleting transactions: {e}")
+            logger.error("Error deleting transactions: %s", e)
             if connection:
                 connection.rollback()
 
@@ -232,7 +232,7 @@ class PortfolioTransactionsDAO:
                     shares = float(transaction["shares"] or 0)
                     price = float(transaction["price"] or 0)
                 except (ValueError, TypeError) as e:
-                    logger.error(f"Error converting transaction values for {ticker_id}: {e}")
+                    logger.error("Error converting transaction values for {ticker_id}: %s", e)
                     continue
 
                 # Skip invalid transactions (missing essential data)
@@ -264,7 +264,7 @@ class PortfolioTransactionsDAO:
 
             return positions
         except mysql.connector.Error as e:
-            logger.error(f"Error calculating current positions: {e}")
+            logger.error("Error calculating current positions: %s", e)
             return {}
 
     def _store_position_data(self, positions_dict, ticker_id, buy_queue, symbol):
@@ -289,5 +289,5 @@ class PortfolioTransactionsDAO:
                 }
             return positions_dict
         except Exception as e:
-            logger.error(f"Error storing position data for {ticker_id}: {e}")
+            logger.error("Error storing position data for {ticker_id}: %s", e)
             return positions_dict

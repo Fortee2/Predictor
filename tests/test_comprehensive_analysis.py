@@ -27,14 +27,15 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Mock database connection to avoid actual DB calls
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-
-        # Mock the connection
-        self.analyzer.connection = Mock()
+        # Mock database connection pool to avoid actual DB calls
+        self.mock_pool = Mock()
+        self.mock_connection = Mock()
+        self.mock_pool.get_connection.return_value = self.mock_connection
+        self.mock_pool.get_connection_context.return_value.__enter__.return_value = self.mock_connection
+        self.mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
 
         # Sample portfolio value data for testing
         self.sample_portfolio_data = pd.DataFrame(
@@ -228,14 +229,16 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         self.assertLess(metrics["up_capture_ratio"], 3.0)
         self.assertLess(metrics["down_capture_ratio"], 3.0)
 
-    @patch("mysql.connector.connect")
-    def test_get_portfolio_value_history_mock(self, mock_connect):
+    def test_get_portfolio_value_history_mock(self):
         """Test portfolio value history retrieval with mocked database."""
-        # Setup mock cursor and connection
+        # Setup mock cursor and pool
         mock_cursor = Mock()
         mock_connection = Mock()
-        mock_connect.return_value = mock_connection
         mock_connection.cursor.return_value = mock_cursor
+        
+        mock_pool = Mock()
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
 
         # Mock database results
         mock_cursor.fetchall.return_value = [
@@ -244,9 +247,8 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
             {"date": date(2023, 1, 3), "value": Decimal("10050.00")},
         ]
 
-        # Create analyzer with mocked connection
-        analyzer = MultiTimeframeAnalyzer("test", "test", "test", "test")
-        analyzer.connection = mock_connection
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
         # Test the method
         result = analyzer.get_portfolio_value_history(
@@ -469,11 +471,15 @@ class TestIntegrationScenarios(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-        self.analyzer.connection = Mock()
+        # Mock database connection pool
+        mock_pool = Mock()
+        mock_connection = Mock()
+        mock_pool.get_connection.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
         self.formatter = ComprehensivePerformanceFormatter()
 
     def test_bull_market_scenario(self):

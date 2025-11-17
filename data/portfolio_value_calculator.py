@@ -9,8 +9,8 @@ import mysql.connector
 import pandas as pd
 import yfinance as yf
 
-from data.fifo_cost_basis_calculator import calculate_fifo_position_from_transactions
-from data.utility import DatabaseConnectionPool
+from .fifo_cost_basis_calculator import calculate_fifo_position_from_transactions
+from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class PortfolioValueCalculator:
                 self.current_connection = connection
                 yield connection
         except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
+            logger.error("Database connection error: %s", str(e))
             raise
         finally:
             pass
@@ -260,7 +260,7 @@ class PortfolioValueCalculator:
 
                         # Get FIFO cost basis information
                         cost_info = cost_basis_info.get(ticker_id, {})
-                        avg_cost = cost_info.get("avg_cost_per_share", 0)
+                        cost_info.get("avg_cost_per_share", 0)
                         total_cost_basis = cost_info.get("total_cost_basis", 0)
 
                         # Calculate gain/loss
@@ -355,15 +355,15 @@ class PortfolioValueCalculator:
                     return None
 
         except mysql.connector.Error as e:
-            logger.error(f"Database error calculating portfolio value: {e}")
-            logger.error(f"Error code: {e.errno}")
-            logger.error(f"Error message: {e.msg}")
+            logger.error("Database error calculating portfolio value: %s", e)
+            logger.error("Error code: %s", e.errno)
+            logger.error("Error message: %s", e.msg)
             if cursor:
                 cursor.close()
             return None
         except Exception as e:
-            logger.error(f"General error calculating portfolio value: {e}")
-            logger.error(f"Error type: {type(e)}")
+            logger.error("General error calculating portfolio value: %s", e)
+            logger.error("Error type: %s", type(e))
             import traceback
             logger.error("Full traceback:")
             logger.error(traceback.format_exc())
@@ -385,7 +385,7 @@ class PortfolioValueCalculator:
                 else:
                     return None
         except mysql.connector.Error as e:
-            logger.error(f"Error retrieving ticker symbol: {e}")
+            logger.error("Error retrieving ticker symbol: %s", e)
             return None
 
     def get_portfolio_performance(self, portfolio_id, start_date=None, end_date=None):
@@ -435,7 +435,7 @@ class PortfolioValueCalculator:
                 return df
 
         except mysql.connector.Error as e:
-            logger.error(f"Error retrieving portfolio performance: {e}")
+            logger.error("Error retrieving portfolio performance: %s", e)
             return pd.DataFrame(columns=["date", "value"])
 
     def calculate_performance_metrics(
@@ -509,7 +509,7 @@ class PortfolioValueCalculator:
             return True
 
         except Exception as e:
-            logger.error(f"Error updating portfolio value history: {e}")
+            logger.error("Error updating portfolio value history: %s", e)
             return False
 
     def recalculate_historical_values(self, portfolio_id, from_date=None):
@@ -616,17 +616,17 @@ class PortfolioValueCalculator:
 
         except mysql.connector.Error as db_error:
             logger.error(
-                f"Database error recalculating historical portfolio values: {db_error}"
+                "Database error recalculating historical portfolio values: %s", db_error
             )
-            logger.error(f"Error code: {db_error.errno}")
-            logger.error(f"Error message: {db_error.msg}")
+            logger.error("Error code: %s", db_error.errno)
+            logger.error("Error message: %s", db_error.msg)
             if connection:
                 connection.rollback()
             if cursor:
                 cursor.close()
             return False
         except Exception as e:
-            logger.error(f"Error recalculating historical portfolio values: {e}")
+            logger.error("Error recalculating historical portfolio values: %s", e)
             if connection:
                 connection.rollback()
             if cursor:
@@ -693,5 +693,5 @@ class PortfolioValueCalculator:
             return file_path
 
         except Exception as e:
-            logger.error(f"Error generating performance chart: {e}")
+            logger.error("Error generating performance chart: %s", e)
             return None

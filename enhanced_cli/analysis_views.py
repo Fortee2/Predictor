@@ -42,7 +42,7 @@ class AnalyzePortfolioCommand(Command):
                 portfolio_id = cli.selected_portfolio
             else:
                 # First list portfolios for selection
-                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                from enhanced_cli.portfolio import ListPortfoliosCommand
 
                 list_command = ListPortfoliosCommand()
                 list_command.execute(cli)
@@ -136,7 +136,7 @@ class ViewPerformanceCommand(Command):
                 portfolio_id = cli.selected_portfolio
             else:
                 # First list portfolios for selection
-                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                from enhanced_cli.portfolio.portfolio_views import ListPortfoliosCommand
 
                 list_command = ListPortfoliosCommand()
                 list_command.execute(cli)

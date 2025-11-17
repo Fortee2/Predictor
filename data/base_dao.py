@@ -1,9 +1,10 @@
 import logging
+logging.basicConfig(level=logging.DEBUG)
 from contextlib import contextmanager
 
 import mysql.connector
 
-from data.utility import DatabaseConnectionPool
+from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 

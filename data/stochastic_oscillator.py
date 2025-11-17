@@ -5,8 +5,8 @@ from decimal import DivisionUndefined
 import mysql.connector
 import pandas as pd
 
-from data.base_dao import BaseDAO
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
+from .utility import DatabaseConnectionPool
 
 # Set up logging - consistent with existing pattern
 logging.basicConfig(
@@ -49,7 +49,7 @@ class StochasticOscillator(BaseDAO):
                 self.current_connection = connection
                 yield connection
         except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
+            logger.error("Database connection error: %s", str(e))
             raise
         finally:
             pass
@@ -67,7 +67,7 @@ class StochasticOscillator(BaseDAO):
             pd.DataFrame: DataFrame with stochastic values
         """
         logger.info(
-            f"Calculating Stochastic Oscillator for ticker {ticker_id}, K period: {k_period}, D period: {d_period}"
+            "Calculating Stochastic Oscillator for ticker %s, K period: %s, D period: %s", ticker_id, k_period, d_period
         )
 
         try:
@@ -90,7 +90,7 @@ class StochasticOscillator(BaseDAO):
                 if last_date is None:
                     last_date = "1900-01-01"
                     logger.debug(
-                        f"No previous stochastic data found for ticker {ticker_id}, calculating all"
+                        "No previous stochastic data found for ticker %s, calculating all", ticker_id
                     )
                 else:
                     # Go back enough days to ensure we have sufficient data for calculation
@@ -98,7 +98,7 @@ class StochasticOscillator(BaseDAO):
 
                     last_date = last_date - timedelta(days=k_period + d_period)
                     logger.debug(
-                        f"Last stochastic date for ticker {ticker_id}: {last_date}"
+                        "Last stochastic date for ticker %s: %s", ticker_id, last_date
                     )
 
                 # Retrieve price data - reusing existing query pattern
@@ -119,7 +119,7 @@ class StochasticOscillator(BaseDAO):
 
                 if not new_data.empty:
                     logger.info(
-                        f"Found {len(new_data)} new data points to calculate stochastic"
+                        "Found %s new data points to calculate stochastic", len(new_data)
                     )
 
                     new_data["activity_date"] = pd.to_datetime(
@@ -209,15 +209,15 @@ class StochasticOscillator(BaseDAO):
 
                         connection.commit()
                         logger.info(
-                            f"Updated {rows_updated} stochastic values for ticker {ticker_id}"
+                            "Updated %s stochastic values for ticker %s", rows_updated, ticker_id
                         )
                     else:
                         logger.info(
-                            f"No complete stochastic data could be calculated for ticker {ticker_id}"
+                            "No complete stochastic data could be calculated for ticker %s", ticker_id
                         )
                 else:
                     logger.info(
-                        f"No new data found for ticker {ticker_id} since {last_date}"
+                        "No new data found for ticker %s since %s", ticker_id, last_date
                     )
 
                 cursor.close()
@@ -226,10 +226,10 @@ class StochasticOscillator(BaseDAO):
                 return self.load_stochastic_from_db(ticker_id, k_period, d_period)
 
         except mysql.connector.Error as e:
-            logger.error(f"Database error calculating stochastic: {str(e)}")
+            logger.error("Database error calculating stochastic: %s", str(e))
             raise
         except Exception as e:
-            logger.error(f"Error calculating stochastic: {str(e)}")
+            logger.error("Error calculating stochastic: %s", str(e))
             raise
 
     def load_stochastic_from_db(self, ticker_id, k_period=14, d_period=3):
@@ -274,15 +274,15 @@ class StochasticOscillator(BaseDAO):
                 cursor.close()
 
                 logger.debug(
-                    f"Loaded {len(df)} stochastic data points for ticker {ticker_id}"
+                    "Loaded %s stochastic data points for ticker %s", len(df), ticker_id
                 )
                 return df
 
         except mysql.connector.Error as e:
-            logger.error(f"Database error loading stochastic data: {str(e)}")
+            logger.error("Database error loading stochastic data: %s", str(e))
             raise
         except Exception as e:
-            logger.error(f"Error loading stochastic data: {str(e)}")
+            logger.error("Error loading stochastic data: %s", str(e))
             raise
 
     def get_stochastic_signals(
@@ -366,7 +366,7 @@ class StochasticOscillator(BaseDAO):
             }
 
         except Exception as e:
-            logger.error(f"Error generating stochastic signals: {str(e)}")
+            logger.error("Error generating stochastic signals: %s", str(e))
             return {
                 "success": False,
                 "error": f"Unable to generate stochastic signals: {str(e)}",
@@ -456,7 +456,7 @@ class StochasticOscillator(BaseDAO):
                 }
 
         except Exception as e:
-            logger.error(f"Error analyzing divergence: {str(e)}")
+            logger.error("Error analyzing divergence: %s", str(e))
             return {
                 "success": False,
                 "error": f"Unable to analyze divergence: {str(e)}",

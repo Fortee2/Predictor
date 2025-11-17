@@ -5,7 +5,7 @@ from functools import lru_cache
 import mysql.connector
 import pandas as pd
 
-from data.utility import DatabaseConnectionPool
+from .utility import DatabaseConnectionPool
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -36,7 +36,7 @@ class TickerDao:
                 self.current_connection = connection
                 yield connection
         except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
+            logger.error("Database connection error: %s", str(e))
             raise
         finally:
             pass
@@ -61,7 +61,7 @@ class TickerDao:
 
                 return df_ticks
         except mysql.connector.Error as err:
-            logger.error(f"Error retrieving ticker list: {err}")
+            logger.error("Error retrieving ticker list: %s", err)
             return pd.DataFrame()
 
     def insert_stock(self, ticker, ticker_name):
@@ -77,7 +77,7 @@ class TickerDao:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as err:
-            logger.error(f"Error inserting stock {ticker}: {err}")
+            logger.error("Error inserting stock %s: %s", ticker, err)
 
     def update_stock_trend(self, trend, close, ticker):
         try:
@@ -92,7 +92,7 @@ class TickerDao:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as err:
-            logger.error(f"Error updating stock trend for {ticker}: {err}")
+            logger.error("Error updating stock trend for %s: %s", ticker, err)
 
     def ticker_delisted(self, ticker):
         """Set a ticker to inactive in the database"""
@@ -106,7 +106,7 @@ class TickerDao:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as err:
-            logger.error(f"Error marking ticker {ticker} as delisted: {err}")
+            logger.error("Error marking ticker %s as delisted: %s", ticker, err)
 
     def update_stock(self, symbol, name, industry, sector):
         try:
@@ -119,7 +119,7 @@ class TickerDao:
                 connection.commit()
                 cursor.close()
         except mysql.connector.Error as err:
-            logger.error(f"Error updating stock {symbol}: {err}")
+            logger.error("Error updating stock %s: %s", symbol, err)
 
     @lru_cache(maxsize=128)
     def get_ticker_id(self, symbol):
@@ -135,7 +135,7 @@ class TickerDao:
                 else:
                     return None
         except mysql.connector.Error as err:
-            logger.error(f"Error getting ticker ID for {symbol}: {err}")
+            logger.error("Error getting ticker ID for %s: %s", symbol, err)
             return None
 
     @lru_cache(maxsize=128)
@@ -152,7 +152,7 @@ class TickerDao:
                 else:
                     return None
         except mysql.connector.Error as err:
-            logger.error(f"Error getting ticker symbol for ID {ticker_id}: {err}")
+            logger.error("Error getting ticker symbol for ID %s: %s", ticker_id, err)
             return None
 
     def get_ticker_industry(self, ticker_id):
@@ -168,7 +168,7 @@ class TickerDao:
                 else:
                     return None
         except mysql.connector.Error as err:
-            logger.error(f"Error getting ticker industry for ID {ticker_id}: {err}")
+            logger.error("Error getting ticker industry for ID %s: %s", ticker_id, err)
             return None
 
     def update_activity(self, ticker_id, activity_date, open, close, volume, high, low):
@@ -224,7 +224,7 @@ class TickerDao:
                         cursor.close()
 
         except mysql.connector.Error as err:
-            logger.error(f"Error updating activity for ticker {ticker_id}: {err}")
+            logger.error("Error updating activity for ticker %s: %s", ticker_id, err)
 
     def retrieve_ticker_activity(self, ticker_id):
         try:
@@ -253,7 +253,7 @@ class TickerDao:
 
                 return df
         except mysql.connector.Error as err:
-            logger.error(f"Error retrieving ticker activity for {ticker_id}: {err}")
+            logger.error("Error retrieving ticker activity for %s: %s", ticker_id, err)
             return pd.DataFrame()
 
     def retrieve_ticker_activity_by_day(self, ticker_id, activity_date):
@@ -283,7 +283,7 @@ class TickerDao:
 
                 return df
         except mysql.connector.Error as err:
-            logger.error(f"Error retrieving ticker activity by day for {ticker_id}: {err}")
+            logger.error("Error retrieving ticker activity by day for %s: %s", ticker_id, err)
             return pd.DataFrame()
 
     def retrieve_last_activity_date(self, ticker_id):
@@ -317,7 +317,7 @@ class TickerDao:
 
                 return df_last
         except mysql.connector.Error as err:
-            logger.error(f"Error retrieving last activity date for {ticker_id}: {err}")
+            logger.error("Error retrieving last activity date for %s: %s", ticker_id, err)
             return pd.DataFrame()
 
     def retrieve_last_rsi(self, ticker_id):
@@ -334,7 +334,7 @@ class TickerDao:
 
                 return df_last
         except mysql.connector.Error as err:
-            logger.error(f"Error retrieving last RSI for {ticker_id}: {err}")
+            logger.error("Error retrieving last RSI for %s: %s", ticker_id, err)
             return pd.DataFrame()
 
     def get_ticker_data(self, ticker_id):
@@ -376,7 +376,7 @@ class TickerDao:
                 except mysql.connector.Error as column_err:
                     # If trend column doesn't exist or other error, we already have a default value
                     if column_err.errno != 1054:  # If it's not just an unknown column error
-                        logger.warning(f"Error retrieving trend data: {column_err}")
+                        logger.warning("Error retrieving trend data: %s", column_err)
 
                 # Get the latest activity data
                 latest_activity_query = """
@@ -404,8 +404,8 @@ class TickerDao:
                 return result
 
         except mysql.connector.Error as err:
-            logger.error(f"Database error in get_ticker_data for {ticker_id}: {err}")
+            logger.error("Database error in get_ticker_data for %s: %s", ticker_id, err)
             return None
         except Exception as e:
-            logger.error(f"Error in get_ticker_data for {ticker_id}: {str(e)}")
+            logger.error("Error in get_ticker_data for %s: %s", ticker_id, str(e))
             return None

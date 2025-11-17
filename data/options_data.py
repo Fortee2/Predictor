@@ -1,10 +1,8 @@
-from datetime import datetime
 
-import mysql.connector
 import pandas as pd
 import yfinance as yf
 
-from data.base_dao import BaseDAO
+from .base_dao import BaseDAO
 
 
 class OptionsData(BaseDAO):

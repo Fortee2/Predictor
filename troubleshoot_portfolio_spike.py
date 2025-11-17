@@ -20,13 +20,13 @@ class PortfolioSpikeTroubleshooter:
         # Load database configuration
         config = Config()
         self.db_config = config.get_database_config()
-        self.connection = None
+        self.current_connection = None
         self.portfolio_service = None
 
     def connect(self):
         """Establish database connection."""
         try:
-            self.connection = mysql.connector.connect(**self.db_config)
+            self.current_connection = mysql.connector.connect(**self.db_config)
             self.portfolio_service = PortfolioValueService(
                 self.db_config["user"],
                 self.db_config["password"],
@@ -41,26 +41,22 @@ class PortfolioSpikeTroubleshooter:
 
     def close(self):
         """Close database connections."""
-        if self.connection:
-            self.connection.close()
+        if self.current_connection:
+            self.current_connection.close()
         if self.portfolio_service:
             self.portfolio_service.close_connection()
 
     def get_portfolios(self):
         """Get list of all portfolios."""
         try:
-            cursor = self.connection.cursor(dictionary=True)
-            cursor.execute(
-                "SELECT id, name, description FROM portfolio WHERE active = 1"
-            )
+            cursor = self.current_connection.cursor(dictionary=True)
+            cursor.execute("SELECT id, name, description FROM portfolio WHERE active = 1")
             return cursor.fetchall()
         except mysql.connector.Error as e:
             print(f"Error getting portfolios: {e}")
             return []
 
-    def analyze_portfolio_value_timeline(
-        self, portfolio_id, start_date=None, end_date=None
-    ):
+    def analyze_portfolio_value_timeline(self, portfolio_id, start_date=None, end_date=None):
         """
         Analyze portfolio value over time to identify spikes.
 
@@ -69,9 +65,9 @@ class PortfolioSpikeTroubleshooter:
             start_date (date, optional): Start date for analysis
             end_date (date, optional): End date for analysis
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"PORTFOLIO VALUE TIMELINE ANALYSIS - Portfolio {portfolio_id}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         if start_date is None:
             start_date = date(2024, 1, 1)
@@ -141,9 +137,7 @@ class PortfolioSpikeTroubleshooter:
             for _, spike in spikes.iterrows():
                 print(f"Date: {spike['date']}")
                 print(f"  Value: ${spike['total_value']:,.2f}")
-                print(
-                    f"  Daily Change: ${spike['daily_change']:,.2f} ({spike['daily_change_pct']:+.2f}%)"
-                )
+                print(f"  Daily Change: ${spike['daily_change']:,.2f} ({spike['daily_change_pct']:+.2f}%)")
                 print(f"  Stock Value: ${spike['stock_value']:,.2f}")
                 print(f"  Cash Balance: ${spike['cash_balance']:,.2f}")
                 print(f"  Positions: {spike['position_count']}")
@@ -151,9 +145,7 @@ class PortfolioSpikeTroubleshooter:
 
         return df, spikes
 
-    def analyze_transactions_around_date(
-        self, portfolio_id, target_date, days_window=7
-    ):
+    def analyze_transactions_around_date(self, portfolio_id, target_date, days_window=7):
         """
         Analyze all transactions around a specific date.
 
@@ -162,15 +154,15 @@ class PortfolioSpikeTroubleshooter:
             target_date (date): Date to analyze around
             days_window (int): Number of days before/after to include
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"TRANSACTION ANALYSIS AROUND {target_date}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         start_date = target_date - timedelta(days=days_window)
         end_date = target_date + timedelta(days=days_window)
 
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
 
             # Get all transactions in the window
             query = """
@@ -195,9 +187,7 @@ class PortfolioSpikeTroubleshooter:
 
             print(f"Found {len(transactions)} transactions:")
             print("-" * 100)
-            print(
-                f"{'Date':<12} {'Type':<10} {'Symbol':<8} {'Shares':<10} {'Price':<10} {'Amount':<12} {'Value':<12}"
-            )
+            print(f"{'Date':<12} {'Type':<10} {'Symbol':<8} {'Shares':<10} {'Price':<10} {'Amount':<12} {'Value':<12}")
             print("-" * 100)
 
             total_buy_value = 0
@@ -232,9 +222,7 @@ class PortfolioSpikeTroubleshooter:
             print(f"Error analyzing transactions: {e}")
             return []
 
-    def analyze_cash_history_around_date(
-        self, portfolio_id, target_date, days_window=7
-    ):
+    def analyze_cash_history_around_date(self, portfolio_id, target_date, days_window=7):
         """
         Analyze cash balance history around a specific date.
 
@@ -243,15 +231,15 @@ class PortfolioSpikeTroubleshooter:
             target_date (date): Date to analyze around
             days_window (int): Number of days before/after to include
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"CASH HISTORY ANALYSIS AROUND {target_date}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         start_date = target_date - timedelta(days=days_window)
         end_date = target_date + timedelta(days=days_window)
 
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
 
             # Check if cash_balance_history table exists
             cursor.execute(
@@ -284,9 +272,7 @@ class PortfolioSpikeTroubleshooter:
 
             print(f"Found {len(cash_transactions)} cash transactions:")
             print("-" * 80)
-            print(
-                f"{'Date':<20} {'Type':<15} {'Amount':<12} {'Balance After':<15} {'Description':<20}"
-            )
+            print(f"{'Date':<20} {'Type':<15} {'Amount':<12} {'Balance After':<15} {'Description':<20}")
             print("-" * 80)
 
             for trans in cash_transactions:
@@ -296,9 +282,7 @@ class PortfolioSpikeTroubleshooter:
                 balance_after = float(trans["balance_after"])
                 description = trans["description"] or ""
 
-                print(
-                    f"{date_str:<20} {trans_type:<15} {amount:<12.2f} {balance_after:<15.2f} {description:<20}"
-                )
+                print(f"{date_str:<20} {trans_type:<15} {amount:<12.2f} {balance_after:<15.2f} {description:<20}")
 
             return cash_transactions
 
@@ -310,12 +294,12 @@ class PortfolioSpikeTroubleshooter:
         """
         Check for potential duplicate transactions that could cause spikes.
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"DUPLICATE TRANSACTION CHECK - Portfolio {portfolio_id}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
 
             # Look for potential duplicates based on same date, type, symbol, shares, price
             query = """
@@ -343,20 +327,14 @@ class PortfolioSpikeTroubleshooter:
                 print("✓ No duplicate transactions found")
                 return
 
-            print(
-                f"⚠ Found {len(duplicates)} sets of potential duplicate transactions:"
-            )
+            print(f"⚠ Found {len(duplicates)} sets of potential duplicate transactions:")
             print("-" * 100)
 
             for dup in duplicates:
                 print(f"Date: {dup['transaction_date']}")
                 print(f"  Type: {dup['transaction_type']}, Symbol: {dup['symbol']}")
-                print(
-                    f"  Shares: {dup['shares']}, Price: {dup['price']}, Amount: {dup['amount']}"
-                )
-                print(
-                    f"  Count: {dup['duplicate_count']}, IDs: {dup['transaction_ids']}"
-                )
+                print(f"  Shares: {dup['shares']}, Price: {dup['price']}, Amount: {dup['amount']}")
+                print(f"  Count: {dup['duplicate_count']}, IDs: {dup['transaction_ids']}")
                 print()
 
             return duplicates
@@ -373,12 +351,12 @@ class PortfolioSpikeTroubleshooter:
             portfolio_id (int): Portfolio ID
             price_change_threshold (float): Percentage change threshold to flag as unusual
         """
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"UNUSUAL PRICE CHECK - Portfolio {portfolio_id}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
 
             # Get all buy/sell transactions with prices
             query = """
@@ -402,24 +380,16 @@ class PortfolioSpikeTroubleshooter:
 
             for trans in transactions:
                 if trans["prev_price"] and trans["prev_price"] > 0:
-                    price_change_pct = (
-                        (trans["price"] - trans["prev_price"]) / trans["prev_price"]
-                    ) * 100
+                    price_change_pct = ((trans["price"] - trans["prev_price"]) / trans["prev_price"]) * 100
 
                     if abs(price_change_pct) > price_change_threshold:
-                        unusual_prices.append(
-                            {"transaction": trans, "price_change_pct": price_change_pct}
-                        )
+                        unusual_prices.append({"transaction": trans, "price_change_pct": price_change_pct})
 
             if not unusual_prices:
-                print(
-                    f"✓ No unusual price changes found (threshold: {price_change_threshold}%)"
-                )
+                print(f"✓ No unusual price changes found (threshold: {price_change_threshold}%)")
                 return
 
-            print(
-                f"⚠ Found {len(unusual_prices)} transactions with unusual price changes:"
-            )
+            print(f"⚠ Found {len(unusual_prices)} transactions with unusual price changes:")
             print("-" * 100)
 
             for item in unusual_prices:
@@ -448,12 +418,12 @@ class PortfolioSpikeTroubleshooter:
             portfolio_id (int): Portfolio ID to analyze
             spike_date (date, optional): Specific date where spike occurred
         """
-        print(f"\n{'#'*80}")
+        print(f"\n{'#' * 80}")
         print("COMPREHENSIVE PORTFOLIO SPIKE ANALYSIS")
         print(f"Portfolio ID: {portfolio_id}")
         if spike_date:
             print(f"Focus Date: {spike_date}")
-        print(f"{'#'*80}")
+        print(f"{'#' * 80}")
 
         # 1. Portfolio value timeline analysis
         df, spikes = self.analyze_portfolio_value_timeline(portfolio_id)
@@ -476,9 +446,9 @@ class PortfolioSpikeTroubleshooter:
         # 6. Check for unusual prices
         self.check_for_unusual_prices(portfolio_id)
 
-        print(f"\n{'#'*80}")
+        print(f"\n{'#' * 80}")
         print("ANALYSIS COMPLETE")
-        print(f"{'#'*80}")
+        print(f"{'#' * 80}")
 
 
 def main():
@@ -498,16 +468,12 @@ def main():
 
         print("Available portfolios:")
         for portfolio in portfolios:
-            print(
-                f"  {portfolio['id']}: {portfolio['name']} - {portfolio['description']}"
-            )
+            print(f"  {portfolio['id']}: {portfolio['name']} - {portfolio['description']}")
 
         # Get user input for portfolio to analyze
         while True:
             try:
-                portfolio_id = int(
-                    input(f"\nEnter portfolio ID to analyze (1-{len(portfolios)}): ")
-                )
+                portfolio_id = int(input(f"\nEnter portfolio ID to analyze (1-{len(portfolios)}): "))
                 if any(p["id"] == portfolio_id for p in portfolios):
                     break
                 else:
@@ -516,9 +482,7 @@ def main():
                 print("Please enter a valid number")
 
         # Ask if user wants to specify a spike date
-        spike_date_input = input(
-            "Enter spike date to focus on (YYYY-MM-DD) or press Enter to auto-detect: "
-        ).strip()
+        spike_date_input = input("Enter spike date to focus on (YYYY-MM-DD) or press Enter to auto-detect: ").strip()
         spike_date = None
 
         if spike_date_input:

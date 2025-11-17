@@ -59,14 +59,16 @@ class EnhancedCLI:
         from enhanced_cli.comprehensive_analysis_views import register_comprehensive_analysis_commands
         from enhanced_cli.data_views import register_data_commands as real_register_data_commands
         from enhanced_cli.llm_export_views import register_llm_export_commands
-        from enhanced_cli.portfolio_views import register_portfolio_commands as real_register_portfolio_commands
+        from enhanced_cli.portfolio.portfolio_views import (
+            register_portfolio_commands as real_register_portfolio_commands,
+        )
         from enhanced_cli.settings_views import register_settings_commands as real_register_settings_commands
         from enhanced_cli.transaction_views import register_transaction_commands as real_register_transaction_commands
         from enhanced_cli.watchlist_views import register_watchlist_commands as real_register_watchlist_commands
 
         # Register actual commands from each module
         real_register_portfolio_commands(self.command_registry)
-        real_register_transaction_commands(self.command_registry)
+        real_register_transaction_commands(self.command_registry, self.cli.db_pool)
         real_register_analysis_commands(self.command_registry)
         real_register_watchlist_commands(self.command_registry)
         real_register_settings_commands(self.command_registry)

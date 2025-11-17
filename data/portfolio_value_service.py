@@ -5,13 +5,18 @@ This module provides a centralized, consistent method for calculating portfolio 
 that can be used throughout the application to ensure consistency between different views.
 """
 
+import logging
+from contextlib import contextmanager
 from datetime import date, timedelta
-from decimal import Decimal
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, Optional
 
 import mysql.connector
 import pandas as pd
 import yfinance as yf
+
+from .utility import DatabaseConnectionPool
+
+logger = logging.getLogger(__name__)
 
 
 class PortfolioValueService:
@@ -20,29 +25,33 @@ class PortfolioValueService:
     """
 
     def __init__(self, pool: DatabaseConnectionPool):
-        self.db_user = db_user
-        self.db_password = db_password
-        self.db_host = db_host
-        self.db_name = db_name
-        self.connection = None
-        self.open_connection()
+        """
+        Initialize DAO with a shared database connection pool.
+        
+        Args:
+            pool: DatabaseConnectionPool instance shared across all DAOs
+        """
+        self.pool = pool
+        self.current_connection = None
 
-    def open_connection(self):
-        """Open database connection."""
+    @contextmanager
+    def get_connection(self):
+        """Context manager for database connections."""
+        connection = None
         try:
-            self.connection = mysql.connector.connect(
-                user=self.db_user,
-                password=self.db_password,
-                host=self.db_host,
-                database=self.db_name,
-            )
+            if self.current_connection is not None and self.current_connection.is_connected():
+                connection = self.current_connection
+                yield connection
+            else:
+                connection = self.pool.get_connection()
+                self.current_connection = connection
+                yield connection
         except mysql.connector.Error as e:
-            print(f"Error connecting to MySQL: {e}")
+            logger.error("Database connection error: %s", str(e))
+            raise
+        finally:
+            pass
 
-    def close_connection(self):
-        """Close database connection."""
-        if self.connection:
-            self.connection.close()
 
     def calculate_portfolio_value(
         self,
@@ -50,7 +59,7 @@ class PortfolioValueService:
         calculation_date: Optional[date] = None,
         include_cash: bool = True,
         include_dividends: bool = True,
-        use_current_prices: bool = None,
+        use_current_prices: bool = False,
     ) -> Dict[str, Any]:
         """
         Universal portfolio value calculation method.
@@ -81,8 +90,6 @@ class PortfolioValueService:
             if use_current_prices is None:
                 use_current_prices = calculation_date == date.today()
 
-            cursor = self.connection.cursor(dictionary=True)
-
             # Get current positions using the existing FIFO method
             positions = self._get_current_positions(portfolio_id, calculation_date)
 
@@ -96,9 +103,7 @@ class PortfolioValueService:
                 avg_price = float(position["avg_price"])
 
                 # Get current price for this ticker
-                current_price = self._get_ticker_price(
-                    ticker_id, symbol, calculation_date, use_current_prices
-                )
+                current_price = self._get_ticker_price(ticker_id, symbol, calculation_date)
 
                 if current_price is not None:
                     position_value = shares * current_price
@@ -107,9 +112,7 @@ class PortfolioValueService:
                     # Calculate gain/loss
                     cost_basis = shares * avg_price
                     gain_loss = position_value - cost_basis
-                    gain_loss_pct = (
-                        (gain_loss / cost_basis * 100) if cost_basis > 0 else 0
-                    )
+                    gain_loss_pct = (gain_loss / cost_basis * 100) if cost_basis > 0 else 0
 
                     position_details[ticker_id] = {
                         "symbol": symbol,
@@ -131,9 +134,7 @@ class PortfolioValueService:
             # Get dividend value
             dividend_value = 0.0
             if include_dividends:
-                dividend_value = self._get_cumulative_dividends(
-                    portfolio_id, calculation_date
-                )
+                dividend_value = self._get_cumulative_dividends(portfolio_id, calculation_date)
 
             # Calculate total value
             total_value = stock_value + cash_balance + dividend_value
@@ -141,9 +142,7 @@ class PortfolioValueService:
             # Calculate position weights
             if total_value > 0:
                 for position in position_details.values():
-                    position["weight_pct"] = (
-                        position["position_value"] / total_value
-                    ) * 100
+                    position["weight_pct"] = (position["position_value"] / total_value) * 100
 
             return {
                 "total_value": round(total_value, 2),
@@ -175,84 +174,79 @@ class PortfolioValueService:
                 "metadata": {"error": str(e)},
             }
 
-    def _get_current_positions(
-        self, portfolio_id: int, calculation_date: date
-    ) -> Dict[int, Dict[str, Any]]:
+    def _get_current_positions(self, portfolio_id: int, calculation_date: date) -> Dict[int, Dict[str, Any]]:
         """
         Get current positions for a portfolio as of a specific date.
         Uses FIFO method for cost basis calculation.
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
 
-            # Get all buy/sell transactions up to the calculation date
-            query = """
-                SELECT 
-                    s.ticker_id, 
-                    s.id as security_id,
-                    tk.ticker as symbol,
-                    t.transaction_type,
-                    t.transaction_date,
-                    t.shares,
-                    t.price
-                FROM portfolio_transactions t
-                JOIN portfolio_securities s ON t.security_id = s.id
-                JOIN tickers tk ON s.ticker_id = tk.id
-                WHERE t.portfolio_id = %s 
-                AND t.transaction_date <= %s
-                AND t.transaction_type IN ('buy', 'sell')
-                ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
-            """
-            cursor.execute(query, (portfolio_id, calculation_date))
-            transactions = cursor.fetchall()
+                # Get all buy/sell transactions up to the calculation date
+                query = """
+                    SELECT 
+                        s.ticker_id, 
+                        s.id as security_id,
+                        tk.ticker as symbol,
+                        t.transaction_type,
+                        t.transaction_date,
+                        t.shares,
+                        t.price
+                    FROM portfolio_transactions t
+                    JOIN portfolio_securities s ON t.security_id = s.id
+                    JOIN tickers tk ON s.ticker_id = tk.id
+                    WHERE t.portfolio_id = %s 
+                    AND t.transaction_date <= %s
+                    AND t.transaction_type IN ('buy', 'sell')
+                    ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
+                """
+                cursor.execute(query, (portfolio_id, calculation_date))
+                transactions = cursor.fetchall()
 
-            # Process transactions using FIFO method
-            positions = {}
-            current_ticker = None
-            buy_queue = []
-            symbol = None
+                # Process transactions using FIFO method
+                positions = {}
+                current_ticker = None
+                buy_queue = []
+                symbol: str = ""
 
-            for transaction in transactions:
-                ticker_id = transaction["ticker_id"]
-                trans_type = transaction["transaction_type"]
+                for transaction in transactions:
+                    ticker_id = transaction["ticker_id"]
+                    trans_type = transaction["transaction_type"]
 
-                # If we're starting a new ticker, finalize the previous one
-                if current_ticker is not None and current_ticker != ticker_id:
-                    if buy_queue:
-                        positions[current_ticker] = self._calculate_position_from_queue(
-                            buy_queue, symbol
-                        )
-                    buy_queue = []
+                    # If we're starting a new ticker, finalize the previous one
+                    if current_ticker is not None and current_ticker != ticker_id:
+                        if buy_queue:
+                            positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol)
+                        buy_queue = []
 
-                current_ticker = ticker_id
-                symbol = transaction["symbol"]
+                    current_ticker = ticker_id
+                    symbol = transaction["symbol"]
 
-                shares = float(transaction["shares"] or 0)
-                price = float(transaction["price"] or 0)
+                    shares = float(transaction["shares"] or 0)
+                    price = float(transaction["price"] or 0)
 
-                if shares <= 0 or price <= 0:
-                    continue
+                    if shares <= 0 or price <= 0:
+                        continue
 
-                if trans_type == "buy":
-                    buy_queue.append((shares, price))
-                elif trans_type == "sell":
-                    self._process_fifo_sell(buy_queue, shares)
+                    if trans_type == "buy":
+                        buy_queue.append((shares, price))
+                    elif trans_type == "sell":
+                        self._process_fifo_sell(buy_queue, shares)
 
-            # Process the last ticker
-            if current_ticker is not None and buy_queue:
-                positions[current_ticker] = self._calculate_position_from_queue(
-                    buy_queue, symbol
-                )
+                # Process the last ticker
+                if current_ticker is not None and buy_queue:
+                    positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol)
 
-            return positions
+                return positions
 
         except Exception as e:
             print(f"Error getting current positions: {e}")
+            import traceback
+            traceback.print_exc()
             return {}
 
-    def _calculate_position_from_queue(
-        self, buy_queue: list, symbol: str
-    ) -> Dict[str, Any]:
+    def _calculate_position_from_queue(self, buy_queue: list, symbol: str) -> Dict[str, Any] | None:
         """Calculate position details from a buy queue."""
         total_shares = sum(shares for shares, _ in buy_queue)
         total_cost = sum(shares * price for shares, price in buy_queue)
@@ -278,8 +272,7 @@ class PortfolioValueService:
                 shares_to_sell = 0
 
     def _get_ticker_price(
-        self, ticker_id: int, symbol: str, calculation_date: date, use_current: bool
-    ) -> Optional[float]:
+        self, ticker_id: int, symbol: str, calculation_date: date) -> Optional[float]:
         """
         Get ticker price for a specific date.
 
@@ -292,7 +285,7 @@ class PortfolioValueService:
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                
+
                 # Try to get historical price from database
                 try:
                     hist_query = """
@@ -349,19 +342,15 @@ class PortfolioValueService:
             print(f"Error getting ticker price for {symbol}: {e}")
             return None
 
-    def _get_cash_balance(
-        self, portfolio_id: int, calculation_date: date = None
-    ) -> float:
+    def _get_cash_balance(self, portfolio_id: int, calculation_date: date | None = None) -> float:
         """Get cash balance for portfolio, optionally for a specific date."""
         try:
             # Import here to avoid circular imports
-            from data.portfolio_dao import PortfolioDAO
+            from .portfolio_dao import PortfolioDAO
 
             # Create a temporary DAO instance to use the historical cash balance method
-            portfolio_dao = PortfolioDAO(
-                self.db_user, self.db_password, self.db_host, self.db_name
-            )
-            portfolio_dao.connection = self.connection  # Reuse existing connection
+            portfolio_dao = PortfolioDAO(self.pool)
+            portfolio_dao.current_connection = self.current_connection  # Reuse existing connection
 
             return portfolio_dao.get_cash_balance(portfolio_id, calculation_date)
 
@@ -369,9 +358,7 @@ class PortfolioValueService:
             print(f"Error getting cash balance: {e}")
             return 0.0
 
-    def _get_cumulative_dividends(
-        self, portfolio_id: int, calculation_date: date
-    ) -> float:
+    def _get_cumulative_dividends(self, portfolio_id: int, calculation_date: date) -> float:
         """Get cumulative dividends received up to calculation date."""
         try:
             with self.get_connection() as connection:

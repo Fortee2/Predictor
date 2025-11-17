@@ -61,19 +61,6 @@ class PortfolioCLI:
         self.watch_list_dao = WatchListDAO(pool=self.db_pool)
         self.stochastic_analyzer = StochasticOscillator(pool=self.db_pool)
 
-        # Open database connections for classes that need it
-        self.portfolio_dao.open_connection()
-        self.transactions_dao.open_connection()
-        self.ticker_dao.open_connection()
-        self.rsi_calc.open_connection()
-        self.moving_avg.open_connection()
-        self.fundamental_dao.open_connection()
-        self.value_calculator.open_connection()
-        self.macd_analyzer.open_connection()
-        self.trend_analyzer.open_connection()
-        self.watch_list_dao.open_connection()
-        self.stochastic_analyzer.open_connection()
-
         # Initialize shared analysis metrics with stochastic support
         self.shared_metrics = SharedAnalysisMetrics(
             self.rsi_calc,
@@ -634,7 +621,7 @@ class PortfolioCLI:
 
             # If no performance data exists yet, generate it
             # First check if any records exist
-            cursor = self.value_calculator.connection.cursor()
+            cursor = self.value_calculator.current_connection.cursor()
             cursor.execute(
                 "SELECT COUNT(*) FROM portfolio_value WHERE portfolio_id = %s",
                 (portfolio_id,),
@@ -928,7 +915,7 @@ class PortfolioCLI:
                     )
 
                     # Use shared analysis metrics for comprehensive analysis
-                    self.shared_metrics.analyze_ticker_comprehensive(ticker_id, symbol)
+                    self.shared_metrics.get_comprehensive_analysis(ticker_id, symbol)
 
                 except Exception as e:
                     print(f"║ Error analyzing {symbol}: {str(e):<42}║")

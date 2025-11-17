@@ -40,7 +40,7 @@ class UpdateDataCommand(Command):
             progress.add_task("", total=None)
 
             # Create DataRetrieval instance only when needed
-            data_retrieval = DataRetrieval(pool=self.db_pool)
+            data_retrieval = DataRetrieval(pool=cli.cli.db_pool)
             data_retrieval.update_stock_activity()
 
         ui.status_message("Data update complete", "success")

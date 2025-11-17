@@ -11,8 +11,10 @@ from typing import Dict, List
 import boto3
 import chromadb
 
-from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.trend_analyzer import TrendAnalyzer
+from .bollinger_bands import BollingerBandAnalyzer
+from .news_sentiment_analyzer import NewsSentimentAnalyzer
+from .trend_analyzer import TrendAnalyzer
+from .utility import DatabaseConnectionPool
 
 # Default Bedrock configuration
 DEFAULT_AWS_REGION = "us-east-1"
@@ -25,17 +27,17 @@ from llama_index.embeddings.bedrock import BedrockEmbedding
 from llama_index.llms.bedrock_converse import BedrockConverse
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
-from data.fundamental_data_dao import FundamentalDataDAO
-from data.macd import MACD
-from data.moving_averages import moving_averages
-from data.options_data import OptionsData
-from data.portfolio_dao import PortfolioDAO
-from data.portfolio_transactions_dao import PortfolioTransactionsDAO
-from data.rsi_calculations import rsi_calculations
-from data.shared_analysis_metrics import SharedAnalysisMetrics
-from data.stochastic_oscillator import StochasticOscillator
-from data.ticker_dao import TickerDao
-from data.watch_list_dao import WatchListDAO
+from .fundamental_data_dao import FundamentalDataDAO
+from .macd import MACD
+from .moving_averages import moving_averages
+from .options_data import OptionsData
+from .portfolio_dao import PortfolioDAO
+from .portfolio_transactions_dao import PortfolioTransactionsDAO
+from .rsi_calculations import rsi_calculations
+from .shared_analysis_metrics import SharedAnalysisMetrics
+from .stochastic_oscillator import StochasticOscillator
+from .ticker_dao import TickerDao
+from .watch_list_dao import WatchListDAO
 
 
 class LLMPortfolioAnalyzer:
@@ -43,10 +45,7 @@ class LLMPortfolioAnalyzer:
 
     def __init__(
         self,
-        db_user: str,
-        db_password: str,
-        db_host: str,
-        db_name: str,
+        pool: DatabaseConnectionPool,
         aws_region: str = DEFAULT_AWS_REGION,
         model_name: str = DEFAULT_LLM_MODEL,
         embed_model: str = DEFAULT_EMBED_MODEL,
@@ -55,18 +54,11 @@ class LLMPortfolioAnalyzer:
         Initialize the LLM Portfolio Analyzer.
 
         Args:
-            db_user: Database username
-            db_password: Database password
-            db_host: Database host
-            db_name: Database name
-            aws_region: AWS region for Bedrock
+            pool: Database connection pool
             model_name: Name of the Bedrock model to use
             embed_model: Name of the Bedrock embedding model to use
         """
-        self.db_user = db_user
-        self.db_password = db_password
-        self.db_host = db_host
-        self.db_name = db_name
+        self.db_pool = pool
         self.aws_region = aws_region
         self.model_name = model_name
         self.embed_model_name = embed_model
@@ -82,7 +74,7 @@ class LLMPortfolioAnalyzer:
         # Initialize technical analysis tools
         self.rsi_calc = rsi_calculations(pool=self.db_pool)
         self.ma_calc = moving_averages(pool=self.db_pool)
-        self.bb_calc = BollingerBandAnalypool = self.db_pool
+        self.bb_calc = BollingerBandAnalyzer(self.ticker_dao)
         self.macd_calc = MACD(pool=self.db_pool)
         self.stoch_calc = StochasticOscillator(pool=self.db_pool)
         self.options_calc = OptionsData(pool=self.db_pool)
@@ -127,12 +119,12 @@ class LLMPortfolioAnalyzer:
             Settings.node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
 
             self.logger.info(
-                f"LLM setup completed with Bedrock model: {self.model_name}"
+                "LLM setup completed with Bedrock model: %s", self.model_name
             )
-            self.logger.info(f"Embedding model: {self.embed_model_name}")
+            self.logger.info("Embedding model: %s", self.embed_model_name)
 
         except Exception as e:
-            self.logger.error(f"Error setting up Bedrock LLM: {e}")
+            self.logger.error("Error setting up Bedrock LLM: %s", e)
             raise
 
     def _setup_vector_store(self):
@@ -143,68 +135,8 @@ class LLMPortfolioAnalyzer:
             self.logger.info("ChromaDB vector store initialized")
 
         except Exception as e:
-            self.logger.error(f"Error setting up vector store: {e}")
+            self.logger.error("Error setting up vector store: %s", e)
             raise
-
-    def connect_to_database(self):
-        """
-        Connect to the database.
-        Note: Individual components will open connections as needed to avoid pool exhaustion.
-        """
-        # Open connections for frequently used DAOs only
-        self.portfolio_dao.open_connection()
-        self.ticker_dao.open_connection()
-        self.transactions_dao.open_connection()
-        self.watchlist_dao.open_connection()
-        # Other components will open connections on-demand
-
-    def disconnect_from_database(self):
-        """Disconnect from the database."""
-        # Close any open connections
-        try:
-            self.portfolio_dao.close_connection()
-        except:
-            pass
-        try:
-            self.ticker_dao.close_connection()
-        except:
-            pass
-        try:
-            self.transactions_dao.close_connection()
-        except:
-            pass
-        try:
-            self.watchlist_dao.close_connection()
-        except:
-            pass
-        try:
-            self.news_analyzer.close_connection()
-        except:
-            pass
-        try:
-            self.fundamental_dao.close_connection()
-        except:
-            pass
-        try:
-            self.rsi_calc.close_connection()
-        except:
-            pass
-        try:
-            self.ma_calc.close_connection()
-        except:
-            pass
-        try:
-            self.macd_calc.close_connection()
-        except:
-            pass
-        try:
-            self.stoch_calc.close_connection()
-        except:
-            pass
-        try:
-            self.options_calc.close_connection()
-        except:
-            pass
 
     def create_portfolio_documents(self, portfolio_id: int) -> List[Document]:
         """
@@ -307,12 +239,12 @@ class LLMPortfolioAnalyzer:
                 )
 
             self.logger.info(
-                f"Created {len(documents)} documents for portfolio {portfolio_id}"
+                "Created %s documents for portfolio %s", len(documents), portfolio_id
             )
             return documents
 
         except Exception as e:
-            self.logger.error(f"Error creating portfolio documents: {e}")
+            self.logger.error("Error creating portfolio documents: %s", e)
             return []
 
     def _create_portfolio_overview_text(
@@ -340,7 +272,7 @@ class LLMPortfolioAnalyzer:
             return text.strip()
 
         except Exception as e:
-            self.logger.error(f"Error creating portfolio overview text: {e}")
+            self.logger.error("Error creating portfolio overview text: %s", e)
             return ""
 
     def _create_holdings_text(self, portfolio_id: int) -> str:
@@ -412,7 +344,7 @@ class LLMPortfolioAnalyzer:
             return "\n".join(text_parts)
 
         except Exception as e:
-            self.logger.error(f"Error creating holdings text: {e}")
+            self.logger.error("Error creating holdings text: %s", e)
             return ""
 
     def _create_technical_analysis_text(self, portfolio_id: int) -> str:
@@ -485,7 +417,7 @@ class LLMPortfolioAnalyzer:
             return tech_analysis
 
         except Exception as e:
-            self.logger.error(f"Error creating technical analysis text: {e}")
+            self.logger.error("Error creating technical analysis text: %s", e)
             return ""
 
     def _create_fundamental_analysis_text(self, portfolio_id: int) -> str:
@@ -523,9 +455,12 @@ class LLMPortfolioAnalyzer:
                             ticker_info.append(
                                 f"P/E Ratio: {fund_data['pe_ratio']:.2f}"
                             )
-                        if fund_data.get("market_cap"):
-                            market_cap_b = fund_data["market_cap"] / 1e9
-                            ticker_info.append(f"Market Cap: ${market_cap_b:.1f}B")
+                        if fund_data.get("market_cap") is not None:
+                            try:
+                                market_cap_b = float(fund_data["market_cap"]) / 1e9
+                                ticker_info.append(f"Market Cap: ${market_cap_b:.1f}B")
+                            except (TypeError, ValueError):
+                                pass
                         if fund_data.get("dividend_yield"):
                             ticker_info.append(
                                 f"Dividend Yield: {fund_data['dividend_yield']:.2f}%"
@@ -552,7 +487,7 @@ class LLMPortfolioAnalyzer:
             return "\n".join(analysis_parts)
 
         except Exception as e:
-            self.logger.error(f"Error creating fundamental analysis text: {e}")
+            self.logger.error("Error creating fundamental analysis text: %s", e)
             return ""
 
     def _create_transactions_text(self, portfolio_id: int) -> str:
@@ -615,7 +550,7 @@ class LLMPortfolioAnalyzer:
             return "\n".join(text_parts)
 
         except Exception as e:
-            self.logger.error(f"Error creating transactions text: {e}")
+            self.logger.error("Error creating transactions text: %s", e)
             return ""
 
     def _create_watchlist_analysis_text(self) -> str:
@@ -741,9 +676,12 @@ class LLMPortfolioAnalyzer:
                         fund_items = []
                         if fund.get("pe_ratio"):
                             fund_items.append(f"P/E: {fund['pe_ratio']:.2f}")
-                        if fund.get("market_cap"):
-                            market_cap_b = fund["market_cap"] / 1e9
-                            fund_items.append(f"Market Cap: ${market_cap_b:.1f}B")
+                        if fund.get("market_cap") is not None:
+                            try:
+                                market_cap_b = float(fund["market_cap"]) / 1e9
+                                fund_items.append(f"Market Cap: ${market_cap_b:.1f}B")
+                            except (TypeError, ValueError):
+                                pass
                         if fund.get("dividend_yield"):
                             fund_items.append(
                                 f"Div Yield: {fund['dividend_yield']:.2f}%"
@@ -802,7 +740,7 @@ class LLMPortfolioAnalyzer:
             return "\n".join(analysis_parts)
 
         except Exception as e:
-            self.logger.error(f"Error creating watchlist analysis text: {e}")
+            self.logger.error("Error creating watchlist analysis text: %s", e)
             return ""
 
     def build_portfolio_index(self, portfolio_id: int) -> VectorStoreIndex:
@@ -837,7 +775,7 @@ class LLMPortfolioAnalyzer:
 
             if not documents:
                 self.logger.warning(
-                    f"No documents created for portfolio {portfolio_id}"
+                    "No documents created for portfolio %s", portfolio_id
                 )
                 return None
 
@@ -850,12 +788,12 @@ class LLMPortfolioAnalyzer:
             self.vector_indices[portfolio_id] = index
 
             self.logger.info(
-                f"Built vector index for portfolio {portfolio_id} with {len(documents)} documents"
+                "Built vector index for portfolio %s with %s documents", portfolio_id, len(documents)
             )
             return index
 
         except Exception as e:
-            self.logger.error(f"Error building portfolio index: {e}")
+            self.logger.error("Error building portfolio index: %s", e)
             return None
 
     def query_portfolio(self, portfolio_id: int, query: str) -> str:
@@ -900,7 +838,7 @@ class LLMPortfolioAnalyzer:
             return str(response)
 
         except Exception as e:
-            self.logger.error(f"Error querying portfolio: {e}")
+            self.logger.error("Error querying portfolio: %s", e)
             return f"Sorry, I encountered an error while analyzing your portfolio: {str(e)}"
 
     def get_weekly_recommendations(self, portfolio_id: int) -> str:
@@ -916,7 +854,7 @@ class LLMPortfolioAnalyzer:
         # Clear cached index to force rebuild with fresh data
         if portfolio_id in self.vector_indices:
             del self.vector_indices[portfolio_id]
-            self.logger.info(f"Cleared cached index for portfolio {portfolio_id}")
+            self.logger.info("Cleared cached index for portfolio %s", portfolio_id)
 
         weekly_prompt = """
         Based on the portfolio data, technical indicators, news sentiment, and recent market activity, 
@@ -947,7 +885,7 @@ class LLMPortfolioAnalyzer:
         # Clear cached index to force rebuild with fresh data
         if portfolio_id in self.vector_indices:
             del self.vector_indices[portfolio_id]
-            self.logger.info(f"Cleared cached index for portfolio {portfolio_id}")
+            self.logger.info("Cleared cached index for portfolio %s", portfolio_id)
 
         analysis_prompt = """
         Provide a comprehensive analysis of this portfolio's current performance including:

@@ -4,7 +4,7 @@ from contextlib import contextmanager
 import mysql.connector
 import pandas as pd
 
-from data.utility import DatabaseConnectionPool
+from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -33,14 +33,14 @@ class MACD:
                 self.current_connection = connection
                 yield connection
         except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
+            logger.error("Database connection error: %s", str(e))
             raise
         finally:
             pass
 
     def calculate_ema(self, data, period):
         """Calculate Exponential Moving Average"""
-        multiplier = 2 / (period + 1)
+        2 / (period + 1)
         return data.ewm(span=period, adjust=False).mean()
 
     def calculate_macd(self, ticker_id):
@@ -110,7 +110,7 @@ class MACD:
 
                 return self.load_macd_from_db(ticker_id)
         except mysql.connector.Error as e:
-            logger.error(f"Error calculating MACD for ticker {ticker_id}: {e}")
+            logger.error("Error calculating MACD for ticker %s: %s", ticker_id, e)
             return None
 
     def load_macd_from_db(self, ticker_id):
@@ -145,7 +145,7 @@ class MACD:
                 cursor.close()
                 return df
         except mysql.connector.Error as e:
-            logger.error(f"Error loading MACD from database for ticker {ticker_id}: {e}")
+            logger.error("Error loading MACD from database for ticker %s: %s", ticker_id, e)
             return None
 
     def get_macd_signals(self, ticker_id):

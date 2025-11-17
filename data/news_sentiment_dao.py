@@ -1,10 +1,8 @@
-from datetime import datetime
 
 import mysql.connector
 import pandas as pd
-from mysql.connector import errorcode
 
-from data.base_dao import BaseDAO
+from .base_dao import BaseDAO
 
 
 class NewsSentimentDAO(BaseDAO):

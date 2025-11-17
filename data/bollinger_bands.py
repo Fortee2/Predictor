@@ -4,7 +4,7 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 
-from data.ticker_dao import TickerDao
+from .ticker_dao import TickerDao
 
 
 class BollingerBandAnalyzer:

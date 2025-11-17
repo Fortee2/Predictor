@@ -41,7 +41,7 @@ class PortfolioSnapshotCommand(Command):
                 portfolio_id = cli.selected_portfolio
             else:
                 # List portfolios and ask for selection
-                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                from enhanced_cli.portfolio import ListPortfoliosCommand
 
                 list_command = ListPortfoliosCommand()
                 list_command.execute(cli)
@@ -400,7 +400,7 @@ class LLMAnalysisPromptCommand(Command):
                 portfolio_id = cli.selected_portfolio
             else:
                 # List portfolios and ask for selection
-                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                from enhanced_cli.portfolio.portfolio_views import ListPortfoliosCommand
 
                 list_command = ListPortfoliosCommand()
                 list_command.execute(cli)

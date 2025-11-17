@@ -1,8 +1,8 @@
 import mysql.connector
 
-from data.base_dao import BaseDAO
-from data.ticker_dao import TickerDao
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
+from .ticker_dao import TickerDao
+from .utility import DatabaseConnectionPool
 
 
 class WatchListDAO(BaseDAO):

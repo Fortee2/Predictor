@@ -42,7 +42,6 @@ class Command(ABC):
         Returns:
             Result of the command execution, if any
         """
-        pass
 
 
 class CommandRegistry:

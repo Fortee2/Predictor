@@ -8,9 +8,8 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from data.base_dao import BaseDAO
-from data.config import Config
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
+from .utility import DatabaseConnectionPool
 
 
 class MultiTimeframeAnalyzer(BaseDAO):
@@ -25,16 +24,14 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
     def __init__(self, pool: DatabaseConnectionPool):
         super().__init__(pool)
-        
+
         self.sp500_ticker_id = 504  # S&P 500 ticker ID from the system
 
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-    def get_portfolio_value_history(
-        self, portfolio_id: int, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def get_portfolio_value_history(self, portfolio_id: int, start_date: date, end_date: date) -> pd.DataFrame:
         """
         Retrieve portfolio value history for the specified date range.
 
@@ -70,15 +67,13 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 return df
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving portfolio value history: {e}")
+            self.logger.error("Error retrieving portfolio value history: %s", e)
             return pd.DataFrame(columns=["date", "value"])
         finally:
             if cursor:
                 cursor.close()
 
-    def get_benchmark_data(
-        self, ticker_id: int, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def get_benchmark_data(self, ticker_id: int, start_date: date, end_date: date) -> pd.DataFrame:
         """
         Retrieve benchmark price data for the specified date range.
 
@@ -97,7 +92,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 cursor.execute("SELECT ticker FROM tickers WHERE id = %s", (ticker_id,))
                 result = cursor.fetchone()
                 if not result:
-                    self.logger.error(f"Ticker ID {ticker_id} not found")
+                    self.logger.error("Ticker ID %s not found", ticker_id)
                     return pd.DataFrame(columns=["date", "close"])
 
                 symbol = result["ticker"]
@@ -121,12 +116,10 @@ class MultiTimeframeAnalyzer(BaseDAO):
                     return df
 
                 # Fallback to yfinance if no database data
-                self.logger.info(f"No database data for {symbol}, fetching from yfinance")
+                self.logger.info("No database data for %s, fetching from yfinance", symbol)
                 try:
                     ticker = yf.Ticker(symbol)
-                    hist_data = ticker.history(
-                        start=start_date, end=end_date + timedelta(days=1)
-                    )
+                    hist_data = ticker.history(start=start_date, end=end_date + timedelta(days=1))
 
                     if hist_data.empty:
                         return pd.DataFrame(columns=["date", "close"])
@@ -137,11 +130,11 @@ class MultiTimeframeAnalyzer(BaseDAO):
                     return df
 
                 except Exception as e:
-                    self.logger.error(f"Error fetching yfinance data for {symbol}: {e}")
+                    self.logger.error("Error fetching yfinance data for {symbol}: %s", e)
                     return pd.DataFrame(columns=["date", "close"])
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving benchmark data: {e}")
+            self.logger.error("Error retrieving benchmark data: %s", e)
             return pd.DataFrame(columns=["date", "close"])
         finally:
             if cursor:
@@ -165,9 +158,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
         returns = price_data[price_column].pct_change().dropna()
         return pd.DataFrame({price_column: returns})
 
-    def calculate_performance_metrics(
-        self, returns: pd.Series, benchmark_returns: pd.Series = None
-    ) -> Dict:
+    def calculate_performance_metrics(self, returns: pd.Series, benchmark_returns: pd.Series = None) -> Dict:
         """
         Calculate comprehensive performance metrics.
 
@@ -194,11 +185,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
         # Sharpe ratio
         excess_returns = returns - (self.RISK_FREE_RATE / 252)  # Daily risk-free rate
-        sharpe_ratio = (
-            excess_returns.mean() / returns.std() * np.sqrt(252)
-            if returns.std() > 0
-            else 0
-        )
+        sharpe_ratio = excess_returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else 0
 
         # Maximum drawdown
         cumulative_returns = (1 + returns).cumprod()
@@ -217,9 +204,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
         # Add benchmark-relative metrics if benchmark data is provided
         if benchmark_returns is not None and not benchmark_returns.empty:
             # Align the series by date
-            aligned_returns, aligned_benchmark = returns.align(
-                benchmark_returns, join="inner"
-            )
+            aligned_returns, aligned_benchmark = returns.align(benchmark_returns, join="inner")
 
             if len(aligned_returns) > 1 and len(aligned_benchmark) > 1:
                 # Beta calculation
@@ -229,34 +214,21 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
                 # Alpha calculation (Jensen's alpha)
                 benchmark_total_return = (1 + aligned_benchmark).prod() - 1
-                benchmark_annualized = (
-                    (1 + benchmark_total_return) ** (1 / years) - 1 if years > 0 else 0
-                )
-                alpha = annualized_return - (
-                    self.RISK_FREE_RATE
-                    + beta * (benchmark_annualized - self.RISK_FREE_RATE)
-                )
+                benchmark_annualized = (1 + benchmark_total_return) ** (1 / years) - 1 if years > 0 else 0
+                alpha = annualized_return - (self.RISK_FREE_RATE + beta * (benchmark_annualized - self.RISK_FREE_RATE))
 
                 # Up/Down capture ratios
                 up_periods = aligned_benchmark > 0
                 down_periods = aligned_benchmark < 0
 
                 up_capture = (
-                    (
-                        aligned_returns[up_periods].mean()
-                        / aligned_benchmark[up_periods].mean()
-                    )
-                    if up_periods.sum() > 0
-                    and aligned_benchmark[up_periods].mean() != 0
+                    (aligned_returns[up_periods].mean() / aligned_benchmark[up_periods].mean())
+                    if up_periods.sum() > 0 and aligned_benchmark[up_periods].mean() != 0
                     else 0
                 )
                 down_capture = (
-                    (
-                        aligned_returns[down_periods].mean()
-                        / aligned_benchmark[down_periods].mean()
-                    )
-                    if down_periods.sum() > 0
-                    and aligned_benchmark[down_periods].mean() != 0
+                    (aligned_returns[down_periods].mean() / aligned_benchmark[down_periods].mean())
+                    if down_periods.sum() > 0 and aligned_benchmark[down_periods].mean() != 0
                     else 0
                 )
 
@@ -276,9 +248,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
         return metrics
 
-    def analyze_portfolio_timeframes(
-        self, portfolio_id: int, calculation_date: date = None
-    ) -> Dict:
+    def analyze_portfolio_timeframes(self, portfolio_id: int, calculation_date: date = None) -> Dict:
         """
         Analyze portfolio performance across all timeframes.
 
@@ -306,11 +276,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 (portfolio_id,),
             )
             result = cursor.fetchone()
-            earliest_date = (
-                result[0]
-                if result and result[0]
-                else calculation_date - timedelta(days=365)
-            )
+            earliest_date = result[0] if result and result[0] else calculation_date - timedelta(days=365)
             cursor.close()
 
             # Analyze each timeframe
@@ -321,16 +287,12 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 if start_date < earliest_date:
                     continue
 
-                self.logger.info(
-                    f"Analyzing {timeframe} timeframe for portfolio {portfolio_id}"
-                )
+                self.logger.info("Analyzing {timeframe} timeframe for portfolio %s", portfolio_id)
 
                 # Get portfolio value history
-                portfolio_data = self.get_portfolio_value_history(
-                    portfolio_id, start_date, calculation_date
-                )
+                portfolio_data = self.get_portfolio_value_history(portfolio_id, start_date, calculation_date)
                 if portfolio_data.empty:
-                    self.logger.warning(f"No portfolio data for {timeframe} timeframe")
+                    self.logger.warning("No portfolio data for %s timeframe", timeframe)
                     continue
 
                 # Calculate portfolio returns
@@ -339,9 +301,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
                     continue
 
                 # Get S&P 500 benchmark data
-                benchmark_data = self.get_benchmark_data(
-                    self.sp500_ticker_id, start_date, calculation_date
-                )
+                benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, start_date, calculation_date)
                 benchmark_returns = None
                 if not benchmark_data.empty:
                     benchmark_returns_df = self.calculate_returns(benchmark_data)
@@ -350,25 +310,19 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
                 # Calculate metrics
                 portfolio_returns_series = portfolio_returns.iloc[:, 0]
-                metrics = self.calculate_performance_metrics(
-                    portfolio_returns_series, benchmark_returns
-                )
+                metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
 
                 if metrics:
                     results[timeframe] = metrics
 
             # Add MAX timeframe (from earliest date to calculation_date)
             if earliest_date < calculation_date:
-                self.logger.info(f"Analyzing MAX timeframe for portfolio {portfolio_id}")
-                portfolio_data = self.get_portfolio_value_history(
-                    portfolio_id, earliest_date, calculation_date
-                )
+                self.logger.info("Analyzing MAX timeframe for portfolio %s", portfolio_id)
+                portfolio_data = self.get_portfolio_value_history(portfolio_id, earliest_date, calculation_date)
                 if not portfolio_data.empty:
                     portfolio_returns = self.calculate_returns(portfolio_data)
                     if not portfolio_returns.empty:
-                        benchmark_data = self.get_benchmark_data(
-                            self.sp500_ticker_id, earliest_date, calculation_date
-                        )
+                        benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, earliest_date, calculation_date)
                         benchmark_returns = None
                         if not benchmark_data.empty:
                             benchmark_returns_df = self.calculate_returns(benchmark_data)
@@ -376,9 +330,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
                                 benchmark_returns = benchmark_returns_df.iloc[:, 0]
 
                         portfolio_returns_series = portfolio_returns.iloc[:, 0]
-                        metrics = self.calculate_performance_metrics(
-                            portfolio_returns_series, benchmark_returns
-                        )
+                        metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
                         if metrics:
                             results["MAX"] = metrics
 
@@ -404,16 +356,12 @@ class MultiTimeframeAnalyzer(BaseDAO):
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-            
+
                 for timeframe, metrics in metrics_by_timeframe.items():
                     # Convert metrics to Decimal for database storage
                     db_metrics = {}
                     for key, value in metrics.items():
-                        if (
-                            value is not None
-                            and not np.isnan(value)
-                            and not np.isinf(value)
-                        ):
+                        if value is not None and not np.isnan(value) and not np.isinf(value):
                             db_metrics[key] = Decimal(str(round(float(value), 4)))
                         else:
                             db_metrics[key] = None
@@ -459,18 +407,16 @@ class MultiTimeframeAnalyzer(BaseDAO):
                     cursor.execute(query, values)
 
                 self.current_connection.commit()
-                self.logger.info(f"Saved performance metrics for portfolio {portfolio_id}")
+                self.logger.info("Saved performance metrics for portfolio %s", portfolio_id)
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error saving portfolio metrics: {e}")
-            self.connection.rollback()
+            self.logger.error("Error saving portfolio metrics: %s", e)
+            self.current_connection.rollback()
             raise
         finally:
             cursor.close()
 
-    def get_portfolio_metrics(
-        self, portfolio_id: int, calculation_date: date = None
-    ) -> Dict:
+    def get_portfolio_metrics(self, portfolio_id: int, calculation_date: date = None) -> Dict:
         """
         Retrieve saved portfolio metrics from the database.
 
@@ -515,7 +461,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 return metrics_by_timeframe
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving portfolio metrics: {e}")
+            self.logger.error("Error retrieving portfolio metrics: %s", e)
             return {}
         finally:
             cursor.close()
@@ -531,9 +477,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
             from data.data_retrieval_consolidated import DataRetrieval
 
             # Initialize data retrieval
-            data_retrieval = DataRetrieval(
-                self.pool
-            )
+            data_retrieval = DataRetrieval(self.pool)
 
             # Update S&P 500 data
             self.logger.info("Updating S&P 500 benchmark data...")
@@ -542,4 +486,4 @@ class MultiTimeframeAnalyzer(BaseDAO):
             self.logger.info("S&P 500 data update completed")
 
         except Exception as e:
-            self.logger.error(f"Error updating S&P 500 data: {e}")
+            self.logger.error("Error updating S&P 500 data: %s", e)

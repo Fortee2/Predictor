@@ -31,13 +31,13 @@ def main():
 
         # Open connection
         portfolio_dao.open_connection()
-        cursor = portfolio_dao.connection.cursor()
+        cursor = portfolio_dao.current_connection.cursor()
 
         try:
             # Delete existing history for this portfolio
             delete_query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
             cursor.execute(delete_query, (portfolio_id,))
-            portfolio_dao.connection.commit()
+            portfolio_dao.current_connection.commit()
             print("Cleared existing cash history")
 
             # Get initial portfolio funding
@@ -129,7 +129,7 @@ def main():
                     cursor.execute(insert_query, values)
 
             # Commit all changes
-            portfolio_dao.connection.commit()
+            portfolio_dao.current_connection.commit()
 
             # Update portfolio's current cash balance
             portfolio_dao.update_cash_balance(portfolio_id, running_balance)

@@ -36,7 +36,7 @@ class ManageCashCommand(Command):
                 portfolio_id = cli.selected_portfolio
             else:
                 # First list portfolios for selection
-                from enhanced_cli.portfolio_views import ListPortfoliosCommand
+                from enhanced_cli.portfolio import ListPortfoliosCommand
 
                 list_command = ListPortfoliosCommand()
                 list_command.execute(cli)
@@ -84,7 +84,7 @@ class ManageCashCommand(Command):
                 return
 
             if ui.confirm_action(f"Deposit ${amount:.2f} to {portfolio['name']}?"):
-                date_str = datetime.now().strftime("%Y-%m-%d")
+                datetime.now().strftime("%Y-%m-%d")
                 description = f"Deposit to {portfolio['name']}"
 
                 with ui.progress("Processing deposit...") as progress:
@@ -141,7 +141,7 @@ class ManageCashCommand(Command):
         # Return to portfolio view automatically if the user selected option 4
         # or after completing an action
         if choice == "4" or ui.confirm_action("Return to portfolio view?", True):
-            from enhanced_cli.portfolio_views import ViewPortfolioCommand
+            from enhanced_cli.portfolio import ViewPortfolioCommand
 
             view_command = ViewPortfolioCommand()
             view_command.execute(cli, portfolio_id=portfolio_id)
@@ -160,7 +160,7 @@ class ManageCashCommand(Command):
             portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)
 
            # We'll use a direct SQL query to get the cash_balance_history
-            connection = cli.cli.portfolio_dao.connection
+            connection = cli.cli.portfolio_dao.current_connection
             cursor = connection.cursor(dictionary=True)
 
             try:
