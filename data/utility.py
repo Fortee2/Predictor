@@ -1,12 +1,14 @@
+import logging
 import os
 from contextlib import contextmanager
 
 import mysql.connector
 import requests
 
+logger = logging.getLogger(__name__)
+
 
 class utility:
-
     def call_url_with_symbol(self, url, symbol):
         full_url = url + symbol  # Append the symbol to the URL
         response = requests.get(full_url)  # Send a GET request to the full URL
@@ -67,11 +69,9 @@ class DatabaseConnectionPool:
                 database=self.db_name,
                 autocommit=False,
             )
-            print(
-                f"Connection pool '{self.pool_name}' initialized with {self.pool_size} connections"
-            )
+            print(f"Connection pool '{self.pool_name}' initialized with {self.pool_size} connections")
         except Exception as e:
-            print(f"Error creating connection pool: {str(e)}")
+            logger.error("Error creating connection pool: %s", str(e))
             raise
 
     def get_connection(self):
@@ -79,7 +79,7 @@ class DatabaseConnectionPool:
         try:
             return self.pool.get_connection()
         except Exception as e:
-            print(f"Error getting connection from pool: {str(e)}")
+            logger.error("Error getting connection from pool: %s", str(e))
             raise
 
     @contextmanager
@@ -92,7 +92,7 @@ class DatabaseConnectionPool:
         except Exception as e:
             if conn:
                 conn.rollback()
-            print(f"Database error: {str(e)}")
+            logger.error("Database error: %s", str(e))
             raise
         else:
             if conn:

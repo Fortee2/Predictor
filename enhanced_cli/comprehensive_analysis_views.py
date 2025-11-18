@@ -44,11 +44,7 @@ class ComprehensiveAnalysisCommand(Command):
             list_command.execute(cli)
 
             try:
-                portfolio_id = int(
-                    Prompt.ask(
-                        "[bold]Enter Portfolio ID for comprehensive analysis[/bold]"
-                    )
-                )
+                portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID for comprehensive analysis[/bold]"))
             except ValueError:
                 ui.status_message("Invalid portfolio ID", "error")
                 return
@@ -72,14 +68,10 @@ class ComprehensiveAnalysisCommand(Command):
                     analyzer.close_connection()
                     ui.status_message("S&P 500 data updated successfully", "success")
                 except Exception as e:
-                    ui.status_message(
-                        f"Warning: Could not update S&P 500 data: {e}", "warning"
-                    )
+                    ui.status_message(f"Warning: Could not update S&P 500 data: {e}", "warning")
 
         # Perform comprehensive analysis
-        with ui.progress(
-            "Performing comprehensive multi-timeframe analysis..."
-        ) as progress:
+        with ui.progress("Performing comprehensive multi-timeframe analysis...") as progress:
             task = progress.add_task("Analyzing portfolio performance...", total=100)
 
             try:
@@ -88,16 +80,12 @@ class ComprehensiveAnalysisCommand(Command):
                 progress.update(task, advance=20)
 
                 # Analyze portfolio across all timeframes
-                ui.console.print(
-                    "Calculating performance metrics across multiple timeframes..."
-                )
+                ui.console.print("Calculating performance metrics across multiple timeframes...")
                 portfolio_metrics = analyzer.analyze_portfolio_timeframes(portfolio_id)
                 progress.update(task, advance=40)
 
                 if not portfolio_metrics:
-                    ui.status_message(
-                        "No performance data available for analysis", "warning"
-                    )
+                    ui.status_message("No performance data available for analysis", "warning")
                     analyzer.close_connection()
                     return
 
@@ -111,9 +99,7 @@ class ComprehensiveAnalysisCommand(Command):
                 progress.update(task, advance=10)
 
                 # Get market events performance (placeholder for now)
-                market_events_performance = self._get_market_events_analysis(
-                    analyzer, portfolio_id
-                )
+                market_events_performance = self._get_market_events_analysis(analyzer, portfolio_id)
                 progress.update(task, advance=10)
 
                 analyzer.close_connection()
@@ -142,9 +128,7 @@ class ComprehensiveAnalysisCommand(Command):
         # Wait for user input to continue
         ui.wait_for_user()
 
-    def _get_holdings_analysis(
-        self, analyzer: MultiTimeframeAnalyzer, portfolio_id: int
-    ) -> Dict:
+    def _get_holdings_analysis(self, analyzer: MultiTimeframeAnalyzer, portfolio_id: int) -> Dict:
         """
         Get individual holdings analysis (placeholder for future implementation).
 
@@ -159,9 +143,7 @@ class ComprehensiveAnalysisCommand(Command):
         # across timeframes similar to portfolio analysis
         return {}
 
-    def _get_market_events_analysis(
-        self, analyzer: MultiTimeframeAnalyzer, portfolio_id: int
-    ) -> Dict:
+    def _get_market_events_analysis(self, analyzer: MultiTimeframeAnalyzer, portfolio_id: int) -> Dict:
         """
         Get market events performance analysis (placeholder for future implementation).
 
@@ -184,9 +166,7 @@ class ComprehensiveAnalysisCommand(Command):
             portfolio_metrics: Portfolio metrics by timeframe
             portfolio_name: Portfolio name
         """
-        ui.console.print(
-            f"\n[bold blue]Performance Summary for {portfolio_name}[/bold blue]"
-        )
+        ui.console.print(f"\n[bold blue]Performance Summary for {portfolio_name}[/bold blue]")
         ui.console.print("=" * 80)
 
         timeframes = ["1M", "3M", "6M", "1Y", "2Y", "5Y", "MAX"]
@@ -199,16 +179,12 @@ class ComprehensiveAnalysisCommand(Command):
                 total_return = metrics.get("total_return_pct")
                 if total_return is not None:
                     color = "green" if total_return >= 0 else "red"
-                    ui.console.print(
-                        f"  Total Return: [{color}]{total_return:.2f}%[/{color}]"
-                    )
+                    ui.console.print(f"  Total Return: [{color}]{total_return:.2f}%[/{color}]")
 
                 annualized_return = metrics.get("annualized_return_pct")
                 if annualized_return is not None:
                     color = "green" if annualized_return >= 0 else "red"
-                    ui.console.print(
-                        f"  Annualized Return: [{color}]{annualized_return:.2f}%[/{color}]"
-                    )
+                    ui.console.print(f"  Annualized Return: [{color}]{annualized_return:.2f}%[/{color}]")
 
                 volatility = metrics.get("volatility_pct")
                 if volatility is not None:
@@ -217,9 +193,7 @@ class ComprehensiveAnalysisCommand(Command):
                 sharpe_ratio = metrics.get("sharpe_ratio")
                 if sharpe_ratio is not None:
                     color = "green" if sharpe_ratio >= 0 else "red"
-                    ui.console.print(
-                        f"  Sharpe Ratio: [{color}]{sharpe_ratio:.2f}[/{color}]"
-                    )
+                    ui.console.print(f"  Sharpe Ratio: [{color}]{sharpe_ratio:.2f}[/{color}]")
 
                 max_drawdown = metrics.get("max_drawdown_pct")
                 if max_drawdown is not None:
@@ -228,18 +202,14 @@ class ComprehensiveAnalysisCommand(Command):
                 excess_return = metrics.get("excess_return_pct")
                 if excess_return is not None:
                     color = "green" if excess_return >= 0 else "red"
-                    ui.console.print(
-                        f"  vs S&P 500: [{color}]{excess_return:.2f}%[/{color}]"
-                    )
+                    ui.console.print(f"  vs S&P 500: [{color}]{excess_return:.2f}%[/{color}]")
 
 
 class ViewSavedMetricsCommand(Command):
     """Command to view previously saved comprehensive metrics."""
 
     def __init__(self):
-        super().__init__(
-            "View Saved Metrics", "View previously calculated comprehensive metrics"
-        )
+        super().__init__("View Saved Metrics", "View previously calculated comprehensive metrics")
 
     @error_handler("viewing saved metrics")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -291,15 +261,11 @@ class ViewSavedMetricsCommand(Command):
 
             try:
                 analyzer = MultiTimeframeAnalyzer()
-                portfolio_metrics = analyzer.get_portfolio_metrics(
-                    portfolio_id, analysis_date
-                )
+                portfolio_metrics = analyzer.get_portfolio_metrics(portfolio_id, analysis_date)
                 analyzer.close_connection()
 
                 if not portfolio_metrics:
-                    ui.status_message(
-                        f"No saved metrics found for {analysis_date}", "warning"
-                    )
+                    ui.status_message(f"No saved metrics found for {analysis_date}", "warning")
                     return
 
             except Exception as e:
@@ -309,9 +275,7 @@ class ViewSavedMetricsCommand(Command):
         # Display results
         try:
             formatter = ComprehensivePerformanceFormatter()
-            formatter.display_comprehensive_analysis(
-                portfolio_metrics=portfolio_metrics, portfolio_name=portfolio_name
-            )
+            formatter.display_comprehensive_analysis(portfolio_metrics=portfolio_metrics, portfolio_name=portfolio_name)
         except Exception as e:
             ui.status_message(f"Error displaying results: {e}", "error")
             # Fallback to simple display
@@ -338,9 +302,7 @@ class UpdateBenchmarkDataCommand(Command):
     """Command to update benchmark data (S&P 500)."""
 
     def __init__(self):
-        super().__init__(
-            "Update Benchmark Data", "Update S&P 500 and other benchmark data"
-        )
+        super().__init__("Update Benchmark Data", "Update S&P 500 and other benchmark data")
 
     @error_handler("updating benchmark data")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -382,8 +344,6 @@ def register_comprehensive_analysis_commands(registry: CommandRegistry) -> None:
     Args:
         registry: The command registry to register commands with
     """
-    registry.register(
-        "comprehensive_analysis", ComprehensiveAnalysisCommand(), "analysis"
-    )
+    registry.register("comprehensive_analysis", ComprehensiveAnalysisCommand(), "analysis")
     registry.register("view_saved_metrics", ViewSavedMetricsCommand(), "analysis")
     registry.register("update_benchmark_data", UpdateBenchmarkDataCommand(), "analysis")

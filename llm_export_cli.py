@@ -55,9 +55,7 @@ def portfolio_snapshot(portfolio_id: str, save_to_file: bool = False) -> None:
         progress = MockProgress()
         task = "mock_task"
 
-        snapshot = command._generate_portfolio_snapshot(
-            mock_cli, int(portfolio_id), portfolio, progress, task
-        )
+        snapshot = command._generate_portfolio_snapshot(mock_cli, int(portfolio_id), portfolio, progress, task)
 
         if snapshot:
             print(json.dumps(snapshot, indent=2, default=command._json_serializer))
@@ -100,9 +98,7 @@ def llm_analysis_prompt(portfolio_id: str, save_to_file: bool = False) -> None:
         progress = MockProgress()
         task = "mock_task"
 
-        snapshot = snapshot_cmd._generate_portfolio_snapshot(
-            mock_cli, int(portfolio_id), portfolio, progress, task
-        )
+        snapshot = snapshot_cmd._generate_portfolio_snapshot(mock_cli, int(portfolio_id), portfolio, progress, task)
 
         if not snapshot:
             print("Error: Failed to generate portfolio data")
@@ -118,22 +114,16 @@ def llm_analysis_prompt(portfolio_id: str, save_to_file: bool = False) -> None:
 
 def main():
     """Main entry point for the CLI."""
-    parser = argparse.ArgumentParser(
-        description="LLM Export CLI for Portfolio Management"
-    )
+    parser = argparse.ArgumentParser(description="LLM Export CLI for Portfolio Management")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     # Portfolio snapshot command
-    snapshot_parser = subparsers.add_parser(
-        "portfolio_snapshot", help="Generate portfolio snapshot"
-    )
+    snapshot_parser = subparsers.add_parser("portfolio_snapshot", help="Generate portfolio snapshot")
     snapshot_parser.add_argument("portfolio_id", help="Portfolio ID")
     snapshot_parser.add_argument("--save", action="store_true", help="Save to file")
 
     # LLM analysis prompt command
-    prompt_parser = subparsers.add_parser(
-        "llm_analysis_prompt", help="Generate LLM analysis prompt"
-    )
+    prompt_parser = subparsers.add_parser("llm_analysis_prompt", help="Generate LLM analysis prompt")
     prompt_parser.add_argument("portfolio_id", help="Portfolio ID")
     prompt_parser.add_argument("--save", action="store_true", help="Save to file")
 

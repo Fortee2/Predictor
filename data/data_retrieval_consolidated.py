@@ -7,6 +7,7 @@ import yfinance as yf
 
 from data import rsi_calculations as rsi_calc
 from data import ticker_dao, utility
+
 from .base_dao import BaseDAO
 from .bollinger_bands import BollingerBandAnalyzer
 from .fundamental_data_dao import FundamentalDataDAO
@@ -37,7 +38,7 @@ class DataRetrieval(BaseDAO):
         self.moving_avg = moving_averages(pool=self.pool)
         self.bb_analyzer = BollingerBandAnalyzer(self.dao)
         self.stochastic_analyzer = StochasticOscillator(pool=self.pool)
-        
+
         # Enhanced configurations for rate limiting
         self.requests_per_batch = 1  # Process only one ticker at a time
         self.batch_pause_time = 300  # 5-minute pause between tickers
@@ -89,12 +90,8 @@ class DataRetrieval(BaseDAO):
             try:
                 # Different delay strategy for retries
                 if attempt > 0:
-                    retry_delay = (attempt * 2 * 60) + random.randint(
-                        10, 30
-                    )  # Progressive backoff
-                    print(
-                        f"Retry attempt {attempt+1}/{self.max_retries} for {symbol} after {retry_delay} seconds..."
-                    )
+                    retry_delay = (attempt * 2 * 60) + random.randint(10, 30)  # Progressive backoff
+                    print(f"Retry attempt {attempt + 1}/{self.max_retries} for {symbol} after {retry_delay} seconds...")
                     time.sleep(retry_delay)
 
                 # First check if industry or sector are missing
@@ -119,9 +116,7 @@ class DataRetrieval(BaseDAO):
                         try:
                             # We still need to get industry and sector from regular info
                             # as they're not available in fast_info
-                            time.sleep(
-                                random.randint(1, 3)
-                            )  # Small delay before API call
+                            time.sleep(random.randint(1, 3))  # Small delay before API call
                             info = ticker.info if hasattr(ticker, "info") else {}
 
                             if not info:
@@ -129,9 +124,7 @@ class DataRetrieval(BaseDAO):
                                 info = {}
 
                             # Update basic ticker info with safe defaults for None values
-                            name = (
-                                info.get("shortName") or info.get("longName") or symbol
-                            )
+                            name = info.get("shortName") or info.get("longName") or symbol
                             industry = info.get("industry") or "Unknown"
                             sector = info.get("sector") or "Unknown"
 
@@ -139,30 +132,19 @@ class DataRetrieval(BaseDAO):
                             self.dao.update_stock(symbol, name, industry, sector)
                             print(f"Updated basic info for {symbol}")
                         except Exception as e:
-                            if (
-                                "Too Many Requests" in str(e)
-                                and attempt < self.max_retries - 1
-                            ):
-                                print(
-                                    "Rate limit hit when accessing fast_info. Will retry."
-                                )
+                            if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
+                                print("Rate limit hit when accessing fast_info. Will retry.")
                                 continue
 
                             print(f"Error accessing fast_info for {symbol}: {str(e)}")
                             # Fallback to traditional method
                             try:
-                                time.sleep(
-                                    random.randint(1, 3)
-                                )  # Small delay before API call
+                                time.sleep(random.randint(1, 3))  # Small delay before API call
                                 info = ticker.info if hasattr(ticker, "info") else {}
                                 if not info:
                                     print(f"Warning: No info available for {symbol}")
                                     info = {}
-                                name = (
-                                    info.get("shortName")
-                                    or info.get("longName")
-                                    or symbol
-                                )
+                                name = info.get("shortName") or info.get("longName") or symbol
                                 industry = info.get("industry") or "Unknown"
                                 sector = info.get("sector") or "Unknown"
 
@@ -170,22 +152,13 @@ class DataRetrieval(BaseDAO):
                                 self.dao.update_stock(symbol, name, industry, sector)
                                 print(f"Updated basic info for {symbol}")
                             except Exception as e:
-                                if (
-                                    "Too Many Requests" in str(e)
-                                    and attempt < self.max_retries - 1
-                                ):
-                                    print(
-                                        "Rate limit hit when accessing info. Will retry."
-                                    )
+                                if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
+                                    print("Rate limit hit when accessing info. Will retry.")
                                     continue
-                                print(
-                                    f"Error updating basic info for {symbol}: {str(e)}"
-                                )
+                                print(f"Error updating basic info for {symbol}: {str(e)}")
                                 return False
                     else:
-                        print(
-                            f"Skipping basic info update for {symbol} - industry and sector already present"
-                        )
+                        print(f"Skipping basic info update for {symbol} - industry and sector already present")
 
                 # Always retrieve ticker for other operations, if not already done above
                 if "ticker" not in locals():
@@ -212,9 +185,7 @@ class DataRetrieval(BaseDAO):
                 try:
                     ticker_id = self.dao.get_ticker_id(symbol)
                     if ticker_id:
-                        self.sentiment_analyzer.fetch_and_analyze_news(
-                            ticker_id, symbol
-                        )
+                        self.sentiment_analyzer.fetch_and_analyze_news(ticker_id, symbol)
                         print(f"Updated news sentiment for {symbol}")
                 except Exception as e:
                     print(f"Error updating news sentiment for {symbol}: {str(e)}")
@@ -224,9 +195,7 @@ class DataRetrieval(BaseDAO):
                 return True
 
             except Exception as e:
-                print(
-                    f"Error in update_symbol_data attempt {attempt+1} for {symbol}: {str(e)}"
-                )
+                print(f"Error in update_symbol_data attempt {attempt + 1} for {symbol}: {str(e)}")
                 if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
                     continue
                 if attempt == self.max_retries - 1:
@@ -242,11 +211,9 @@ class DataRetrieval(BaseDAO):
             try:
                 # Different delay strategy for retries
                 if attempt > 0:
-                    retry_delay = (attempt * 30) + random.randint(
-                        5, 15
-                    )  # Shorter backoff for fundamental data
+                    retry_delay = (attempt * 30) + random.randint(5, 15)  # Shorter backoff for fundamental data
                     print(
-                        f"Retry attempt {attempt+1}/{self.max_retries} for {symbol} fundamentals after {retry_delay} seconds..."
+                        f"Retry attempt {attempt + 1}/{self.max_retries} for {symbol} fundamentals after {retry_delay} seconds..."
                     )
                     time.sleep(retry_delay)
 
@@ -263,13 +230,9 @@ class DataRetrieval(BaseDAO):
                     print(f"Using fast_info for {symbol} market cap: {market_cap}")
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
-                        print(
-                            "Rate limit hit when accessing fast_info for fundamentals. Will retry."
-                        )
+                        print("Rate limit hit when accessing fast_info for fundamentals. Will retry.")
                         continue
-                    print(
-                        f"Error accessing fast_info for {symbol} fundamentals: {str(e)}"
-                    )
+                    print(f"Error accessing fast_info for {symbol} fundamentals: {str(e)}")
 
                 # Get regular info for other metrics not in fast_info
                 try:
@@ -280,9 +243,7 @@ class DataRetrieval(BaseDAO):
                         return False
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
-                        print(
-                            "Rate limit hit when accessing info for fundamentals. Will retry."
-                        )
+                        print("Rate limit hit when accessing info for fundamentals. Will retry.")
                         continue
                     print(f"Error accessing info for {symbol}: {str(e)}")
                     if not fast_info:
@@ -299,69 +260,33 @@ class DataRetrieval(BaseDAO):
                     # Use market_cap from fast_info if available, otherwise from regular info
                     self.fundamental_dao.save_fundamental_data(
                         ticker_id=ticker_id,
-                        pe_ratio=(
-                            float(info.get("trailingPE"))
-                            if info.get("trailingPE") is not None
-                            else None
-                        ),
-                        forward_pe=(
-                            float(info.get("forwardPE"))
-                            if info.get("forwardPE") is not None
-                            else None
-                        ),
-                        peg_ratio=(
-                            float(info.get("pegRatio"))
-                            if info.get("pegRatio") is not None
-                            else None
-                        ),
-                        price_to_book=(
-                            float(info.get("priceToBook"))
-                            if info.get("priceToBook") is not None
-                            else None
-                        ),
+                        pe_ratio=(float(info.get("trailingPE")) if info.get("trailingPE") is not None else None),
+                        forward_pe=(float(info.get("forwardPE")) if info.get("forwardPE") is not None else None),
+                        peg_ratio=(float(info.get("pegRatio")) if info.get("pegRatio") is not None else None),
+                        price_to_book=(float(info.get("priceToBook")) if info.get("priceToBook") is not None else None),
                         dividend_yield=(
-                            float(info.get("dividendYield"))
-                            if info.get("dividendYield") is not None
-                            else None
+                            float(info.get("dividendYield")) if info.get("dividendYield") is not None else None
                         ),
                         dividend_rate=(
-                            float(info.get("dividendRate"))
-                            if info.get("dividendRate") is not None
-                            else None
+                            float(info.get("dividendRate")) if info.get("dividendRate") is not None else None
                         ),
-                        eps_ttm=(
-                            float(info.get("trailingEps"))
-                            if info.get("trailingEps") is not None
-                            else None
-                        ),
+                        eps_ttm=(float(info.get("trailingEps")) if info.get("trailingEps") is not None else None),
                         eps_growth=(
-                            float(info.get("earningsGrowth"))
-                            if info.get("earningsGrowth") is not None
-                            else None
+                            float(info.get("earningsGrowth")) if info.get("earningsGrowth") is not None else None
                         ),
                         revenue_growth=(
-                            float(info.get("revenueGrowth"))
-                            if info.get("revenueGrowth") is not None
-                            else None
+                            float(info.get("revenueGrowth")) if info.get("revenueGrowth") is not None else None
                         ),
                         profit_margin=(
-                            float(info.get("profitMargins"))
-                            if info.get("profitMargins") is not None
-                            else None
+                            float(info.get("profitMargins")) if info.get("profitMargins") is not None else None
                         ),
                         debt_to_equity=(
-                            float(info.get("debtToEquity"))
-                            if info.get("debtToEquity") is not None
-                            else None
+                            float(info.get("debtToEquity")) if info.get("debtToEquity") is not None else None
                         ),
                         market_cap=(
                             market_cap
                             if market_cap is not None
-                            else (
-                                float(info.get("marketCap"))
-                                if info.get("marketCap") is not None
-                                else None
-                            )
+                            else (float(info.get("marketCap")) if info.get("marketCap") is not None else None)
                         ),
                     )
                     return True
@@ -370,9 +295,7 @@ class DataRetrieval(BaseDAO):
                     return False
 
             except Exception as e:
-                print(
-                    f"Error in update_fundamental_data attempt {attempt+1} for {symbol}: {str(e)}"
-                )
+                print(f"Error in update_fundamental_data attempt {attempt + 1} for {symbol}: {str(e)}")
                 if attempt == self.max_retries - 1:
                     # This was the last retry attempt
                     return False
@@ -386,12 +309,8 @@ class DataRetrieval(BaseDAO):
             try:
                 # Different delay strategy for retries
                 if attempt > 0:
-                    retry_delay = (attempt * 2 * 60) + random.randint(
-                        10, 30
-                    )  # Progressive backoff
-                    print(
-                        f"Retry attempt {attempt+1}/{self.max_retries} for {symbol} after {retry_delay} seconds..."
-                    )
+                    retry_delay = (attempt * 2 * 60) + random.randint(10, 30)  # Progressive backoff
+                    print(f"Retry attempt {attempt + 1}/{self.max_retries} for {symbol} after {retry_delay} seconds...")
                     time.sleep(retry_delay)
 
                 ticker = yf.Ticker(symbol)
@@ -403,18 +322,14 @@ class DataRetrieval(BaseDAO):
                     # If we can get the last price, the stock is likely active
                     last_price = getattr(fast_info, "last_price", None)
                     if last_price is None or last_price == 0:
-                        print(
-                            f"{symbol} might be delisted or not available (fast_info check)."
-                        )
+                        print(f"{symbol} might be delisted or not available (fast_info check).")
                         is_delisted = True
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
                         print("Rate limit hit when checking fast_info. Will retry.")
                         continue
 
-                    print(
-                        f"Error accessing fast_info for {symbol} history check: {str(e)}"
-                    )
+                    print(f"Error accessing fast_info for {symbol} history check: {str(e)}")
                     # Fall back to traditional method
                     try:
                         info = ticker.info if hasattr(ticker, "info") else {}
@@ -424,16 +339,11 @@ class DataRetrieval(BaseDAO):
                             info = {}
 
                         # Check if ticker is delisted or unavailable
-                        if not info.get("regularMarketPrice") and not info.get(
-                            "financialCurrency"
-                        ):
+                        if not info.get("regularMarketPrice") and not info.get("financialCurrency"):
                             print(f"{symbol} might be delisted or not available.")
                             is_delisted = True
                     except Exception as info_e:
-                        if (
-                            "Too Many Requests" in str(info_e)
-                            and attempt < self.max_retries - 1
-                        ):
+                        if "Too Many Requests" in str(info_e) and attempt < self.max_retries - 1:
                             print("Rate limit hit when checking info. Will retry.")
                             continue
                         print(f"Error accessing info for {symbol}: {str(info_e)}")
@@ -444,9 +354,7 @@ class DataRetrieval(BaseDAO):
                         self.dao.ticker_delisted(symbol)
                     except Exception as e:
                         print(f"Error handling delisted ticker {symbol}: {str(e)}")
-                    return (
-                        True  # Return true because we handled this case appropriately
-                    )
+                    return True  # Return true because we handled this case appropriately
 
                 # Get the historical data
                 df_last_date = self.dao.retrieve_last_activity_date(ticker_id)
@@ -456,11 +364,7 @@ class DataRetrieval(BaseDAO):
                     # Add small delay before getting history
                     time.sleep(random.randint(1, 3))
 
-                    if (
-                        df_last_date is not None
-                        and not df_last_date.empty
-                        and df_last_date.iloc[0, 0] is not None
-                    ):
+                    if df_last_date is not None and not df_last_date.empty and df_last_date.iloc[0, 0] is not None:
                         # If we have previous data, just get data since last update
                         # Add buffer days to avoid hitting exact boundaries which might cause rate limiting
                         last_date = df_last_date.iloc[0, 0]
@@ -477,18 +381,12 @@ class DataRetrieval(BaseDAO):
                         days_difference = (end - start).days
                         if days_difference > 30:
                             # If getting more than a month of data, split into multiple requests
-                            print(
-                                f"Getting history in chunks (incremental update for {days_difference} days)"
-                            )
+                            print(f"Getting history in chunks (incremental update for {days_difference} days)")
                             hist_parts = []
                             current_start = start
                             while current_start < end:
-                                current_end = min(
-                                    current_start + timedelta(days=30), end
-                                )
-                                print(
-                                    f"Getting chunk from {current_start} to {current_end}"
-                                )
+                                current_end = min(current_start + timedelta(days=30), end)
+                                print(f"Getting chunk from {current_start} to {current_end}")
                                 try:
                                     chunk = ticker.history(
                                         interval="1d",
@@ -498,22 +396,15 @@ class DataRetrieval(BaseDAO):
                                     if not chunk.empty:
                                         hist_parts.append(chunk)
                                 except Exception as inner_e:
-                                    if (
-                                        "Too Many Requests" in str(inner_e)
-                                        and attempt < self.max_retries - 1
-                                    ):
+                                    if "Too Many Requests" in str(inner_e) and attempt < self.max_retries - 1:
                                         print(
                                             "Rate limit hit during chunked history request. Will restart with a new retry."
                                         )
                                         raise inner_e  # This will be caught by the outer try/except
                                     else:
-                                        print(
-                                            f"Error during chunk request: {str(inner_e)}"
-                                        )
+                                        print(f"Error during chunk request: {str(inner_e)}")
 
-                                time.sleep(
-                                    random.randint(5, 10)
-                                )  # Wait between chunk requests
+                                time.sleep(random.randint(5, 10))  # Wait between chunk requests
                                 current_start = current_end
 
                             if hist_parts:
@@ -526,16 +417,11 @@ class DataRetrieval(BaseDAO):
                     else:
                         # For new tickers, use 6 months of history to reduce initial data load
                         period = "max"
-                        print(
-                            f"No previous data for {symbol}. Getting {period} of history."
-                        )
+                        print(f"No previous data for {symbol}. Getting {period} of history.")
                         hist = ticker.history(period=period)
 
                 except Exception as hist_e:
-                    if (
-                        "Too Many Requests" in str(hist_e)
-                        and attempt < self.max_retries - 1
-                    ):
+                    if "Too Many Requests" in str(hist_e) and attempt < self.max_retries - 1:
                         print("Rate limit hit when retrieving history. Will retry.")
                         continue
                     else:
@@ -573,9 +459,7 @@ class DataRetrieval(BaseDAO):
                                         float(chunk.loc[idx, "Dividends"]),
                                     )
                             except Exception as e:
-                                print(
-                                    f"Error updating activity for {symbol} on {idx}: {str(e)}"
-                                )
+                                print(f"Error updating activity for {symbol} on {idx}: {str(e)}")
                                 continue
 
                         # Add a small pause between chunks to avoid overwhelming the database
@@ -590,9 +474,7 @@ class DataRetrieval(BaseDAO):
                     return False
 
             except Exception as e:
-                print(
-                    f"Error in update_ticker_history attempt {attempt+1} for {symbol}: {str(e)}"
-                )
+                print(f"Error in update_ticker_history attempt {attempt + 1} for {symbol}: {str(e)}")
                 if attempt == self.max_retries - 1:
                     # This was the last retry attempt
                     return False
@@ -626,9 +508,7 @@ class DataRetrieval(BaseDAO):
 
     def _already_updated_today(self, last_update_date, trading_day_date):
         if last_update_date is None:
-            last_update_date = date.today() - timedelta(
-                days=365 * 5
-            )  # Set to 5 years ago if never updated
+            last_update_date = date.today() - timedelta(days=365 * 5)  # Set to 5 years ago if never updated
         if last_update_date >= trading_day_date:
             return True
 
@@ -637,7 +517,6 @@ class DataRetrieval(BaseDAO):
     def update_stock_activity(self, update_watch_list=True):
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
-
             trading_day = self._find_last_trading_day()
             # TODO: Pass in portfolio_id
             portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
@@ -669,9 +548,7 @@ class DataRetrieval(BaseDAO):
             for ticker_id, symbol, last_update in portfolio_tickers:
                 try:
                     if self._already_updated_today(last_update, trading_day.date()):
-                        print(
-                            f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})"
-                        )
+                        print(f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})")
                         continue
 
                     print(f"\nProcessing {symbol} (ID: {ticker_id})")
@@ -722,9 +599,7 @@ class DataRetrieval(BaseDAO):
                             self.moving_avg.update_moving_averages(ticker_id, period)
                         print(f"Updated Moving Averages for {symbol}")
                     except Exception as e:
-                        print(
-                            f"Error calculating Moving Averages for {symbol}: {str(e)}"
-                        )
+                        print(f"Error calculating Moving Averages for {symbol}: {str(e)}")
                         success = False
 
                     # Calculate Stochastic Oscillator
@@ -750,9 +625,7 @@ class DataRetrieval(BaseDAO):
                         error_count += 1
                         # Take extended break if too many consecutive errors
                         if error_count >= max_consecutive_errors:
-                            print(
-                                f"Too many consecutive errors ({error_count}). Taking a longer break..."
-                            )
+                            print(f"Too many consecutive errors ({error_count}). Taking a longer break...")
                             time.sleep(self.error_pause_time * 2)
                             error_count = 0
                         # Apply error-based rate limiting

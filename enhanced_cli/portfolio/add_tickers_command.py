@@ -46,15 +46,9 @@ class AddTickersCommand(Command):
             ui.status_message(f"Portfolio with ID {portfolio_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(
-                f"Add Tickers to Portfolio #{portfolio_id} - {portfolio['name']}"
-            )
-        )
+        ui.console.print(ui.section_header(f"Add Tickers to Portfolio #{portfolio_id} - {portfolio['name']}"))
 
-        ticker_input = Prompt.ask(
-            "[bold]Enter ticker symbols[/bold] (separated by spaces)"
-        )
+        ticker_input = Prompt.ask("[bold]Enter ticker symbols[/bold] (separated by spaces)")
         ticker_symbols = ticker_input.upper().split()
 
         if ticker_symbols:
@@ -62,8 +56,6 @@ class AddTickersCommand(Command):
                 progress.add_task("", total=None)
                 cli.cli.add_tickers(portfolio_id, ticker_symbols)
 
-            ui.status_message(
-                f"Tickers added to portfolio: {portfolio['name']}", "success"
-            )
+            ui.status_message(f"Tickers added to portfolio: {portfolio['name']}", "success")
         else:
             ui.status_message("No tickers entered.", "warning")

@@ -10,9 +10,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Union
 
 
-def format_date(
-    dt: Union[datetime, date, str, None], format_str: str = "%Y-%m-%d"
-) -> str:
+def format_date(dt: Union[datetime, date, str, None], format_str: str = "%Y-%m-%d") -> str:
     """
     Format a date or datetime object to a string.
 
@@ -38,9 +36,7 @@ def format_date(
     return str(dt)  # Fall back to string conversion
 
 
-def format_number(
-    value: Union[int, float, Decimal, None], decimal_places: int = 2
-) -> str:
+def format_number(value: Union[int, float, Decimal, None], decimal_places: int = 2) -> str:
     """
     Format a number with consistent decimal places.
 
@@ -156,9 +152,7 @@ def truncate_string(text: str, max_length: int = 50, ellipsis: str = "...") -> s
     return text[: max_length - len(ellipsis)] + ellipsis
 
 
-def format_table_row(
-    row_data: Dict[str, Any], column_formats: Dict[str, Dict[str, Any]]
-) -> List[str]:
+def format_table_row(row_data: Dict[str, Any], column_formats: Dict[str, Dict[str, Any]]) -> List[str]:
     """
     Format a row of data for table display according to column formats.
 
@@ -195,11 +189,7 @@ def format_table_row(
         elif format_type == "string" and isinstance(value, str):
             max_length = format_args.get("max_length")
             if max_length:
-                formatted_row.append(
-                    truncate_string(
-                        value, max_length, format_args.get("ellipsis", "...")
-                    )
-                )
+                formatted_row.append(truncate_string(value, max_length, format_args.get("ellipsis", "...")))
             else:
                 formatted_row.append(value)
         else:

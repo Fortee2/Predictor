@@ -4,6 +4,7 @@ LLM Integration Module for Portfolio Analysis
 This module provides LLM-powered analysis of portfolio data using llama-index and AWS Bedrock.
 It creates vector indices of portfolio data and enables natural language queries.
 """
+
 import logging
 from datetime import datetime, timedelta
 from typing import Dict, List
@@ -96,9 +97,7 @@ class LLMPortfolioAnalyzer:
         """Set up the LLM and embedding models using AWS Bedrock."""
         try:
             # Initialize AWS Bedrock client
-            bedrock_client = boto3.client(
-                service_name="bedrock-runtime", region_name=self.aws_region
-            )
+            bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=self.aws_region)
 
             # Initialize Bedrock Converse LLM
             self.llm = BedrockConverse(
@@ -109,18 +108,14 @@ class LLMPortfolioAnalyzer:
             )
 
             # Initialize Bedrock embedding model
-            self.embed_model = BedrockEmbedding(
-                model_name=self.embed_model_name, client=bedrock_client
-            )
+            self.embed_model = BedrockEmbedding(model_name=self.embed_model_name, client=bedrock_client)
 
             # Configure llama-index settings
             Settings.llm = self.llm
             Settings.embed_model = self.embed_model
             Settings.node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
 
-            self.logger.info(
-                "LLM setup completed with Bedrock model: %s", self.model_name
-            )
+            self.logger.info("LLM setup completed with Bedrock model: %s", self.model_name)
             self.logger.info("Embedding model: %s", self.embed_model_name)
 
         except Exception as e:
@@ -154,9 +149,7 @@ class LLMPortfolioAnalyzer:
             # Portfolio overview document
             portfolio_info = self.portfolio_dao.read_portfolio(portfolio_id)
             if portfolio_info:
-                overview_text = self._create_portfolio_overview_text(
-                    portfolio_info, portfolio_id
-                )
+                overview_text = self._create_portfolio_overview_text(portfolio_info, portfolio_id)
                 documents.append(
                     Document(
                         text=overview_text,
@@ -238,18 +231,14 @@ class LLMPortfolioAnalyzer:
                     )
                 )
 
-            self.logger.info(
-                "Created %s documents for portfolio %s", len(documents), portfolio_id
-            )
+            self.logger.info("Created %s documents for portfolio %s", len(documents), portfolio_id)
             return documents
 
         except Exception as e:
             self.logger.error("Error creating portfolio documents: %s", e)
             return []
 
-    def _create_portfolio_overview_text(
-        self, portfolio_info: Dict, portfolio_id: int
-    ) -> str:
+    def _create_portfolio_overview_text(self, portfolio_info: Dict, portfolio_id: int) -> str:
         """Create portfolio overview text."""
         try:
             cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
@@ -259,13 +248,13 @@ class LLMPortfolioAnalyzer:
             active_tickers = [position["symbol"] for position in positions.values()]
 
             text = f"""
-            Portfolio Overview: {portfolio_info['name']}
-            Description: {portfolio_info.get('description', 'No description available')}
-            Creation Date: {portfolio_info.get('date_added', 'Unknown')}
+            Portfolio Overview: {portfolio_info["name"]}
+            Description: {portfolio_info.get("description", "No description available")}
+            Creation Date: {portfolio_info.get("date_added", "Unknown")}
             Current Cash Balance: ${cash_balance:.2f}
             Number of Active Holdings: {len(active_tickers)}
-            Active Holdings: {', '.join(active_tickers) if active_tickers else 'No active positions'}
-            Status: {'Active' if portfolio_info.get('active', True) else 'Inactive'}
+            Active Holdings: {", ".join(active_tickers) if active_tickers else "No active positions"}
+            Status: {"Active" if portfolio_info.get("active", True) else "Inactive"}
             
             This portfolio contains {len(active_tickers)} active stock positions with a cash balance of ${cash_balance:.2f}.
             """
@@ -301,11 +290,7 @@ class LLMPortfolioAnalyzer:
                     total_portfolio_value += current_value
 
                     unrealized_gain_loss = (current_price - avg_price) * shares
-                    gain_loss_pct = (
-                        ((current_price - avg_price) / avg_price * 100)
-                        if avg_price > 0
-                        else 0
-                    )
+                    gain_loss_pct = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
 
                     holdings_info.append(
                         {
@@ -326,16 +311,18 @@ class LLMPortfolioAnalyzer:
                 gain_loss_indicator = (
                     "📈"
                     if holding["unrealized_gain_loss"] > 0
-                    else "📉" if holding["unrealized_gain_loss"] < 0 else "➡️"
+                    else "📉"
+                    if holding["unrealized_gain_loss"] < 0
+                    else "➡️"
                 )
                 text_parts.append(
                     f"""
-                {holding['ticker']}: 
-                - Shares Owned: {holding['shares']:.2f}
-                - Average Cost Basis: ${holding['avg_cost']:.2f}
-                - Current Price: ${holding['current_price']:.2f}  
-                - Current Value: ${holding['current_value']:.2f}
-                - Unrealized Gain/Loss: ${holding['unrealized_gain_loss']:.2f} ({holding['gain_loss_pct']:.1f}%) {gain_loss_indicator}
+                {holding["ticker"]}: 
+                - Shares Owned: {holding["shares"]:.2f}
+                - Average Cost Basis: ${holding["avg_cost"]:.2f}
+                - Current Price: ${holding["current_price"]:.2f}  
+                - Current Value: ${holding["current_value"]:.2f}
+                - Unrealized Gain/Loss: ${holding["unrealized_gain_loss"]:.2f} ({holding["gain_loss_pct"]:.1f}%) {gain_loss_indicator}
                 """
                 )
 
@@ -377,9 +364,7 @@ class LLMPortfolioAnalyzer:
                 current_price = 0
                 try:
                     ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
-                    current_price = (
-                        ticker_data.get("last_price", 0) if ticker_data else 0
-                    )
+                    current_price = ticker_data.get("last_price", 0) if ticker_data else 0
                     if current_price > 0:
                         ticker_analysis.append(f"Current Price: ${current_price:.2f}")
                 except:
@@ -404,9 +389,7 @@ class LLMPortfolioAnalyzer:
                 )
 
                 # Format and display the analysis
-                formatted_output = metrics.format_analysis_output(
-                    analysis, shares_info=position["shares"]
-                )
+                formatted_output = metrics.format_analysis_output(analysis, shares_info=position["shares"])
 
                 # Add ticker analysis to main report if we have any indicators
                 analysis_parts.append(f"\n{ticker}:")
@@ -444,17 +427,13 @@ class LLMPortfolioAnalyzer:
             for ticker_id, position in positions.items():
                 ticker = position["symbol"]
                 try:
-                    fund_data = self.fundamental_dao.get_latest_fundamental_data(
-                        ticker_id
-                    )
+                    fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
                     if fund_data:
                         ticker_info = []
 
                         # Valuation metrics
                         if fund_data.get("pe_ratio"):
-                            ticker_info.append(
-                                f"P/E Ratio: {fund_data['pe_ratio']:.2f}"
-                            )
+                            ticker_info.append(f"P/E Ratio: {fund_data['pe_ratio']:.2f}")
                         if fund_data.get("market_cap") is not None:
                             try:
                                 market_cap_b = float(fund_data["market_cap"]) / 1e9
@@ -462,19 +441,13 @@ class LLMPortfolioAnalyzer:
                             except (TypeError, ValueError):
                                 pass
                         if fund_data.get("dividend_yield"):
-                            ticker_info.append(
-                                f"Dividend Yield: {fund_data['dividend_yield']:.2f}%"
-                            )
+                            ticker_info.append(f"Dividend Yield: {fund_data['dividend_yield']:.2f}%")
 
                         # Growth metrics
                         if fund_data.get("eps_growth"):
-                            ticker_info.append(
-                                f"EPS Growth: {fund_data['eps_growth']:.1f}%"
-                            )
+                            ticker_info.append(f"EPS Growth: {fund_data['eps_growth']:.1f}%")
                         if fund_data.get("revenue_growth"):
-                            ticker_info.append(
-                                f"Revenue Growth: {fund_data['revenue_growth']:.1f}%"
-                            )
+                            ticker_info.append(f"Revenue Growth: {fund_data['revenue_growth']:.1f}%")
 
                         if ticker_info:
                             analysis_parts.append(f"\n{ticker}:")
@@ -500,9 +473,7 @@ class LLMPortfolioAnalyzer:
             all_transactions = []
 
             # Use the transaction history method that exists
-            all_transactions = self.transactions_dao.get_transaction_history(
-                portfolio_id
-            )
+            all_transactions = self.transactions_dao.get_transaction_history(portfolio_id)
 
             # Filter to last 30 days and add ticker symbols
             filtered_transactions = []
@@ -523,9 +494,7 @@ class LLMPortfolioAnalyzer:
                 return "No recent transactions in the last 30 days."
 
             # Sort by date, most recent first
-            all_transactions.sort(
-                key=lambda x: x.get("transaction_date", ""), reverse=True
-            )
+            all_transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
 
             text_parts = ["Recent Transactions (Last 30 Days):\n"]
 
@@ -543,9 +512,7 @@ class LLMPortfolioAnalyzer:
                     )
                 elif trans_type == "Dividend":
                     amount = trans.get("amount", 0)
-                    text_parts.append(
-                        f"  • {date}: Dividend from {ticker}: ${amount:.2f}"
-                    )
+                    text_parts.append(f"  • {date}: Dividend from {ticker}: ${amount:.2f}")
 
             return "\n".join(text_parts)
 
@@ -570,9 +537,7 @@ class LLMPortfolioAnalyzer:
             if not watchlists:
                 return ""
 
-            analysis_parts = [
-                "Watchlist Securities Analysis (Potential Portfolio Additions):\n"
-            ]
+            analysis_parts = ["Watchlist Securities Analysis (Potential Portfolio Additions):\n"]
             analysis_parts.append("=" * 80)
 
             # Track which tickers we've already analyzed to avoid duplicates
@@ -584,9 +549,7 @@ class LLMPortfolioAnalyzer:
                 watchlist_desc = watchlist.get("description", "")
 
                 # Get tickers in this watchlist
-                tickers_in_watchlist = self.watchlist_dao.get_tickers_in_watch_list(
-                    watchlist_id
-                )
+                tickers_in_watchlist = self.watchlist_dao.get_tickers_in_watch_list(watchlist_id)
 
                 if not tickers_in_watchlist:
                     continue
@@ -642,18 +605,14 @@ class LLMPortfolioAnalyzer:
                         ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
                         if ticker_data and ticker_data.get("last_price"):
                             current_price = ticker_data["last_price"]
-                            ticker_summary.append(
-                                f"  Current Price: ${current_price:.2f}"
-                            )
+                            ticker_summary.append(f"  Current Price: ${current_price:.2f}")
                     except:
                         pass
 
                     # RSI
                     if analysis.get("rsi", {}).get("success"):
                         rsi = analysis["rsi"]
-                        ticker_summary.append(
-                            f"  RSI: {rsi['value']:.2f} ({rsi['status']})"
-                        )
+                        ticker_summary.append(f"  RSI: {rsi['value']:.2f} ({rsi['status']})")
 
                     # Moving Average trend
                     if analysis.get("moving_average", {}).get("success"):
@@ -666,9 +625,7 @@ class LLMPortfolioAnalyzer:
                     # MACD signal
                     if analysis.get("macd", {}).get("success"):
                         macd = analysis["macd"]
-                        ticker_summary.append(
-                            f"  MACD Signal: {macd['current_signal']} ({macd['signal_strength']})"
-                        )
+                        ticker_summary.append(f"  MACD Signal: {macd['current_signal']} ({macd['signal_strength']})")
 
                     # Fundamental metrics
                     if analysis.get("fundamental", {}).get("success"):
@@ -683,13 +640,9 @@ class LLMPortfolioAnalyzer:
                             except (TypeError, ValueError):
                                 pass
                         if fund.get("dividend_yield"):
-                            fund_items.append(
-                                f"Div Yield: {fund['dividend_yield']:.2f}%"
-                            )
+                            fund_items.append(f"Div Yield: {fund['dividend_yield']:.2f}%")
                         if fund_items:
-                            ticker_summary.append(
-                                f"  Fundamentals: {', '.join(fund_items)}"
-                            )
+                            ticker_summary.append(f"  Fundamentals: {', '.join(fund_items)}")
 
                     # News sentiment
                     if analysis.get("news_sentiment", {}).get("success"):
@@ -701,15 +654,10 @@ class LLMPortfolioAnalyzer:
                     # Stochastic
                     if analysis.get("stochastic", {}).get("success"):
                         stoch = analysis["stochastic"]
-                        ticker_summary.append(
-                            f"  Stochastic: {stoch['signal']} ({stoch['signal_strength']})"
-                        )
+                        ticker_summary.append(f"  Stochastic: {stoch['signal']} ({stoch['signal_strength']})")
 
                     # Options sentiment
-                    if (
-                        analysis.get("options", {}).get("success")
-                        and "put_call_ratio" in analysis["options"]
-                    ):
+                    if analysis.get("options", {}).get("success") and "put_call_ratio" in analysis["options"]:
                         options = analysis["options"]
                         ticker_summary.append(
                             f"  Options P/C Ratio: {options['put_call_ratio']:.2f} ({options['volume_sentiment']})"
@@ -727,12 +675,8 @@ class LLMPortfolioAnalyzer:
                 return ""
 
             analysis_parts.append("=" * 80)
-            analysis_parts.append(
-                f"\nTotal watchlist securities analyzed: {len(analyzed_tickers)}"
-            )
-            analysis_parts.append(
-                "\nThese securities are being monitored as potential additions to the portfolio."
-            )
+            analysis_parts.append(f"\nTotal watchlist securities analyzed: {len(analyzed_tickers)}")
+            analysis_parts.append("\nThese securities are being monitored as potential additions to the portfolio.")
             analysis_parts.append(
                 "Consider their technical signals, fundamental metrics, and overall market conditions when making investment decisions."
             )
@@ -774,22 +718,16 @@ class LLMPortfolioAnalyzer:
             documents = self.create_portfolio_documents(portfolio_id)
 
             if not documents:
-                self.logger.warning(
-                    "No documents created for portfolio %s", portfolio_id
-                )
+                self.logger.warning("No documents created for portfolio %s", portfolio_id)
                 return None
 
             # Build index
-            index = VectorStoreIndex.from_documents(
-                documents, vector_store=vector_store
-            )
+            index = VectorStoreIndex.from_documents(documents, vector_store=vector_store)
 
             # Cache the index
             self.vector_indices[portfolio_id] = index
 
-            self.logger.info(
-                "Built vector index for portfolio %s with %s documents", portfolio_id, len(documents)
-            )
+            self.logger.info("Built vector index for portfolio %s with %s documents", portfolio_id, len(documents))
             return index
 
         except Exception as e:
@@ -818,9 +756,7 @@ class LLMPortfolioAnalyzer:
                 return "Sorry, I couldn't analyze your portfolio data at the moment."
 
             # Create query engine
-            query_engine = index.as_query_engine(
-                similarity_top_k=5, response_mode="tree_summarize"
-            )
+            query_engine = index.as_query_engine(similarity_top_k=5, response_mode="tree_summarize")
 
             # Add context to the query
             enhanced_query = f"""

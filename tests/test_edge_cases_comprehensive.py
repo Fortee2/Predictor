@@ -32,7 +32,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
         mock_pool.get_connection.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__exit__.return_value = None
-        
+
         # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
         self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
@@ -61,10 +61,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
         # Should handle infinite values (might result in inf metrics)
         self.assertIn("total_return_pct", metrics)
         # Total return might be infinite, but should not crash
-        self.assertTrue(
-            np.isinf(metrics["total_return_pct"])
-            or np.isfinite(metrics["total_return_pct"])
-        )
+        self.assertTrue(np.isinf(metrics["total_return_pct"]) or np.isfinite(metrics["total_return_pct"]))
 
     def test_calculate_performance_metrics_all_zero_returns(self):
         """Test performance metrics with all zero returns."""
@@ -98,9 +95,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
     def test_calculate_performance_metrics_very_small_returns(self):
         """Test performance metrics with very small returns (precision issues)."""
         # Create very small returns (0.0001%)
-        tiny_returns = pd.Series(
-            [0.000001, -0.0000005, 0.0000015, -0.0000002, 0.0000012]
-        )
+        tiny_returns = pd.Series([0.000001, -0.0000005, 0.0000015, -0.0000002, 0.0000012])
 
         metrics = self.analyzer.calculate_performance_metrics(tiny_returns)
 
@@ -112,9 +107,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
         # All values should be finite
         for key, value in metrics.items():
             if value is not None:
-                self.assertTrue(
-                    np.isfinite(value), f"{key} should be finite, got {value}"
-                )
+                self.assertTrue(np.isfinite(value), f"{key} should be finite, got {value}")
 
     def test_benchmark_comparison_mismatched_dates(self):
         """Test benchmark comparison with mismatched date ranges."""
@@ -126,9 +119,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
         benchmark_returns = pd.Series([0.008, -0.003, 0.012, 0.001, 0.010])
         benchmark_returns.index = pd.date_range("2023-01-03", periods=5, freq="D")
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, benchmark_returns)
 
         # Should align dates and calculate metrics for overlapping period
         self.assertIn("beta", metrics)
@@ -149,9 +140,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
         benchmark_returns = pd.Series([0.008, -0.003, 0.012])
         benchmark_returns.index = pd.date_range("2023-02-01", periods=3, freq="D")
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, benchmark_returns)
 
         # Should still calculate basic metrics, but benchmark metrics might be None or default
         self.assertIn("total_return_pct", metrics)
@@ -165,9 +154,7 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
 
     def test_calculate_returns_single_value(self):
         """Test returns calculation with single data point."""
-        single_value_data = pd.DataFrame(
-            {"value": [10000]}, index=pd.date_range("2023-01-01", periods=1, freq="D")
-        )
+        single_value_data = pd.DataFrame({"value": [10000]}, index=pd.date_range("2023-01-01", periods=1, freq="D"))
 
         returns = self.analyzer.calculate_returns(single_value_data)
 
@@ -254,9 +241,7 @@ class TestEdgeCasesFormatter(unittest.TestCase):
         empty_metrics = {}
 
         # Should handle empty metrics gracefully
-        table = self.formatter.create_portfolio_summary_table(
-            empty_metrics, "Empty Portfolio"
-        )
+        table = self.formatter.create_portfolio_summary_table(empty_metrics, "Empty Portfolio")
         self.assertIsNotNone(table)
 
         # Table should have at least the metric column
@@ -277,9 +262,7 @@ class TestEdgeCasesFormatter(unittest.TestCase):
         }
 
         # Should handle partial metrics gracefully
-        table = self.formatter.create_portfolio_summary_table(
-            partial_metrics, "Partial Portfolio"
-        )
+        table = self.formatter.create_portfolio_summary_table(partial_metrics, "Partial Portfolio")
         self.assertIsNotNone(table)
 
         # Should have columns for available timeframes
@@ -298,9 +281,7 @@ class TestEdgeCasesFormatter(unittest.TestCase):
         }
 
         # Should handle None values gracefully
-        table = self.formatter.create_portfolio_summary_table(
-            metrics_with_none, "None Portfolio"
-        )
+        table = self.formatter.create_portfolio_summary_table(metrics_with_none, "None Portfolio")
         self.assertIsNotNone(table)
 
     def test_get_performance_color_edge_cases(self):
@@ -327,9 +308,7 @@ class TestEdgeCasesFormatter(unittest.TestCase):
 
         # Test NaN - NaN comparisons always return False, so it's treated as negative
         color = self.formatter.get_performance_color(float("nan"))
-        self.assertEqual(
-            color, "red"
-        )  # NaN comparisons return False, so treated as negative
+        self.assertEqual(color, "red")  # NaN comparisons return False, so treated as negative
 
 
 class TestDataValidationAndSanitization(unittest.TestCase):
@@ -343,7 +322,7 @@ class TestDataValidationAndSanitization(unittest.TestCase):
         mock_pool.get_connection.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__exit__.return_value = None
-        
+
         # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
         self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 

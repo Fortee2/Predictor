@@ -1,8 +1,11 @@
 import logging
+
 logging.basicConfig(level=logging.DEBUG)
 from contextlib import contextmanager
+from typing import Iterator
 
 import mysql.connector
+from mysql.connector.pooling import PooledMySQLConnection
 
 from .utility import DatabaseConnectionPool
 
@@ -10,22 +13,16 @@ logger = logging.getLogger(__name__)
 
 
 class BaseDAO:
-    
     def __init__(self, pool: DatabaseConnectionPool):
-
         self.pool = pool
         self.current_connection = None
 
-
     @contextmanager
-    def get_connection(self):
+    def get_connection(self) -> Iterator[PooledMySQLConnection]:
         """Context manager for database connections."""
         connection = None
         try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
+            if self.current_connection is not None and self.current_connection.is_connected():
                 connection = self.current_connection
                 yield connection
             else:

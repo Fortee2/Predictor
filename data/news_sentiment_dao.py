@@ -1,12 +1,14 @@
+import logging
 
 import mysql.connector
+
+logger = logging.getLogger(__name__)
 import pandas as pd
 
 from .base_dao import BaseDAO
 
 
 class NewsSentimentDAO(BaseDAO):
-  
     def save_sentiment(
         self,
         ticker_id,
@@ -50,13 +52,13 @@ class NewsSentimentDAO(BaseDAO):
                 )
 
                 cursor.execute(sql, values)
-                self.current_connection.commit()
+                connection.commit()
                 cursor.close()
 
                 return True
 
         except mysql.connector.Error as err:
-            print(f"Error saving news sentiment: {err}")
+            logger.error("Error saving news sentiment: %s", err)
             return False
 
     def get_latest_sentiment(self, ticker_id, limit=10):
@@ -68,7 +70,7 @@ class NewsSentimentDAO(BaseDAO):
                 cursor = connection.cursor()
 
                 sql = """
-                SELECT 
+                SELECT
                     headline, publisher, publish_date,
                     sentiment_score, confidence, article_link
                 FROM news_sentiment
@@ -84,7 +86,7 @@ class NewsSentimentDAO(BaseDAO):
                 return results
 
         except mysql.connector.Error as err:
-            print(f"Error retrieving sentiment data: {err}")
+            logger.error("Error retrieving sentiment data: %s", err)
             return None
 
     def get_sentiment_history(self, ticker_id, days=30):
@@ -96,7 +98,7 @@ class NewsSentimentDAO(BaseDAO):
                 cursor = connection.cursor()
 
                 sql = """
-                SELECT 
+                SELECT
                     DATE(publish_date) as date,
                     AVG(sentiment_score) as avg_sentiment,
                     COUNT(*) as article_count
@@ -118,7 +120,7 @@ class NewsSentimentDAO(BaseDAO):
                 return None
 
         except mysql.connector.Error as err:
-            print(f"Error retrieving sentiment history: {err}")
+            logger.error("Error retrieving sentiment history: %s", err)
             return None
 
     def search_headlines(self, search_term, ticker_id=None):
@@ -138,7 +140,7 @@ class NewsSentimentDAO(BaseDAO):
 
                 if ticker_id:
                     sql = """
-                    SELECT 
+                    SELECT
                         ns.headline, ns.publisher, ns.publish_date,
                         ns.sentiment_score, ns.confidence, ns.article_link,
                         t.ticker
@@ -150,7 +152,7 @@ class NewsSentimentDAO(BaseDAO):
                     cursor.execute(sql, (f"%{search_term}%", ticker_id))
                 else:
                     sql = """
-                    SELECT 
+                    SELECT
                         ns.headline, ns.publisher, ns.publish_date,
                         ns.sentiment_score, ns.confidence, ns.article_link,
                         t.ticker
@@ -167,5 +169,5 @@ class NewsSentimentDAO(BaseDAO):
                 return results
 
         except mysql.connector.Error as err:
-            print(f"Error searching headlines: {err}")
+            logger.error("Error searching headlines: %s", err)
             return None

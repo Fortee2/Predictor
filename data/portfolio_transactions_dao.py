@@ -12,7 +12,7 @@ class PortfolioTransactionsDAO:
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize DAO with a shared database connection pool.
-        
+
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
@@ -210,15 +210,9 @@ class PortfolioTransactionsDAO:
                     continue
 
                 # If we're starting a new ticker, calculate results for the previous one
-                if (
-                    current_ticker is not None
-                    and current_ticker != ticker_id
-                    and buy_queue
-                ):
+                if current_ticker is not None and current_ticker != ticker_id and buy_queue:
                     # Calculate and store position for the previous ticker
-                    self._store_position_data(
-                        positions, current_ticker, buy_queue, symbol
-                    )
+                    self._store_position_data(positions, current_ticker, buy_queue, symbol)
 
                 # Set or update the current ticker and its symbol
                 if current_ticker != ticker_id:
@@ -283,9 +277,7 @@ class PortfolioTransactionsDAO:
                 positions_dict[ticker_id] = {
                     "symbol": symbol,
                     "shares": rounded_shares,
-                    "avg_price": (
-                        round(total_cost / total_shares, 2) if total_shares > 0 else 0
-                    ),
+                    "avg_price": (round(total_cost / total_shares, 2) if total_shares > 0 else 0),
                 }
             return positions_dict
         except Exception as e:

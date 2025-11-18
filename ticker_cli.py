@@ -84,9 +84,7 @@ class TickerCLI:
             ticker_id = self.ticker_dao.get_ticker_id(symbol)
             if not ticker_id:
                 print(f"Ticker {symbol} not found in database. Adding it...")
-                self.ticker_dao.insert_stock(
-                    symbol, symbol
-                )  # Use symbol as temporary name
+                self.ticker_dao.insert_stock(symbol, symbol)  # Use symbol as temporary name
                 ticker_id = self.ticker_dao.get_ticker_id(symbol)
 
             # Update all ticker data
@@ -120,9 +118,7 @@ def main():
     delist_parser = subparsers.add_parser("delist", help="Mark ticker as inactive")
     delist_parser.add_argument("symbol", help="Ticker symbol")
     # Update Data
-    update_data_parser = subparsers.add_parser(
-        "update-data", help="Update ticker data using yfinance"
-    )
+    update_data_parser = subparsers.add_parser("update-data", help="Update ticker data using yfinance")
     update_data_parser.add_argument("symbol", help="Ticker symbol")
 
     args = parser.parse_args()

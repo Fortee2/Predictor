@@ -19,26 +19,19 @@ logger = logging.getLogger("moving_averages")
 
 # Ensure no handlers are outputting to console
 for handler in logger.handlers[:]:
-    if isinstance(handler, logging.StreamHandler) and not isinstance(
-        handler, logging.FileHandler
-    ):
+    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
         logger.removeHandler(handler)
 
 
 class moving_averages(BaseDAO):
-
     def calculateAverage(self, resultColumn, columnToAvg, interval, avgDataFrame):
         """Calculate moving average for a DataFrame column."""
         try:
             ma_idx = avgDataFrame.columns.get_loc(resultColumn)
             close_idx = avgDataFrame.columns.get_loc(columnToAvg)
 
-            for i in range(
-                len(avgDataFrame) - 1, interval - 1, -1
-            ):  # range(start, stop, step)
-                avgDataFrame.iloc[i, ma_idx] = avgDataFrame.iloc[
-                    i - interval : i, close_idx
-                ].mean()
+            for i in range(len(avgDataFrame) - 1, interval - 1, -1):  # range(start, stop, step)
+                avgDataFrame.iloc[i, ma_idx] = avgDataFrame.iloc[i - interval : i, close_idx].mean()
 
             return avgDataFrame
         except Exception as e:
@@ -69,14 +62,10 @@ class moving_averages(BaseDAO):
 
                 cursor.close()
 
-                logger.debug(
-                    "Loaded %s average data points for ticker %s, type %s", len(df), ticker_id, averageType
-                )
+                logger.debug("Loaded %s average data points for ticker %s, type %s", len(df), ticker_id, averageType)
                 return df
         except mysql.connector.Error as e:
-            logger.error(
-                "Database error loading averages for ticker %s, type %s: %s", ticker_id, averageType, str(e)
-            )
+            logger.error("Database error loading averages for ticker %s, type %s: %s", ticker_id, averageType, str(e))
             raise
         except Exception as e:
             logger.error("Error loading averages from DB: %s", str(e))
@@ -105,14 +94,10 @@ class moving_averages(BaseDAO):
                 # If no last date, set it to a very early date to calculate for all data
                 if last_date is None:
                     last_date = "1900-01-01"
-                    logger.debug(
-                        "No previous moving averages found for ticker %s, calculating all", ticker_id
-                    )
+                    logger.debug("No previous moving averages found for ticker %s, calculating all", ticker_id)
                 else:
                     last_date = last_date - timedelta(days=period)
-                    logger.debug(
-                        "Last moving average date for ticker %s: %s", ticker_id, last_date
-                    )
+                    logger.debug("Last moving average date for ticker %s: %s", ticker_id, last_date)
 
                 # Retrieve new data from the activity table since the last moving average calculation
                 cursor.execute(
@@ -126,27 +111,17 @@ class moving_averages(BaseDAO):
                 )
 
                 # Convert fetched data into DataFrame
-                new_data = pd.DataFrame(
-                    cursor.fetchall(), columns=["activity_date", "close"]
-                )
+                new_data = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "close"])
 
                 if not new_data.empty:
-                    logger.info(
-                        "Found %s new data points to calculate moving averages", len(new_data)
-                    )
+                    logger.info("Found %s new data points to calculate moving averages", len(new_data))
 
-                    new_data["activity_date"] = pd.to_datetime(
-                        new_data["activity_date"]
-                    )
+                    new_data["activity_date"] = pd.to_datetime(new_data["activity_date"])
                     new_data = new_data.set_index("activity_date")
 
                     # Calculate moving average for the new data
                     if isinstance(new_data, pd.DataFrame):
-                        new_data["moving_average"] = (
-                            new_data["close"]
-                            .rolling(window=period, min_periods=1)
-                            .mean()
-                        )
+                        new_data["moving_average"] = new_data["close"].rolling(window=period, min_periods=1).mean()
 
                     # Insert or update the moving averages in the investing.averages table
                     rows_updated = 0
@@ -163,13 +138,9 @@ class moving_averages(BaseDAO):
 
                     # Commit the changes to the database
                     connection.commit()
-                    logger.info(
-                        "Updated %s moving averages for ticker %s", rows_updated, ticker_id
-                    )
+                    logger.info("Updated %s moving averages for ticker %s", rows_updated, ticker_id)
                 else:
-                    logger.info(
-                        "No new data found for ticker %s since %s", ticker_id, last_date
-                    )
+                    logger.info("No new data found for ticker %s since %s", ticker_id, last_date)
 
                 cursor.close()
 

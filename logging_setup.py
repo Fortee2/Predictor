@@ -18,8 +18,10 @@ def setup_logging():
                 "formatter": "standard",
             }
         },
-        "formatters": {
-            "standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"}
+        "formatters": {"standard": {"format": "%(asctime)s - %(levelname)s - %(message)s"}},
+        "root": {
+            "handlers": ["timed_rotating"],
+            "level": "INFO",
         },
         "loggers": {
             "moving_averages": {

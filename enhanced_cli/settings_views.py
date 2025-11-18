@@ -97,9 +97,7 @@ class EditSettingsCommand(Command):
 
         # Handle different setting types
         if isinstance(current_value, bool):
-            new_value = ui.confirm_action(
-                f"Enable {key_to_change}?", default=current_value
-            )
+            new_value = ui.confirm_action(f"Enable {key_to_change}?", default=current_value)
         elif isinstance(current_value, int):
             try:
                 new_value = int(
@@ -123,17 +121,13 @@ class EditSettingsCommand(Command):
                 ui.status_message("Invalid input. Please enter a number.", "error")
                 return
         else:
-            new_value = Prompt.ask(
-                f"Enter new value for {key_to_change}", default=str(current_value)
-            )
+            new_value = Prompt.ask(f"Enter new value for {key_to_change}", default=str(current_value))
 
         # Update the setting if changed
         if new_value != current_value:
             config.set(section, key_to_change, new_value)
             if config.save_config():
-                ui.status_message(
-                    f"Setting updated: {key_to_change} = {new_value}", "success"
-                )
+                ui.status_message(f"Setting updated: {key_to_change} = {new_value}", "success")
             else:
                 ui.status_message("Failed to save settings", "error")
         else:

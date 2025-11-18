@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import yfinance as yf
@@ -6,6 +7,8 @@ from transformers import pipeline
 from .news_sentiment_dao import NewsSentimentDAO
 from .utility import DatabaseConnectionPool
 
+logger = logging.getLogger(__name__)
+
 
 class NewsSentimentAnalyzer:
     def __init__(self, pool: DatabaseConnectionPool):
@@ -13,9 +16,7 @@ class NewsSentimentAnalyzer:
 
         # Initialize FinBERT model
         print("Loading FinBERT model...")
-        self.nlp = pipeline(
-            "sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True
-        )
+        self.nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True)
         print("FinBERT model loaded")
 
     def analyze_sentiment(self, text):
@@ -38,7 +39,7 @@ class NewsSentimentAnalyzer:
             return sentiment_score, confidence
 
         except Exception as e:
-            print(f"Error analyzing sentiment: {str(e)}")
+            logger.error("Error analyzing sentiment: %s", str(e))
             return 0, 0
 
     def fetch_and_analyze_news(self, ticker_id, symbol):
@@ -103,9 +104,7 @@ class NewsSentimentAnalyzer:
 
                     # Get publish time from content or use current time
                     try:
-                        publish_time = datetime.strptime(
-                            content_dict.get("pubDate", ""), "%Y-%m-%dT%H:%M:%SZ"
-                        )
+                        publish_time = datetime.strptime(content_dict.get("pubDate", ""), "%Y-%m-%dT%H:%M:%SZ")
                     except:
                         publish_time = datetime.now()
 
@@ -114,9 +113,7 @@ class NewsSentimentAnalyzer:
                     try:
                         if isinstance(content_dict.get("clickThroughUrl"), dict):
                             article_url = content_dict["clickThroughUrl"].get("url")
-                        if not article_url and isinstance(
-                            content_dict.get("canonicalUrl"), dict
-                        ):
+                        if not article_url and isinstance(content_dict.get("canonicalUrl"), dict):
                             article_url = content_dict["canonicalUrl"].get("url")
                     except:
                         pass
@@ -128,9 +125,7 @@ class NewsSentimentAnalyzer:
                     self.sentiment_dao.save_sentiment(
                         ticker_id=ticker_id,
                         headline=headline,
-                        publisher=content_dict.get("provider", {}).get(
-                            "displayName", "Yahoo Finance"
-                        ),
+                        publisher=content_dict.get("provider", {}).get("displayName", "Yahoo Finance"),
                         publish_date=publish_time,
                         sentiment_score=sentiment_score,
                         confidence=confidence,
@@ -138,11 +133,11 @@ class NewsSentimentAnalyzer:
                     )
                     print(f"Processed news item: {headline}")
                 except Exception as e:
-                    print(f"Error processing news item for {symbol}: {str(e)}")
+                    logger.error("Error processing news item for %s: %s", symbol, str(e))
                     continue
 
         except Exception as e:
-            print(f"Error processing news for {symbol}: {str(e)}")
+            logger.error("Error processing news for %s: %s", symbol, str(e))
 
     def get_sentiment_summary(self, ticker_id, symbol):
         """
@@ -160,10 +155,7 @@ class NewsSentimentAnalyzer:
                 }
 
             # Check if we only have a "no news" entry
-            if (
-                len(sentiment_data) == 1
-                and sentiment_data[0]["headline"] == "No recent news available"
-            ):
+            if len(sentiment_data) == 1 and sentiment_data[0]["headline"] == "No recent news available":
                 return {
                     "symbol": symbol,
                     "status": "No recent news",
@@ -216,5 +208,5 @@ class NewsSentimentAnalyzer:
             }
 
         except Exception as e:
-            print(f"Error getting sentiment summary: {str(e)}")
+            logger.error("Error getting sentiment summary: %s", str(e))
             return None

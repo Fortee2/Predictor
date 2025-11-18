@@ -1,4 +1,5 @@
 import datetime
+import logging
 from functools import lru_cache
 
 import mysql.connector
@@ -8,13 +9,15 @@ from .portfolio_transactions_dao import PortfolioTransactionsDAO
 from .ticker_dao import TickerDao
 from .utility import DatabaseConnectionPool
 
+logger = logging.getLogger(__name__)
+
 
 class PortfolioDAO(BaseDAO):
     def __init__(self, pool: DatabaseConnectionPool):
         super().__init__(pool)
         self.transactions_dao = PortfolioTransactionsDAO(pool)
         self.ticker_dao = TickerDao(pool)
-       
+
     def create_portfolio(self, name, description, initial_cash=0.0):
         try:
             with self.get_connection() as connection:
@@ -27,7 +30,7 @@ class PortfolioDAO(BaseDAO):
                 print(f"Created new portfolio with ID {portfolio_id}")
                 return portfolio_id
         except mysql.connector.Error as e:
-            print(f"Error creating portfolio: {e}")
+            logger.error("Error creating portfolio: %s", e)
             return None
 
     def get_cash_balance(self, portfolio_id, as_of_date=None):
@@ -57,7 +60,7 @@ class PortfolioDAO(BaseDAO):
             return self.get_historical_cash_balance(portfolio_id, as_of_date)
 
         except mysql.connector.Error as e:
-            print(f"Error retrieving cash balance: {e}")
+            logger.error("Error retrieving cash balance: %s", e)
             return 0.0
 
     def get_historical_cash_balance(self, portfolio_id, as_of_date):
@@ -77,9 +80,9 @@ class PortfolioDAO(BaseDAO):
 
                 # Check if the cash_balance_history table exists
                 check_table_query = """
-                    SELECT COUNT(*) as count 
-                    FROM information_schema.tables 
-                    WHERE table_schema = DATABASE() 
+                    SELECT COUNT(*) as count
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
                     AND table_name = 'cash_balance_history'
                 """
                 cursor.execute(check_table_query)
@@ -93,7 +96,7 @@ class PortfolioDAO(BaseDAO):
                 query = """
                     SELECT balance_after
                     FROM cash_balance_history
-                    WHERE portfolio_id = %s 
+                    WHERE portfolio_id = %s
                     AND DATE(transaction_date) <= %s
                     ORDER BY transaction_date DESC, id DESC
                     LIMIT 1
@@ -108,7 +111,7 @@ class PortfolioDAO(BaseDAO):
                 return 0.0
 
         except mysql.connector.Error as e:
-            print(f"Error retrieving historical cash balance: {e}")
+            logger.error("Error retrieving historical cash balance: %s", e)
             return 0.0
 
     def update_cash_balance(self, portfolio_id, new_balance):
@@ -130,7 +133,7 @@ class PortfolioDAO(BaseDAO):
                 connection.commit()
                 return True
         except mysql.connector.Error as e:
-            print(f"Error updating cash balance: {e}")
+            logger.error("Error updating cash balance: %s", e)
             connection.rollback()
             return False
 
@@ -150,9 +153,9 @@ class PortfolioDAO(BaseDAO):
 
                 # Check if the cash_balance_history table exists
                 check_table_query = """
-                    SELECT COUNT(*) as count 
-                    FROM information_schema.tables 
-                    WHERE table_schema = DATABASE() 
+                    SELECT COUNT(*) as count
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
                     AND table_name = 'cash_balance_history'
                 """
                 cursor.execute(check_table_query)
@@ -197,7 +200,7 @@ class PortfolioDAO(BaseDAO):
                 return running_balance
 
         except mysql.connector.Error as e:
-            print(f"Error recalculating cash balance: {e}")
+            logger.error("Error recalculating cash balance: %s", e)
             connection.rollback()
             return self.get_cash_balance(portfolio_id)
         finally:
@@ -222,7 +225,7 @@ class PortfolioDAO(BaseDAO):
                 return new_balance
             return current_balance
         except Exception as e:
-            print(f"Error adding cash: {e}")
+            logger.error("Error adding cash: %s", e)
             return self.get_cash_balance(portfolio_id)
 
     def withdraw_cash(self, portfolio_id, amount):
@@ -249,7 +252,7 @@ class PortfolioDAO(BaseDAO):
                 return new_balance
             return current_balance
         except Exception as e:
-            print(f"Error withdrawing cash: {e}")
+            logger.error("Error withdrawing cash: %s", e)
             return self.get_cash_balance(portfolio_id)
 
     @lru_cache(maxsize=32)
@@ -268,7 +271,7 @@ class PortfolioDAO(BaseDAO):
                     return cursor.fetchone()  # Return single portfolio as dict
                 return cursor.fetchall()  # Return list of portfolio dicts
         except mysql.connector.Error as e:
-            print(f"Error reading portfolio: {e}")
+            logger.error("Error reading portfolio: %s", e)
 
     def update_portfolio(self, portfolio_id, name=None, description=None, active=None):
         try:
@@ -291,7 +294,7 @@ class PortfolioDAO(BaseDAO):
                 connection.commit()
                 print(f"Updated portfolio {portfolio_id}")
         except mysql.connector.Error as e:
-            print(f"Error updating portfolio: {e}")
+            logger.error("Error updating portfolio: %s", e)
 
     def delete_portfolio(self, portfolio_id):
         try:
@@ -303,7 +306,7 @@ class PortfolioDAO(BaseDAO):
                 connection.commit()
                 print(f"Deleted portfolio {portfolio_id}")
         except mysql.connector.Error as e:
-            print(f"Error deleting portfolio: {e}")
+            logger.error("Error deleting portfolio: %s", e)
 
     def add_tickers_to_portfolio(self, portfolio_id, ticker_symbols):
         try:
@@ -342,7 +345,7 @@ class PortfolioDAO(BaseDAO):
                 connection.commit()
                 print(f"Added {added_count} tickers to portfolio {portfolio_id}")
         except mysql.connector.Error as e:
-            print(f"Error adding tickers to portfolio: {e}")
+            logger.error("Error adding tickers to portfolio: %s", e)
             connection.rollback()
 
     def remove_tickers_from_portfolio(self, portfolio_id, ticker_symbols):
@@ -372,7 +375,7 @@ class PortfolioDAO(BaseDAO):
                 connection.commit()
                 print(f"Removed {removed_count} tickers from portfolio {portfolio_id}")
         except mysql.connector.Error as e:
-            print(f"Error removing tickers from portfolio: {e}")
+            logger.error("Error removing tickers from portfolio: %s", e)
             connection.rollback()
 
     def get_tickers_in_portfolio(self, portfolio_id):
@@ -380,7 +383,7 @@ class PortfolioDAO(BaseDAO):
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = """select distinct ticker
-                    from portfolio_securities ps 
+                    from portfolio_securities ps
                         inner join tickers t on ps.ticker_id = t.id
                         WHERE portfolio_id = %s
                     order by ticker; """
@@ -389,7 +392,7 @@ class PortfolioDAO(BaseDAO):
                 ticker_ids = [row[0] for row in cursor.fetchall()]
                 return ticker_ids
         except mysql.connector.Error as e:
-            print(f"Error retrieving tickers in portfolio: {e}")
+            logger.error("Error retrieving tickers in portfolio: %s", e)
             return []
 
     def is_ticker_in_portfolio(self, portfolio_id, ticker_symbol):
@@ -405,7 +408,7 @@ class PortfolioDAO(BaseDAO):
                 count = cursor.fetchone()[0]
                 return count > 0
         except mysql.connector.Error as e:
-            print(f"Error checking if ticker is in portfolio: {e}")
+            logger.error("Error checking if ticker is in portfolio: %s", e)
             return False
 
     def get_portfolios_with_ticker(self, ticker_symbol):
@@ -420,7 +423,7 @@ class PortfolioDAO(BaseDAO):
                 cursor.execute(query, values)
                 return [row[0] for row in cursor.fetchall()]
         except mysql.connector.Error as e:
-            print(f"Error retrieving portfolios with ticker: {e}")
+            logger.error("Error retrieving portfolios with ticker: %s", e)
             return []
 
     @lru_cache(maxsize=32)
@@ -437,18 +440,18 @@ class PortfolioDAO(BaseDAO):
                 else:
                     return None
         except mysql.connector.Error as e:
-            print(f"Error retrieving security ID: {e}")
+            logger.error("Error retrieving security ID: %s", e)
             return None
 
     def get_all_tickers_in_portfolios(self):
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                query = """SELECT DISTINCT 
-                        ps.ticker_id as id, 
-                        t.ticker as symbol, 
+                query = """SELECT DISTINCT
+                        ps.ticker_id as id,
+                        t.ticker as symbol,
                         max(a.activity_date) as last_update
-                    FROM portfolio_securities ps 
+                    FROM portfolio_securities ps
                     INNER JOIN tickers t ON ps.ticker_id = t.id
                     LEFT JOIN activity a ON ps.ticker_id = a.ticker_id
                     group by ps.ticker_id, t.ticker
@@ -456,7 +459,7 @@ class PortfolioDAO(BaseDAO):
                 cursor.execute(query)
                 return cursor.fetchall()
         except mysql.connector.Error as e:
-            print(f"Error retrieving all tickers in portfolios: {e}")
+            logger.error("Error retrieving all tickers in portfolios: %s", e)
             return []
 
     def log_transaction(
@@ -534,7 +537,7 @@ class PortfolioDAO(BaseDAO):
 
                 # Insert the transaction into history
                 insert_query = """
-                    INSERT INTO cash_balance_history 
+                    INSERT INTO cash_balance_history
                     (portfolio_id, transaction_date, amount, transaction_type, description, balance_after)
                     VALUES (%s, %s, %s, %s, %s, %s)
                 """
@@ -555,7 +558,7 @@ class PortfolioDAO(BaseDAO):
                 return new_balance
 
         except mysql.connector.Error as e:
-            print(f"Error logging cash transaction: {e}")
+            logger.error("Error logging cash transaction: %s", e)
             connection.rollback()
             return self.get_cash_balance(portfolio_id)
 
@@ -575,9 +578,9 @@ class PortfolioDAO(BaseDAO):
 
                 # Check if the cash_balance_history table exists
                 check_table_query = """
-                    SELECT COUNT(*) as count 
-                    FROM information_schema.tables 
-                    WHERE table_schema = DATABASE() 
+                    SELECT COUNT(*) as count
+                    FROM information_schema.tables
+                    WHERE table_schema = DATABASE()
                     AND table_name = 'cash_balance_history'
                 """
                 cursor.execute(check_table_query)
@@ -611,5 +614,5 @@ class PortfolioDAO(BaseDAO):
                 return cursor.fetchall()
 
         except mysql.connector.Error as e:
-            print(f"Error retrieving cash transaction history: {e}")
+            logger.error("Error retrieving cash transaction history: %s", e)
             return []

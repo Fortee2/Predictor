@@ -1,4 +1,5 @@
 import decimal
+import logging
 import os
 
 import pandas as pd
@@ -6,9 +7,10 @@ from dotenv import load_dotenv
 
 from .ticker_dao import TickerDao
 
+logger = logging.getLogger(__name__)
+
 
 class BollingerBandAnalyzer:
-
     def __init__(self, ticker_dao):
         self.ticker_dao = ticker_dao
         self.tickers = {}
@@ -38,9 +40,7 @@ class BollingerBandAnalyzer:
 
             # Convert to float and handle any potential NaN values
             sma_value = float(latest["sma"]) if not pd.isna(latest["sma"]) else 0.0
-            stddev_value = (
-                float(latest["stddev"]) if not pd.isna(latest["stddev"]) else 0.0
-            )
+            stddev_value = float(latest["stddev"]) if not pd.isna(latest["stddev"]) else 0.0
 
             return {"bollinger_bands": {"mean": sma_value, "stddev": stddev_value}}
         except (
@@ -51,7 +51,7 @@ class BollingerBandAnalyzer:
             # Return reasonable default values in case of division errors
             return {"bollinger_bands": {"mean": 0.0, "stddev": 0.0}}
         except Exception as e:
-            print(f"Error generating Bollinger Band data: {str(e)}")
+            logger.error("Error generating Bollinger Band data: %s", str(e))
             return None
 
     def generate_interpretation(self, ticker_id):
@@ -91,48 +91,23 @@ class BollingerBandAnalyzer:
                     f"{symbol} is trading below the lower Bollinger Band (${lower_band:.2f}), suggesting oversold conditions."
                 )
             else:
-                print(
-                    f"{symbol} is trading within the Bollinger Bands (${lower_band:.2f} - ${upper_band:.2f})."
-                )
+                print(f"{symbol} is trading within the Bollinger Bands (${lower_band:.2f} - ${upper_band:.2f}).")
 
             if stddev == 0:
                 print(
                     "Warning: Standard deviation is 0, indicating insufficient price variation in the calculation period."
                 )
             elif mean > 0 and (stddev / mean) < 0.01:  # Less than 1% of mean
-                print(
-                    f"The Bollinger Bands are narrow (stddev: ${stddev:.2f}), indicating low volatility."
-                )
+                print(f"The Bollinger Bands are narrow (stddev: ${stddev:.2f}), indicating low volatility.")
             elif mean > 0 and (stddev / mean) > 0.04:  # More than 4% of mean
-                print(
-                    f"The Bollinger Bands are wide (stddev: ${stddev:.2f}), indicating high volatility."
-                )
+                print(f"The Bollinger Bands are wide (stddev: ${stddev:.2f}), indicating high volatility.")
             else:
-                print(
-                    f"The Bollinger Bands show normal volatility (stddev: ${stddev:.2f})."
-                )
+                print(f"The Bollinger Bands show normal volatility (stddev: ${stddev:.2f}).")
         except (
             ZeroDivisionError,
             decimal.DivisionUndefined,
             decimal.InvalidOperation,
         ) as e:
-            print(f"Unable to generate Bollinger Bands interpretation: {str(e)}")
+            logger.error("Unable to generate Bollinger Bands interpretation: %s", str(e))
         except Exception as e:
-            print(f"Error interpreting Bollinger Bands: {str(e)}")
-
-
-if __name__ == "__main__":
-    load_dotenv()
-
-    analyzer = BollingerBandAnalyzer(
-        ticker_dao=TickerDao(
-            os.getenv("DB_USER"),
-            os.getenv("DB_PASSWORD"),
-            os.getenv("DB_HOST"),
-            os.getenv("DB_NAME"),
-        )
-    )
-    data_points = analyzer.generate_bollinger_band_data("AAPL")
-    print(data_points)
-
-    analyzer.generate_interpretation("AAPL")
+            logger.error("Error interpreting Bollinger Bands: %s", str(e))

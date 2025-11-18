@@ -62,9 +62,7 @@ class CommandRegistry:
         self._categories: Dict[str, List[str]] = {}
         self.console = console or Console()
 
-    def register(
-        self, command_id: str, command_or_func: Any = None, category: str = "default"
-    ) -> Any:
+    def register(self, command_id: str, command_or_func: Any = None, category: str = "default") -> Any:
         """
         Register a command with a unique ID in a specific category.
         Can be used as a decorator or with a Command instance.
@@ -80,11 +78,9 @@ class CommandRegistry:
         if command_or_func is not None and isinstance(command_or_func, Command):
             # Direct registration of a Command instance
             command = command_or_func
-            
+
             if command_id in self._commands:
-                self.console.print(
-                    f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]"
-                )
+                self.console.print(f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]")
 
             self._commands[command_id] = command
 
@@ -93,9 +89,9 @@ class CommandRegistry:
 
             if command_id not in self._categories[category]:
                 self._categories[category].append(command_id)
-                
+
             return None
-        
+
         # Decorator usage
         def decorator(func):
             # Create a Command instance from the function
@@ -110,9 +106,7 @@ class CommandRegistry:
             command = FunctionCommand(func, command_id)
 
             if command_id in self._commands:
-                self.console.print(
-                    f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]"
-                )
+                self.console.print(f"[bold yellow]Warning: Command {command_id} is being overwritten[/bold yellow]")
 
             self._commands[command_id] = command
 
@@ -151,11 +145,7 @@ class CommandRegistry:
         if category not in self._categories:
             return []
 
-        return [
-            self._commands[cmd_id]
-            for cmd_id in self._categories[category]
-            if cmd_id in self._commands
-        ]
+        return [self._commands[cmd_id] for cmd_id in self._categories[category] if cmd_id in self._commands]
 
     def get_categories(self) -> List[str]:
         """
@@ -205,9 +195,7 @@ def error_handler(operation_name: str):
             try:
                 return func(*args, **kwargs)
             except Exception as e:
-                console.print(
-                    f"[bold red]Error during {operation_name}: {str(e)}[/bold red]"
-                )
+                console.print(f"[bold red]Error during {operation_name}: {str(e)}[/bold red]")
                 import traceback
 
                 console.print("[dim]" + traceback.format_exc() + "[/dim]")

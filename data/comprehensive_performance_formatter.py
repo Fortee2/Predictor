@@ -35,9 +35,7 @@ class ComprehensivePerformanceFormatter:
             return "white"
         return "green" if value >= 0 else "red"
 
-    def create_portfolio_summary_table(
-        self, portfolio_metrics: Dict, portfolio_name: str
-    ) -> Table:
+    def create_portfolio_summary_table(self, portfolio_metrics: Dict, portfolio_name: str) -> Table:
         """
         Create a summary table for portfolio performance across timeframes.
 
@@ -101,9 +99,7 @@ class ComprehensivePerformanceFormatter:
 
         return table
 
-    def create_holdings_performance_table(
-        self, holdings_metrics: Dict, portfolio_name: str
-    ) -> Table:
+    def create_holdings_performance_table(self, holdings_metrics: Dict, portfolio_name: str) -> Table:
         """
         Create the requested tabular format for individual holdings.
         Format: Holding | 1M | 3M | 6M | 1Y | 2Y | 5Y | Max DD | Sharpe | vs S&P500
@@ -156,10 +152,7 @@ class ComprehensivePerformanceFormatter:
             # Add Max Drawdown (use 1Y timeframe as representative)
             max_dd = None
             for tf in ["1Y", "6M", "3M", "1M"]:  # Try timeframes in order of preference
-                if (
-                    tf in timeframe_metrics
-                    and "max_drawdown_pct" in timeframe_metrics[tf]
-                ):
+                if tf in timeframe_metrics and "max_drawdown_pct" in timeframe_metrics[tf]:
                     max_dd = timeframe_metrics[tf]["max_drawdown_pct"]
                     break
 
@@ -186,10 +179,7 @@ class ComprehensivePerformanceFormatter:
             # Add vs S&P 500 (use 1Y timeframe as representative)
             excess_return = None
             for tf in ["1Y", "6M", "3M", "1M"]:
-                if (
-                    tf in timeframe_metrics
-                    and "excess_return_pct" in timeframe_metrics[tf]
-                ):
+                if tf in timeframe_metrics and "excess_return_pct" in timeframe_metrics[tf]:
                     excess_return = timeframe_metrics[tf]["excess_return_pct"]
                     break
 
@@ -204,9 +194,7 @@ class ComprehensivePerformanceFormatter:
 
         return table
 
-    def create_risk_metrics_table(
-        self, portfolio_metrics: Dict, portfolio_name: str
-    ) -> Table:
+    def create_risk_metrics_table(self, portfolio_metrics: Dict, portfolio_name: str) -> Table:
         """
         Create a detailed risk metrics table.
 
@@ -251,22 +239,13 @@ class ComprehensivePerformanceFormatter:
                     formatted_value = formatter(value)
 
                     # Color coding for risk metrics
-                    if (
-                        metric_key in ["volatility_pct", "max_drawdown_pct"]
-                        and value is not None
-                    ):
+                    if metric_key in ["volatility_pct", "max_drawdown_pct"] and value is not None:
                         # Higher volatility/drawdown = red, lower = green
-                        color = (
-                            "red" if value > 15 else "yellow" if value > 10 else "green"
-                        )
+                        color = "red" if value > 15 else "yellow" if value > 10 else "green"
                         row_data.append(f"[{color}]{formatted_value}[/{color}]")
                     elif metric_key == "beta" and value is not None:
                         # Beta > 1 = red (more volatile), < 1 = green (less volatile)
-                        color = (
-                            "red"
-                            if value > 1.2
-                            else "yellow" if value > 0.8 else "green"
-                        )
+                        color = "red" if value > 1.2 else "yellow" if value > 0.8 else "green"
                         row_data.append(f"[{color}]{formatted_value}[/{color}]")
                     else:
                         row_data.append(formatted_value)
@@ -277,9 +256,7 @@ class ComprehensivePerformanceFormatter:
 
         return table
 
-    def create_benchmark_comparison_table(
-        self, portfolio_metrics: Dict, portfolio_name: str
-    ) -> Table:
+    def create_benchmark_comparison_table(self, portfolio_metrics: Dict, portfolio_name: str) -> Table:
         """
         Create a benchmark comparison table.
 
@@ -318,27 +295,21 @@ class ComprehensivePerformanceFormatter:
             portfolio_formatted = self.format_percentage(portfolio_return)
             if portfolio_return is not None:
                 port_color = self.get_performance_color(portfolio_return)
-                portfolio_formatted = (
-                    f"[{port_color}]{portfolio_formatted}[/{port_color}]"
-                )
+                portfolio_formatted = f"[{port_color}]{portfolio_formatted}[/{port_color}]"
 
             # Benchmark return
             benchmark_return = metrics.get("benchmark_return_pct")
             benchmark_formatted = self.format_percentage(benchmark_return)
             if benchmark_return is not None:
                 bench_color = self.get_performance_color(benchmark_return)
-                benchmark_formatted = (
-                    f"[{bench_color}]{benchmark_formatted}[/{bench_color}]"
-                )
+                benchmark_formatted = f"[{bench_color}]{benchmark_formatted}[/{bench_color}]"
 
             # Excess return
             excess_return = metrics.get("excess_return_pct")
             excess_formatted = self.format_percentage(excess_return)
             if excess_return is not None:
                 excess_color = self.get_performance_color(excess_return)
-                excess_formatted = (
-                    f"[{excess_color}]{excess_formatted}[/{excess_color}]"
-                )
+                excess_formatted = f"[{excess_color}]{excess_formatted}[/{excess_color}]"
 
             # Alpha
             alpha = metrics.get("alpha")
@@ -362,9 +333,7 @@ class ComprehensivePerformanceFormatter:
 
         return table
 
-    def create_market_events_context_table(
-        self, portfolio_id: int, market_events_performance: Dict
-    ) -> Table:
+    def create_market_events_context_table(self, portfolio_id: int, market_events_performance: Dict) -> Table:
         """
         Create a table showing portfolio performance during major market events.
 
@@ -398,17 +367,13 @@ class ComprehensivePerformanceFormatter:
             portfolio_formatted = self.format_percentage(portfolio_return)
             if portfolio_return is not None:
                 port_color = self.get_performance_color(portfolio_return)
-                portfolio_formatted = (
-                    f"[{port_color}]{portfolio_formatted}[/{port_color}]"
-                )
+                portfolio_formatted = f"[{port_color}]{portfolio_formatted}[/{port_color}]"
 
             benchmark_return = event_data.get("benchmark_return_pct")
             benchmark_formatted = self.format_percentage(benchmark_return)
             if benchmark_return is not None:
                 bench_color = self.get_performance_color(benchmark_return)
-                benchmark_formatted = (
-                    f"[{bench_color}]{benchmark_formatted}[/{bench_color}]"
-                )
+                benchmark_formatted = f"[{bench_color}]{benchmark_formatted}[/{bench_color}]"
 
             relative_return = event_data.get("relative_return_pct")
             relative_formatted = self.format_percentage(relative_return)
@@ -453,49 +418,37 @@ class ComprehensivePerformanceFormatter:
         """
         self.console.print("\n")
         self.console.print("=" * 100, style="bold blue")
-        self.console.print(
-            "COMPREHENSIVE PORTFOLIO ANALYSIS", style="bold blue", justify="center"
-        )
+        self.console.print("COMPREHENSIVE PORTFOLIO ANALYSIS", style="bold blue", justify="center")
         self.console.print("=" * 100, style="bold blue")
         self.console.print("\n")
 
         # Portfolio Summary Table
         if portfolio_metrics:
-            summary_table = self.create_portfolio_summary_table(
-                portfolio_metrics, portfolio_name
-            )
+            summary_table = self.create_portfolio_summary_table(portfolio_metrics, portfolio_name)
             self.console.print(summary_table)
             self.console.print("\n")
 
         # Holdings Performance Table (the requested format)
         if holdings_metrics:
-            holdings_table = self.create_holdings_performance_table(
-                holdings_metrics, portfolio_name
-            )
+            holdings_table = self.create_holdings_performance_table(holdings_metrics, portfolio_name)
             self.console.print(holdings_table)
             self.console.print("\n")
 
         # Risk Metrics Table
         if portfolio_metrics:
-            risk_table = self.create_risk_metrics_table(
-                portfolio_metrics, portfolio_name
-            )
+            risk_table = self.create_risk_metrics_table(portfolio_metrics, portfolio_name)
             self.console.print(risk_table)
             self.console.print("\n")
 
         # Benchmark Comparison Table
         if portfolio_metrics:
-            benchmark_table = self.create_benchmark_comparison_table(
-                portfolio_metrics, portfolio_name
-            )
+            benchmark_table = self.create_benchmark_comparison_table(portfolio_metrics, portfolio_name)
             self.console.print(benchmark_table)
             self.console.print("\n")
 
         # Market Events Context Table
         if market_events_performance:
-            events_table = self.create_market_events_context_table(
-                1, market_events_performance
-            )
+            events_table = self.create_market_events_context_table(1, market_events_performance)
             self.console.print(events_table)
             self.console.print("\n")
 

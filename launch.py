@@ -23,9 +23,7 @@ def check_dependencies():
         console.print("[bold red]Missing required packages:[/bold red]")
         for package in missing_packages:
             console.print(f"- {package}")
-        console.print(
-            "\n[bold yellow]Please install the missing packages using:[/bold yellow]"
-        )
+        console.print("\n[bold yellow]Please install the missing packages using:[/bold yellow]")
         console.print(f"pip install {' '.join(missing_packages)}")
         return False
     return True
@@ -34,12 +32,8 @@ def check_dependencies():
 def main():
     """Main launcher function."""
     parser = argparse.ArgumentParser(description="Portfolio & Stock Management System")
-    parser.add_argument(
-        "--cli", action="store_true", help="Use traditional CLI interface"
-    )
-    parser.add_argument(
-        "args", nargs=argparse.REMAINDER, help="Arguments to pass to the CLI"
-    )
+    parser.add_argument("--cli", action="store_true", help="Use traditional CLI interface")
+    parser.add_argument("args", nargs=argparse.REMAINDER, help="Arguments to pass to the CLI")
 
     args = parser.parse_args()
 

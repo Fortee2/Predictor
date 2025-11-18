@@ -57,9 +57,7 @@ class FIFOCostBasisCalculator:
         lot = FIFOLot(shares, price, purchase_date)
         self.lots.append(lot)
 
-    def process_sale(
-        self, shares_to_sell: float, sale_price: float, sale_date: date
-    ) -> Dict[str, Any]:
+    def process_sale(self, shares_to_sell: float, sale_price: float, sale_date: date) -> Dict[str, Any]:
         """
         Process a sale transaction using FIFO method.
 
@@ -80,9 +78,7 @@ class FIFOCostBasisCalculator:
         if shares_to_sell <= 0 or sale_price <= 0:
             raise ValueError("Shares to sell and sale price must be positive")
 
-        shares_remaining_to_sell = Decimal(str(shares_to_sell)).quantize(
-            Decimal("0.0001")
-        )
+        shares_remaining_to_sell = Decimal(str(shares_to_sell)).quantize(Decimal("0.0001"))
         sale_price_decimal = Decimal(str(sale_price)).quantize(Decimal("0.01"))
 
         total_proceeds = Decimal("0")
@@ -151,9 +147,7 @@ class FIFOCostBasisCalculator:
             "realized_gain_loss": realized_gain_loss,
             "lots_used": lots_used,
             "remaining_shares": self.get_total_shares(),
-            "oversold_shares": (
-                float(shares_remaining_to_sell) if shares_remaining_to_sell > 0 else 0
-            ),
+            "oversold_shares": (float(shares_remaining_to_sell) if shares_remaining_to_sell > 0 else 0),
         }
 
     def get_total_shares(self) -> Decimal:
@@ -168,9 +162,7 @@ class FIFOCostBasisCalculator:
         """Get average cost per share of all held shares."""
         total_shares = self.get_total_shares()
         if total_shares > 0:
-            return (self.get_total_cost_basis() / total_shares).quantize(
-                Decimal("0.01")
-            )
+            return (self.get_total_cost_basis() / total_shares).quantize(Decimal("0.01"))
         return Decimal("0")
 
     def get_unrealized_gain_loss(self, current_price: float) -> Dict[str, Any]:
@@ -197,9 +189,7 @@ class FIFOCostBasisCalculator:
             "current_market_value": float(current_market_value),
             "unrealized_gain_loss": float(unrealized_gain_loss),
             "unrealized_gain_loss_pct": (
-                float((unrealized_gain_loss / total_cost_basis * 100))
-                if total_cost_basis > 0
-                else 0
+                float((unrealized_gain_loss / total_cost_basis * 100)) if total_cost_basis > 0 else 0
             ),
         }
 
@@ -223,9 +213,7 @@ class FIFOCostBasisCalculator:
             "average_cost_per_share": float(avg_cost),
             "number_of_lots": len(self.lots),
             "realized_transactions": len(self.realized_gains),
-            "total_realized_gain_loss": sum(
-                rg["realized_gain_loss"] for rg in self.realized_gains
-            ),
+            "total_realized_gain_loss": sum(rg["realized_gain_loss"] for rg in self.realized_gains),
         }
 
         if current_price is not None:
@@ -276,9 +264,7 @@ def calculate_fifo_position_from_transactions(
     calculator = FIFOCostBasisCalculator()
 
     # Sort transactions by date to ensure proper chronological processing
-    sorted_transactions = sorted(
-        transactions, key=lambda x: (x["transaction_date"], x.get("id", 0))
-    )
+    sorted_transactions = sorted(transactions, key=lambda x: (x["transaction_date"], x.get("id", 0)))
 
     for transaction in sorted_transactions:
         trans_type = transaction["transaction_type"]

@@ -127,12 +127,8 @@ def test_universal_value_service():
                     print(f"    Universal avg price: ${universal_pos['avg_price']:.2f}")
 
                     # Check for discrepancies
-                    shares_match = (
-                        abs(legacy_pos["shares"] - universal_pos["shares"]) < 0.0001
-                    )
-                    price_match = (
-                        abs(legacy_pos["avg_price"] - universal_pos["avg_price"]) < 0.01
-                    )
+                    shares_match = abs(legacy_pos["shares"] - universal_pos["shares"]) < 0.0001
+                    price_match = abs(legacy_pos["avg_price"] - universal_pos["avg_price"]) < 0.01
 
                     if not shares_match or not price_match:
                         print("    ⚠️  DISCREPANCY DETECTED!")
@@ -141,12 +137,8 @@ def test_universal_value_service():
 
         # Test 5: Summary comparison
         print("\nTest 5: Summary Comparison")
-        print(
-            f"Difference with dividends: ${performance_result['total_value'] - current_result['total_value']:,.2f}"
-        )
-        print(
-            f"This difference should equal dividend value: ${performance_result['dividend_value']:,.2f}"
-        )
+        print(f"Difference with dividends: ${performance_result['total_value'] - current_result['total_value']:,.2f}")
+        print(f"This difference should equal dividend value: ${performance_result['dividend_value']:,.2f}")
 
         dividend_diff_matches = (
             abs(

@@ -49,9 +49,7 @@ class ListPortfoliosCommand(Command):
         # Prepare table rows
         rows = []
         for portfolio in portfolios:
-            ticker_count = len(
-                cli.cli.portfolio_dao.get_tickers_in_portfolio(portfolio["id"])
-            )
+            ticker_count = len(cli.cli.portfolio_dao.get_tickers_in_portfolio(portfolio["id"]))
 
             rows.append(
                 [
@@ -59,11 +57,7 @@ class ListPortfoliosCommand(Command):
                     portfolio["name"],
                     portfolio["description"] or "",
                     str(ticker_count),
-                    (
-                        "[green]Active[/green]"
-                        if portfolio["active"]
-                        else "[red]Inactive[/red]"
-                    ),
+                    ("[green]Active[/green]" if portfolio["active"] else "[red]Inactive[/red]"),
                     portfolio["date_added"].strftime("%Y-%m-%d"),
                 ]
             )

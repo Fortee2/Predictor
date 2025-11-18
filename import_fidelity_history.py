@@ -58,9 +58,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                 "Type",
             ]
             if not all(col in col_map for col in required_cols):
-                print(
-                    f"Error: Missing one or more required columns in CSV. Expected: {required_cols}"
-                )
+                print(f"Error: Missing one or more required columns in CSV. Expected: {required_cols}")
                 return
 
             # Process transactions in reverse order to simulate chronological logging
@@ -75,41 +73,22 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                     )
                     action = row[col_map["Action"]].strip()
 
-                    if (
-                        account != "Rollover IRA"
-                        or "REINVESTMENT FIDELITY GOVERNMENT MONEY MARKET (SPAXX)"
-                        in action
-                    ):
-                        print(
-                            f"Skipping transaction for unsupported account '{account}' or action '{action}'."
-                        )
+                    if account != "Rollover IRA" or "REINVESTMENT FIDELITY GOVERNMENT MONEY MARKET (SPAXX)" in action:
+                        print(f"Skipping transaction for unsupported account '{account}' or action '{action}'.")
                         continue
 
-                    if (
-                        "DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX)"
-                        in action
-                    ):
+                    if "DIVIDEND RECEIVED FIDELITY GOVERNMENT MONEY MARKET (SPAXX)" in action:
                         action = "CASH CONTRIBUTION"
 
                     date_str = row[col_map["Run Date"]].strip()
-                    symbol = (
-                        row[col_map["Symbol"]].strip()
-                        if "Symbol" in col_map and row[col_map["Symbol"]]
-                        else None
-                    )
+                    symbol = row[col_map["Symbol"]].strip() if "Symbol" in col_map and row[col_map["Symbol"]] else None
                     quantity_str = row[col_map["Quantity"]].strip()
                     price_str = row[col_map["Price ($)"]].strip()
                     amount_str = row[col_map["Amount ($)"]].strip()
-                    transaction_type_csv = row[
-                        col_map["Type"]
-                    ].strip()  # 'Cash' or something else
+                    transaction_type_csv = row[col_map["Type"]].strip()  # 'Cash' or something else
 
                     # Clean and convert data
-                    shares = (
-                        float(quantity_str)
-                        if quantity_str and quantity_str != "0.000"
-                        else None
-                    )
+                    shares = float(quantity_str) if quantity_str and quantity_str != "0.000" else None
                     price = float(price_str) if price_str else None
                     amount = float(amount_str) if amount_str else None
 
@@ -119,9 +98,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                     log_price = price
                     log_amount = amount  # Default, might be adjusted
 
-                    date_object = datetime.datetime.strptime(
-                        date_str, "%m/%d/%Y"
-                    ).date()
+                    date_object = datetime.datetime.strptime(date_str, "%m/%d/%Y").date()
 
                     if "YOU BOUGHT" in action:
                         cli_transaction_type = "buy"
@@ -136,9 +113,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                         # For 'sell' from CSV, shares are negative. Make them positive for logging.
                         log_shares = abs(shares)
                         if shares is None or price is None:
-                            print(
-                                f"Skipping row (missing shares/price for sell): {row}"
-                            )
+                            print(f"Skipping row (missing shares/price for sell): {row}")
                             continue
                         log_amount = None  # Ensure amount is None for buy/sell
                     elif "DIVIDEND RECEIVED" in action:
@@ -153,9 +128,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                         # It pays interest which is treated as a dividend.
                         cli_transaction_type = "cash"
                         if amount is None:
-                            print(
-                                f"Skipping row (missing amount for cash contribution): {row}"
-                            )
+                            print(f"Skipping row (missing amount for cash contribution): {row}")
                             continue
                         # Amount is positive for cash contributions as per your CSV
                         log_shares = None
@@ -166,21 +139,15 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                         # It implicitly uses the dividend amount to buy shares.
                         cli_transaction_type = "buy"
                         if shares is None or price is None:
-                            print(
-                                f"Skipping row (missing shares/price for reinvestment buy): {row}"
-                            )
+                            print(f"Skipping row (missing shares/price for reinvestment buy): {row}")
                             continue
                         log_amount = None  # Ensure amount is None for buy/sell
 
                     else:
-                        print(
-                            f"Warning: Unrecognized action type '{action}'. Skipping row: {row}"
-                        )
+                        print(f"Warning: Unrecognized action type '{action}'. Skipping row: {row}")
                         continue
 
-                    print(
-                        f"Processing: {action} on {date_str} for {symbol if symbol else 'Cash'}"
-                    )
+                    print(f"Processing: {action} on {date_str} for {symbol if symbol else 'Cash'}")
                     cli.log_transaction(
                         portfolio_id=portfolio_id,
                         transaction_type=cli_transaction_type,
@@ -193,17 +160,13 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
                     successful_imports += 1
 
                 except ValueError as ve:
-                    print(
-                        f"Data conversion error in row: {row}. Error: {ve}. Skipping."
-                    )
+                    print(f"Data conversion error in row: {row}. Error: {ve}. Skipping.")
                 except IndexError as ie:
                     print(
                         f"Column index error in row: {row}. Ensure all expected columns are present. Error: {ie}. Skipping."
                     )
                 except Exception as e:
-                    print(
-                        f"An unexpected error occurred processing row: {row}. Error: {e}. Skipping."
-                    )
+                    print(f"An unexpected error occurred processing row: {row}. Error: {e}. Skipping.")
 
     except FileNotFoundError:
         print(f"Error: CSV file not found at {csv_filepath}")
@@ -222,13 +185,9 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
         cli.watch_list_dao.close_connection()
 
         print("\n--- Transaction Import Summary ---")
-        print(
-            f"Total rows processed from CSV (excluding header and blank rows): {total_transactions}"
-        )
+        print(f"Total rows processed from CSV (excluding header and blank rows): {total_transactions}")
         print(f"Successfully imported transactions: {successful_imports}")
-        print(
-            f"Transactions skipped due to errors: {total_transactions - successful_imports}"
-        )
+        print(f"Transactions skipped due to errors: {total_transactions - successful_imports}")
 
 
 if __name__ == "__main__":
@@ -239,9 +198,7 @@ if __name__ == "__main__":
     # IMPORTANT: Replace with the actual path to your Accounts_History.csv file
     csv_file_path = "Accounts_History_2024.csv"
 
-    print(
-        f"Starting import of transactions from '{csv_file_path}' into Portfolio ID: {target_portfolio_id}"
-    )
+    print(f"Starting import of transactions from '{csv_file_path}' into Portfolio ID: {target_portfolio_id}")
     import_transactions_from_csv(target_portfolio_id, csv_file_path)
     print("\nImport process finished.")
     print(

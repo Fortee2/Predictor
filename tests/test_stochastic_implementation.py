@@ -20,12 +20,12 @@ from data.macd import MACD
 from data.moving_averages import moving_averages
 from data.rsi_calculations import rsi_calculations
 from data.shared_analysis_metrics import SharedAnalysisMetrics
-from data.utility import DatabaseConnectionPool
 
 # Import required modules - following existing patterns
 from data.stochastic_oscillator import StochasticOscillator
 from data.ticker_dao import TickerDao
 from data.trend_analyzer import TrendAnalyzer
+from data.utility import DatabaseConnectionPool
 
 
 def test_stochastic_basic_functionality():
@@ -42,7 +42,7 @@ def test_stochastic_basic_functionality():
             host=os.getenv("DB_HOST"),
             database=os.getenv("DB_NAME"),
         )
-        
+
         # Initialize stochastic analyzer with connection pool
         stoch_analyzer = StochasticOscillator(db_pool)
 
@@ -163,10 +163,7 @@ def test_shared_analysis_integration():
             print(f"   ✓ {stoch_analysis['display_text']}")
             if stoch_analysis.get("crossover_signal"):
                 print(f"   ✓ Crossover: {stoch_analysis['crossover_signal']}")
-            if (
-                "divergence" in stoch_analysis
-                and "display_text" in stoch_analysis["divergence"]
-            ):
+            if "divergence" in stoch_analysis and "display_text" in stoch_analysis["divergence"]:
                 print(f"   ✓ {stoch_analysis['divergence']['display_text']}")
         else:
             print(f"   ✗ Stochastic analysis failed: {stoch_analysis.get('error')}")
@@ -192,9 +189,7 @@ def test_shared_analysis_integration():
             if comprehensive["stochastic"].get("success"):
                 print("   ✓ Stochastic data successfully integrated")
             else:
-                print(
-                    f"   ⚠ Stochastic data issue: {comprehensive['stochastic'].get('error')}"
-                )
+                print(f"   ⚠ Stochastic data issue: {comprehensive['stochastic'].get('error')}")
         else:
             print("   ✗ Stochastic not included in comprehensive analysis")
             return False
@@ -208,9 +203,7 @@ def test_shared_analysis_integration():
             # Print a sample of the formatted output
             lines = formatted_output.split("\n")
             stoch_lines = [
-                line
-                for line in lines
-                if "Stochastic" in line or "Crossover" in line or "Divergence" in line
+                line for line in lines if "Stochastic" in line or "Crossover" in line or "Divergence" in line
             ]
             for line in stoch_lines[:3]:  # Show first 3 stochastic-related lines
                 print(f"   Sample: {line}")

@@ -41,21 +41,15 @@ class ViewPortfolioCommand(Command):
                 list_command.execute(cli)
 
                 try:
-                    portfolio_id = int(
-                        Prompt.ask("[bold]Enter Portfolio ID to view[/bold]")
-                    )
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to view[/bold]"))
                 except ValueError:
                     ui.status_message("Invalid portfolio ID", "error")
                     return
 
         # Ask for view date if not provided
-        if view_date is None and ui.confirm_action(
-            "View portfolio as of a specific historical date?"
-        ):
+        if view_date is None and ui.confirm_action("View portfolio as of a specific historical date?"):
             while True:
-                view_date = Prompt.ask(
-                    "[bold]Enter view date[/bold] (YYYY-MM-DD, or leave empty for today)"
-                )
+                view_date = Prompt.ask("[bold]Enter view date[/bold] (YYYY-MM-DD, or leave empty for today)")
                 if view_date == "":
                     view_date = None
                     break
@@ -63,9 +57,7 @@ class ViewPortfolioCommand(Command):
                     datetime.strptime(view_date, "%Y-%m-%d")
                     break
                 except ValueError:
-                    ui.status_message(
-                        "Invalid date format. Please use YYYY-MM-DD.", "error"
-                    )
+                    ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
         with ui.progress("Loading portfolio details...") as progress:
             progress.add_task("", total=None)
@@ -86,9 +78,7 @@ class ViewPortfolioCommand(Command):
         ui.console.print(
             f"[bold]Status:[/bold] {'[green]Active[/green]' if portfolio['active'] else '[red]Inactive[/red]'}"
         )
-        ui.console.print(
-            f"[bold]Date Added:[/bold] {portfolio['date_added'].strftime('%Y-%m-%d')}"
-        )
+        ui.console.print(f"[bold]Date Added:[/bold] {portfolio['date_added'].strftime('%Y-%m-%d')}")
 
         # Parse view date for calculations
         calculation_date = None
@@ -101,15 +91,11 @@ class ViewPortfolioCommand(Command):
                 ui.status_message("Invalid date format, using current date", "warning")
 
         # Get and display cash balance (historical if date specified)
-        cash_balance = cli.cli.portfolio_dao.get_cash_balance(
-            portfolio_id, calculation_date
-        )
+        cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id, calculation_date)
         cash_label = "Cash Balance"
         if view_date:
             cash_label += f" (as of {view_date})"
-        ui.console.print(
-            f"[bold]{cash_label}:[/bold] [green]${cash_balance:.2f}[/green]"
-        )
+        ui.console.print(f"[bold]{cash_label}:[/bold] [green]${cash_balance:.2f}[/green]")
 
         # Use the universal value service for consistent calculations
         with ui.progress("Calculating portfolio value...") as progress:
@@ -142,9 +128,7 @@ class ViewPortfolioCommand(Command):
                 # Color formatting for gain/loss values
                 gl_color = "green" if position["gain_loss"] >= 0 else "red"
                 gl_formatted = f"[{gl_color}]${position['gain_loss']:.2f}[/{gl_color}]"
-                percent_formatted = (
-                    f"[{gl_color}]{position['gain_loss_pct']:.2f}%[/{gl_color}]"
-                )
+                percent_formatted = f"[{gl_color}]{position['gain_loss_pct']:.2f}%[/{gl_color}]"
 
                 if position["shares"] > 0:
                     rows.append(
@@ -160,23 +144,15 @@ class ViewPortfolioCommand(Command):
                         ]
                     )
         else:
-            rows.append(
-                ["[italic]No current holdings[/italic]", "", "", "", "", "", "", ""]
-            )
+            rows.append(["[italic]No current holdings[/italic]", "", "", "", "", "", "", ""])
 
         holdings_table = ui.data_table("Current Holdings", columns, rows)
         ui.console.print(holdings_table)
 
         # Display portfolio value summary
-        ui.console.print(
-            f"[bold]Stock Value:[/bold] [green]${portfolio_result['stock_value']:.2f}[/green]"
-        )
-        ui.console.print(
-            f"[bold]Cash Balance:[/bold] [green]${portfolio_result['cash_balance']:.2f}[/green]"
-        )
-        ui.console.print(
-            f"[bold]Total Portfolio Value:[/bold] [green]${portfolio_result['total_value']:.2f}[/green]"
-        )
+        ui.console.print(f"[bold]Stock Value:[/bold] [green]${portfolio_result['stock_value']:.2f}[/green]")
+        ui.console.print(f"[bold]Cash Balance:[/bold] [green]${portfolio_result['cash_balance']:.2f}[/green]")
+        ui.console.print(f"[bold]Total Portfolio Value:[/bold] [green]${portfolio_result['total_value']:.2f}[/green]")
 
         # Portfolio Actions Menu
         options = {

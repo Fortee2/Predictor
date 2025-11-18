@@ -18,9 +18,7 @@ logger = logging.getLogger("stochastic_oscillator")
 
 # Ensure no console output
 for handler in logger.handlers[:]:
-    if isinstance(handler, logging.StreamHandler) and not isinstance(
-        handler, logging.FileHandler
-    ):
+    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
         logger.removeHandler(handler)
 
 
@@ -38,10 +36,7 @@ class StochasticOscillator(BaseDAO):
         """Context manager for database connections - reusing existing pattern."""
         connection = None
         try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
+            if self.current_connection is not None and self.current_connection.is_connected():
                 connection = self.current_connection
                 yield connection
             else:
@@ -89,17 +84,13 @@ class StochasticOscillator(BaseDAO):
                 # Set calculation start date - reusing existing logic
                 if last_date is None:
                     last_date = "1900-01-01"
-                    logger.debug(
-                        "No previous stochastic data found for ticker %s, calculating all", ticker_id
-                    )
+                    logger.debug("No previous stochastic data found for ticker %s, calculating all", ticker_id)
                 else:
                     # Go back enough days to ensure we have sufficient data for calculation
                     from datetime import timedelta
 
                     last_date = last_date - timedelta(days=k_period + d_period)
-                    logger.debug(
-                        "Last stochastic date for ticker %s: %s", ticker_id, last_date
-                    )
+                    logger.debug("Last stochastic date for ticker %s: %s", ticker_id, last_date)
 
                 # Retrieve price data - reusing existing query pattern
                 cursor.execute(
@@ -113,31 +104,17 @@ class StochasticOscillator(BaseDAO):
                 )
 
                 # Convert to DataFrame - consistent with existing pattern
-                new_data = pd.DataFrame(
-                    cursor.fetchall(), columns=["activity_date", "high", "low", "close"]
-                )
+                new_data = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "high", "low", "close"])
 
                 if not new_data.empty:
-                    logger.info(
-                        "Found %s new data points to calculate stochastic", len(new_data)
-                    )
+                    logger.info("Found %s new data points to calculate stochastic", len(new_data))
 
-                    new_data["activity_date"] = pd.to_datetime(
-                        new_data["activity_date"]
-                    )
+                    new_data["activity_date"] = pd.to_datetime(new_data["activity_date"])
                     new_data = new_data.set_index("activity_date")
 
                     # Calculate %K - core stochastic formula
-                    new_data["lowest_low"] = (
-                        new_data["low"]
-                        .rolling(window=k_period, min_periods=k_period)
-                        .min()
-                    )
-                    new_data["highest_high"] = (
-                        new_data["high"]
-                        .rolling(window=k_period, min_periods=k_period)
-                        .max()
-                    )
+                    new_data["lowest_low"] = new_data["low"].rolling(window=k_period, min_periods=k_period).min()
+                    new_data["highest_high"] = new_data["high"].rolling(window=k_period, min_periods=k_period).max()
 
                     # Handle division by zero - consistent with existing error handling
                     def safe_stochastic_k(row):
@@ -162,11 +139,7 @@ class StochasticOscillator(BaseDAO):
                     new_data["stoch_k"] = new_data.apply(safe_stochastic_k, axis=1)
 
                     # Calculate %D (smoothed %K) - reusing rolling calculation pattern
-                    new_data["stoch_d"] = (
-                        new_data["stoch_k"]
-                        .rolling(window=d_period, min_periods=d_period)
-                        .mean()
-                    )
+                    new_data["stoch_d"] = new_data["stoch_k"].rolling(window=d_period, min_periods=d_period).mean()
 
                     # Remove rows where calculations couldn't be completed
                     complete_data = new_data.dropna(subset=["stoch_k", "stoch_d"])
@@ -208,17 +181,11 @@ class StochasticOscillator(BaseDAO):
                             rows_updated += cursor.rowcount
 
                         connection.commit()
-                        logger.info(
-                            "Updated %s stochastic values for ticker %s", rows_updated, ticker_id
-                        )
+                        logger.info("Updated %s stochastic values for ticker %s", rows_updated, ticker_id)
                     else:
-                        logger.info(
-                            "No complete stochastic data could be calculated for ticker %s", ticker_id
-                        )
+                        logger.info("No complete stochastic data could be calculated for ticker %s", ticker_id)
                 else:
-                    logger.info(
-                        "No new data found for ticker %s since %s", ticker_id, last_date
-                    )
+                    logger.info("No new data found for ticker %s since %s", ticker_id, last_date)
 
                 cursor.close()
 
@@ -266,16 +233,12 @@ class StochasticOscillator(BaseDAO):
 
                 cursor.execute(sql, (k_type, d_type, ticker_id, k_type, d_type))
 
-                df = pd.DataFrame(
-                    cursor.fetchall(), columns=["activity_date", "stoch_k", "stoch_d"]
-                )
+                df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "stoch_k", "stoch_d"])
                 df = df.set_index("activity_date")
 
                 cursor.close()
 
-                logger.debug(
-                    "Loaded %s stochastic data points for ticker %s", len(df), ticker_id
-                )
+                logger.debug("Loaded %s stochastic data points for ticker %s", len(df), ticker_id)
                 return df
 
         except mysql.connector.Error as e:
@@ -285,9 +248,7 @@ class StochasticOscillator(BaseDAO):
             logger.error("Error loading stochastic data: %s", str(e))
             raise
 
-    def get_stochastic_signals(
-        self, ticker_id, k_period=14, d_period=3, overbought=80, oversold=20
-    ):
+    def get_stochastic_signals(self, ticker_id, k_period=14, d_period=3, overbought=80, oversold=20):
         """
         Generate trading signals based on stochastic levels - reusing existing signal pattern.
 
@@ -312,12 +273,8 @@ class StochasticOscillator(BaseDAO):
             latest = stoch_data.iloc[-1]
             latest_date = stoch_data.index[-1]
 
-            stoch_k = (
-                float(latest["stoch_k"]) if not pd.isna(latest["stoch_k"]) else None
-            )
-            stoch_d = (
-                float(latest["stoch_d"]) if not pd.isna(latest["stoch_d"]) else None
-            )
+            stoch_k = float(latest["stoch_k"]) if not pd.isna(latest["stoch_k"]) else None
+            stoch_d = float(latest["stoch_d"]) if not pd.isna(latest["stoch_d"]) else None
 
             if stoch_k is None or stoch_d is None:
                 return {"success": False, "error": "Invalid stochastic values"}
@@ -337,12 +294,8 @@ class StochasticOscillator(BaseDAO):
             crossover_signal = None
             if len(stoch_data) >= 2:
                 prev = stoch_data.iloc[-2]
-                prev_k = (
-                    float(prev["stoch_k"]) if not pd.isna(prev["stoch_k"]) else None
-                )
-                prev_d = (
-                    float(prev["stoch_d"]) if not pd.isna(prev["stoch_d"]) else None
-                )
+                prev_k = float(prev["stoch_k"]) if not pd.isna(prev["stoch_k"]) else None
+                prev_d = float(prev["stoch_d"]) if not pd.isna(prev["stoch_d"]) else None
 
                 if prev_k is not None and prev_d is not None:
                     # Bullish crossover (%K crosses above %D)
@@ -401,9 +354,7 @@ class StochasticOscillator(BaseDAO):
                     (ticker_id, lookback_days),
                 )
 
-                price_data = pd.DataFrame(
-                    cursor.fetchall(), columns=["activity_date", "close"]
-                )
+                price_data = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "close"])
                 cursor.close()
 
                 if price_data.empty:
@@ -430,16 +381,8 @@ class StochasticOscillator(BaseDAO):
                 # Simple divergence detection - can be enhanced later
                 recent_data = combined.tail(10)
 
-                price_trend = (
-                    "UP"
-                    if recent_data["close"].iloc[-1] > recent_data["close"].iloc[0]
-                    else "DOWN"
-                )
-                stoch_trend = (
-                    "UP"
-                    if recent_data["stoch_k"].iloc[-1] > recent_data["stoch_k"].iloc[0]
-                    else "DOWN"
-                )
+                price_trend = "UP" if recent_data["close"].iloc[-1] > recent_data["close"].iloc[0] else "DOWN"
+                stoch_trend = "UP" if recent_data["stoch_k"].iloc[-1] > recent_data["stoch_k"].iloc[0] else "DOWN"
 
                 divergence = None
                 if price_trend == "UP" and stoch_trend == "DOWN":

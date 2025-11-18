@@ -93,9 +93,7 @@ def check_for_data_issues(portfolio_id, focus_date=None):
         if duplicates:
             print(f"⚠ Found {len(duplicates)} sets of potential duplicates:")
             for dup in duplicates:
-                print(
-                    f"  {dup['transaction_date']} - {dup['ticker']}: {dup['count']} identical transactions"
-                )
+                print(f"  {dup['transaction_date']} - {dup['ticker']}: {dup['count']} identical transactions")
                 print(f"    IDs: {dup['ids']}")
         else:
             print("✓ No duplicate transactions found")
@@ -151,9 +149,7 @@ def check_for_data_issues(portfolio_id, focus_date=None):
             focus_transactions = cursor.fetchall()
 
             if focus_transactions:
-                print(
-                    f"Found {len(focus_transactions)} transactions around {focus_date}:"
-                )
+                print(f"Found {len(focus_transactions)} transactions around {focus_date}:")
                 for trans in focus_transactions:
                     symbol = trans["ticker"] or "CASH"
                     shares = trans["shares"] or 0
@@ -218,9 +214,7 @@ def main():
 
     try:
         portfolio_id = int(input("Enter portfolio ID to check: "))
-        focus_date = input(
-            "Enter focus date (YYYY-MM-DD) or press Enter to skip: "
-        ).strip()
+        focus_date = input("Enter focus date (YYYY-MM-DD) or press Enter to skip: ").strip()
 
         if not focus_date:
             focus_date = None

@@ -5,7 +5,6 @@ This module contains the core CLI class that coordinates all components
 and provides the main menu and application flow.
 """
 
-
 from rich.console import Console
 from rich.prompt import Prompt
 
@@ -26,7 +25,6 @@ class EnhancedCLI:
         self.selected_portfolio = None
         setup_logging()
         self.register_commands()
-
 
     def register_commands(self):
         """Register all available commands with the command registry."""
@@ -100,9 +98,7 @@ class EnhancedCLI:
         menu_options = {}
 
         # Portfolio selection
-        menu_options["1"] = (
-            "Select Portfolio" if not self.selected_portfolio else "Change Portfolio"
-        )
+        menu_options["1"] = "Select Portfolio" if not self.selected_portfolio else "Change Portfolio"
         # Portfolio commands
         menu_options["2"] = "Portfolio Management"
         # Transaction commands
@@ -151,9 +147,7 @@ class EnhancedCLI:
         elif choice == "7":
             self.show_settings_menu()
         elif choice == "0":
-            self.console.print(
-                "[bold green]Thank you for using the Portfolio Management System![/bold green]"
-            )
+            self.console.print("[bold green]Thank you for using the Portfolio Management System![/bold green]")
             return False
 
         return True
@@ -185,9 +179,7 @@ class EnhancedCLI:
             portfolio = self.cli.portfolio_dao.read_portfolio(portfolio_id)
             if portfolio:
                 self.selected_portfolio = portfolio_id
-                self.console.print(
-                    f"[green]Selected portfolio: {portfolio['name']}[/green]"
-                )
+                self.console.print(f"[green]Selected portfolio: {portfolio['name']}[/green]")
             else:
                 self.console.print("[red]Portfolio not found.[/red]")
         except ValueError:
@@ -204,13 +196,9 @@ class EnhancedCLI:
         choice = ui.menu("Transaction Management", options)
 
         if choice == "1":
-            self.command_registry.execute(
-                "log_transaction", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("log_transaction", self, portfolio_id=self.selected_portfolio)
         elif choice == "2":
-            self.command_registry.execute(
-                "view_transactions", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("view_transactions", self, portfolio_id=self.selected_portfolio)
         # choice 3 returns to main menu
 
     def show_analysis_menu(self):
@@ -233,45 +221,27 @@ class EnhancedCLI:
         choice = ui.menu("Analysis Tools", options)
 
         if choice == "1":
-            self.command_registry.execute(
-                "analyze_portfolio", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("analyze_portfolio", self, portfolio_id=self.selected_portfolio)
         elif choice == "2":
-            self.command_registry.execute(
-                "view_performance", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("view_performance", self, portfolio_id=self.selected_portfolio)
         elif choice == "3":
-            self.command_registry.execute(
-                "comprehensive_analysis", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("comprehensive_analysis", self, portfolio_id=self.selected_portfolio)
         elif choice == "4":
             self.command_registry.execute("view_saved_metrics", self)
         elif choice == "5":
             self.command_registry.execute("update_benchmark_data", self)
         elif choice == "6":
-            self.command_registry.execute(
-                "portfolio_snapshot", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("portfolio_snapshot", self, portfolio_id=self.selected_portfolio)
         elif choice == "7":
-            self.command_registry.execute(
-                "llm_analysis_prompt", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("llm_analysis_prompt", self, portfolio_id=self.selected_portfolio)
         elif choice == "8":
-            self.command_registry.execute(
-                "ai_chat", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("ai_chat", self, portfolio_id=self.selected_portfolio)
         elif choice == "9":
-            self.command_registry.execute(
-                "weekly_recommendations", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("weekly_recommendations", self, portfolio_id=self.selected_portfolio)
         elif choice == "10":
-            self.command_registry.execute(
-                "portfolio_analysis", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("portfolio_analysis", self, portfolio_id=self.selected_portfolio)
         elif choice == "11":
-            self.command_registry.execute(
-                "ai_risk_assessment", self, portfolio_id=self.selected_portfolio
-            )
+            self.command_registry.execute("ai_risk_assessment", self, portfolio_id=self.selected_portfolio)
         # choice 12 returns to main menu
 
     def show_watchlist_menu(self):
@@ -348,13 +318,9 @@ class EnhancedCLI:
                 if not continue_running:
                     break
         except KeyboardInterrupt:
-            self.console.print(
-                "\n[bold yellow]Program interrupted. Exiting...[/bold yellow]"
-            )
+            self.console.print("\n[bold yellow]Program interrupted. Exiting...[/bold yellow]")
         except Exception as e:
-            self.console.print(
-                f"[bold red]An unexpected error occurred: {str(e)}[/bold red]"
-            )
+            self.console.print(f"[bold red]An unexpected error occurred: {str(e)}[/bold red]")
             import traceback
 
             traceback.print_exc()

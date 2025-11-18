@@ -13,7 +13,7 @@ This module contains data access objects (DAOs) and analysis tools for:
 """
 
 # Version information
-__version__ = '1.0.0'
+__version__ = "1.0.0"
 
 # This file makes the 'data' directory a Python package.
 # Individual modules should be imported directly when needed.
