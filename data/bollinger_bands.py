@@ -1,13 +1,10 @@
 import decimal
 import os
-from datetime import date
 
-import mysql.connector
 import pandas as pd
 from dotenv import load_dotenv
-from mysql.connector import errorcode
 
-from data.ticker_dao import TickerDao
+from .ticker_dao import TickerDao
 
 
 class BollingerBandAnalyzer:
@@ -50,7 +47,7 @@ class BollingerBandAnalyzer:
             ZeroDivisionError,
             decimal.DivisionUndefined,
             decimal.InvalidOperation,
-        ) as e:
+        ):
             # Return reasonable default values in case of division errors
             return {"bollinger_bands": {"mean": 0.0, "stddev": 0.0}}
         except Exception as e:

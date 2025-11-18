@@ -20,6 +20,21 @@ dependencies = [
 black = "*"
 isort = "*"
 
+[tool.pylint.format]
+max-line-length = 120
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable import sorting
+select = ["I"]  # isort rules
+
+[tool.ruff.lint.isort]
+known-first-party = ["data", "enhanced_cli"]
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]

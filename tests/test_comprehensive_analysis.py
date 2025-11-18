@@ -8,9 +8,9 @@ to ensure accurate performance metrics, risk calculations, and benchmark compari
 import os
 import sys
 import unittest
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 import numpy as np
 import pandas as pd
@@ -18,8 +18,7 @@ import pandas as pd
 # Add the project root to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
 
@@ -28,14 +27,15 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        # Mock database connection to avoid actual DB calls
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-
-        # Mock the connection
-        self.analyzer.connection = Mock()
+        # Mock database connection pool to avoid actual DB calls
+        self.mock_pool = Mock()
+        self.mock_connection = Mock()
+        self.mock_pool.get_connection.return_value = self.mock_connection
+        self.mock_pool.get_connection_context.return_value.__enter__.return_value = self.mock_connection
+        self.mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
 
         # Sample portfolio value data for testing
         self.sample_portfolio_data = pd.DataFrame(
@@ -162,7 +162,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         """Test maximum drawdown calculation."""
         # Create returns that will result in a known drawdown
         # Starting at 100, going to 110, then down to 95, then up to 105
-        prices = [100, 110, 95, 105]
+        # prices = [100, 110, 95, 105]
         returns = pd.Series([0.1, -0.136364, 0.105263])  # Calculated from prices
 
         metrics = self.analyzer.calculate_performance_metrics(returns)
@@ -229,14 +229,16 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         self.assertLess(metrics["up_capture_ratio"], 3.0)
         self.assertLess(metrics["down_capture_ratio"], 3.0)
 
-    @patch("mysql.connector.connect")
-    def test_get_portfolio_value_history_mock(self, mock_connect):
+    def test_get_portfolio_value_history_mock(self):
         """Test portfolio value history retrieval with mocked database."""
-        # Setup mock cursor and connection
+        # Setup mock cursor and pool
         mock_cursor = Mock()
         mock_connection = Mock()
-        mock_connect.return_value = mock_connection
         mock_connection.cursor.return_value = mock_cursor
+        
+        mock_pool = Mock()
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
 
         # Mock database results
         mock_cursor.fetchall.return_value = [
@@ -245,9 +247,8 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
             {"date": date(2023, 1, 3), "value": Decimal("10050.00")},
         ]
 
-        # Create analyzer with mocked connection
-        analyzer = MultiTimeframeAnalyzer("test", "test", "test", "test")
-        analyzer.connection = mock_connection
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
         # Test the method
         result = analyzer.get_portfolio_value_history(
@@ -470,11 +471,15 @@ class TestIntegrationScenarios(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-        self.analyzer.connection = Mock()
+        # Mock database connection pool
+        mock_pool = Mock()
+        mock_connection = Mock()
+        mock_pool.get_connection.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
         self.formatter = ComprehensivePerformanceFormatter()
 
     def test_bull_market_scenario(self):
@@ -602,7 +607,7 @@ if __name__ == "__main__":
 
     # Print summary
     print(f"\n{'='*60}")
-    print(f"TEST SUMMARY")
+    print("TEST SUMMARY")
     print(f"{'='*60}")
     print(f"Tests run: {result.testsRun}")
     print(f"Failures: {len(result.failures)}")
@@ -612,14 +617,14 @@ if __name__ == "__main__":
     )
 
     if result.failures:
-        print(f"\nFAILURES:")
+        print("\nFAILURES:")
         for test, traceback in result.failures:
             print(
                 f"- {test}: {traceback.split('AssertionError: ')[-1].split('\n')[0]}"
             )
 
     if result.errors:
-        print(f"\nERRORS:")
+        print("\nERRORS:")
         for test, traceback in result.errors:
             print(f"- {test}: {traceback.split('\n')[-2]}")
 

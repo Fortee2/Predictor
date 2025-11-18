@@ -6,7 +6,7 @@ and managing commands throughout the application.
 """
 
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from rich.console import Console
 
@@ -42,7 +42,6 @@ class Command(ABC):
         Returns:
             Result of the command execution, if any
         """
-        pass
 
 
 class CommandRegistry:

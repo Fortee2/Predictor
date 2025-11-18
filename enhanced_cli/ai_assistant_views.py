@@ -4,17 +4,13 @@ AI Assistant Views for Portfolio Analysis
 This module provides CLI interface for LLM-powered portfolio analysis.
 """
 
-import os
 from rich.console import Console
-from rich.panel import Panel
-from rich.prompt import Prompt, Confirm
 from rich.markdown import Markdown
-from rich.text import Text
-from rich.live import Live
-from rich import print as rprint
+from rich.panel import Panel
+from rich.prompt import Confirm, Prompt
 
-from data.llm_integration import LLMPortfolioAnalyzer
 from data.config import Config
+from data.llm_integration import LLMPortfolioAnalyzer
 
 
 def register_ai_assistant_commands(command_registry):
@@ -292,7 +288,7 @@ def save_analysis_to_file(console: Console, content: str, filename_prefix: str):
         filename = f"{filename_prefix}_{timestamp}.md"
         
         with open(filename, 'w', encoding='utf-8') as f:
-            f.write(f"# Portfolio Analysis Report\n\n")
+            f.write("# Portfolio Analysis Report\n\n")
             f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
             f.write(content)
         
@@ -306,7 +302,7 @@ def check_bedrock_connection():
     """Check if AWS Bedrock credentials are configured."""
     try:
         import boto3
-        from botocore.exceptions import NoCredentialsError, ClientError
+        from botocore.exceptions import ClientError, NoCredentialsError
         
         client = boto3.client('bedrock-runtime', region_name='us-east-1')
         # Try to list foundation models to verify connection

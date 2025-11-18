@@ -8,10 +8,11 @@ import numpy as np
 import pandas as pd
 import yfinance as yf
 
-from data.config import Config
+from .base_dao import BaseDAO
+from .utility import DatabaseConnectionPool
 
 
-class MultiTimeframeAnalyzer:
+class MultiTimeframeAnalyzer(BaseDAO):
     """
     Analyzes portfolio performance across multiple timeframes with advanced metrics.
     Supports 1M, 3M, 6M, 1Y, 2Y, 5Y, and MAX timeframes.
@@ -21,50 +22,16 @@ class MultiTimeframeAnalyzer:
 
     RISK_FREE_RATE = 0.02  # 2% annual risk-free rate (can be made configurable)
 
-    def __init__(self, db_user=None, db_password=None, db_host=None, db_name=None):
-        """Initialize with database connection parameters."""
-        if not all([db_user, db_password, db_host, db_name]):
-            config = Config()
-            db_config = config.get_database_config()
-            self.db_user = db_config["user"]
-            self.db_password = db_config["password"]
-            self.db_host = db_config["host"]
-            self.db_name = db_config["database"]
-        else:
-            self.db_user = db_user
-            self.db_password = db_password
-            self.db_host = db_host
-            self.db_name = db_name
+    def __init__(self, pool: DatabaseConnectionPool):
+        super().__init__(pool)
 
-        self.connection = None
         self.sp500_ticker_id = 504  # S&P 500 ticker ID from the system
-        self.open_connection()
 
         # Setup logging
         logging.basicConfig(level=logging.INFO)
         self.logger = logging.getLogger(__name__)
 
-    def open_connection(self):
-        """Open database connection."""
-        try:
-            self.connection = mysql.connector.connect(
-                user=self.db_user,
-                password=self.db_password,
-                host=self.db_host,
-                database=self.db_name,
-            )
-        except mysql.connector.Error as e:
-            self.logger.error(f"Error connecting to MySQL: {e}")
-            raise
-
-    def close_connection(self):
-        """Close database connection."""
-        if self.connection:
-            self.connection.close()
-
-    def get_portfolio_value_history(
-        self, portfolio_id: int, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def get_portfolio_value_history(self, portfolio_id: int, start_date: date, end_date: date) -> pd.DataFrame:
         """
         Retrieve portfolio value history for the specified date range.
 
@@ -77,37 +44,36 @@ class MultiTimeframeAnalyzer:
             DataFrame with dates and portfolio values
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
-            query = """
-                SELECT calculation_date as date, value 
-                FROM portfolio_value 
-                WHERE portfolio_id = %s 
-                AND calculation_date BETWEEN %s AND %s
-                ORDER BY calculation_date ASC
-            """
-            cursor.execute(query, (portfolio_id, start_date, end_date))
-            results = cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = """
+                    SELECT calculation_date as date, value 
+                    FROM portfolio_value 
+                    WHERE portfolio_id = %s 
+                    AND calculation_date BETWEEN %s AND %s
+                    ORDER BY calculation_date ASC
+                """
+                cursor.execute(query, (portfolio_id, start_date, end_date))
+                results = cursor.fetchall()
 
-            if not results:
-                return pd.DataFrame(columns=["date", "value"])
+                if not results:
+                    return pd.DataFrame(columns=["date", "value"])
 
-            df = pd.DataFrame(results)
-            df["date"] = pd.to_datetime(df["date"])
-            df["value"] = df["value"].astype(float)
-            df.set_index("date", inplace=True)
+                df = pd.DataFrame(results)
+                df["date"] = pd.to_datetime(df["date"])
+                df["value"] = df["value"].astype(float)
+                df.set_index("date", inplace=True)
 
-            return df
+                return df
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving portfolio value history: {e}")
+            self.logger.error("Error retrieving portfolio value history: %s", e)
             return pd.DataFrame(columns=["date", "value"])
         finally:
             if cursor:
                 cursor.close()
 
-    def get_benchmark_data(
-        self, ticker_id: int, start_date: date, end_date: date
-    ) -> pd.DataFrame:
+    def get_benchmark_data(self, ticker_id: int, start_date: date, end_date: date) -> pd.DataFrame:
         """
         Retrieve benchmark price data for the specified date range.
 
@@ -120,57 +86,55 @@ class MultiTimeframeAnalyzer:
             DataFrame with dates and closing prices
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
-
-            # Get ticker symbol
-            cursor.execute("SELECT ticker FROM tickers WHERE id = %s", (ticker_id,))
-            result = cursor.fetchone()
-            if not result:
-                self.logger.error(f"Ticker ID {ticker_id} not found")
-                return pd.DataFrame(columns=["date", "close"])
-
-            symbol = result["ticker"]
-
-            # Try to get data from database first
-            query = """
-                SELECT activity_date as date, close 
-                FROM activity 
-                WHERE ticker_id = %s 
-                AND activity_date BETWEEN %s AND %s
-                ORDER BY activity_date ASC
-            """
-            cursor.execute(query, (ticker_id, start_date, end_date))
-            results = cursor.fetchall()
-
-            if results:
-                df = pd.DataFrame(results)
-                df["date"] = pd.to_datetime(df["date"])
-                df["close"] = df["close"].astype(float)
-                df.set_index("date", inplace=True)
-                return df
-
-            # Fallback to yfinance if no database data
-            self.logger.info(f"No database data for {symbol}, fetching from yfinance")
-            try:
-                ticker = yf.Ticker(symbol)
-                hist_data = ticker.history(
-                    start=start_date, end=end_date + timedelta(days=1)
-                )
-
-                if hist_data.empty:
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                # Get ticker symbol
+                cursor.execute("SELECT ticker FROM tickers WHERE id = %s", (ticker_id,))
+                result = cursor.fetchone()
+                if not result:
+                    self.logger.error("Ticker ID %s not found", ticker_id)
                     return pd.DataFrame(columns=["date", "close"])
 
-                df = pd.DataFrame()
-                df["close"] = hist_data["Close"]
-                df.index = hist_data.index.tz_localize(None)  # Remove timezone info
-                return df
+                symbol = result["ticker"]
 
-            except Exception as e:
-                self.logger.error(f"Error fetching yfinance data for {symbol}: {e}")
-                return pd.DataFrame(columns=["date", "close"])
+                # Try to get data from database first
+                query = """
+                    SELECT activity_date as date, close 
+                    FROM activity 
+                    WHERE ticker_id = %s 
+                    AND activity_date BETWEEN %s AND %s
+                    ORDER BY activity_date ASC
+                """
+                cursor.execute(query, (ticker_id, start_date, end_date))
+                results = cursor.fetchall()
+
+                if results:
+                    df = pd.DataFrame(results)
+                    df["date"] = pd.to_datetime(df["date"])
+                    df["close"] = df["close"].astype(float)
+                    df.set_index("date", inplace=True)
+                    return df
+
+                # Fallback to yfinance if no database data
+                self.logger.info("No database data for %s, fetching from yfinance", symbol)
+                try:
+                    ticker = yf.Ticker(symbol)
+                    hist_data = ticker.history(start=start_date, end=end_date + timedelta(days=1))
+
+                    if hist_data.empty:
+                        return pd.DataFrame(columns=["date", "close"])
+
+                    df = pd.DataFrame()
+                    df["close"] = hist_data["Close"]
+                    df.index = hist_data.index.tz_localize(None)  # Remove timezone info
+                    return df
+
+                except Exception as e:
+                    self.logger.error("Error fetching yfinance data for {symbol}: %s", e)
+                    return pd.DataFrame(columns=["date", "close"])
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving benchmark data: {e}")
+            self.logger.error("Error retrieving benchmark data: %s", e)
             return pd.DataFrame(columns=["date", "close"])
         finally:
             if cursor:
@@ -194,9 +158,7 @@ class MultiTimeframeAnalyzer:
         returns = price_data[price_column].pct_change().dropna()
         return pd.DataFrame({price_column: returns})
 
-    def calculate_performance_metrics(
-        self, returns: pd.Series, benchmark_returns: pd.Series = None
-    ) -> Dict:
+    def calculate_performance_metrics(self, returns: pd.Series, benchmark_returns: pd.Series = None) -> Dict:
         """
         Calculate comprehensive performance metrics.
 
@@ -223,11 +185,7 @@ class MultiTimeframeAnalyzer:
 
         # Sharpe ratio
         excess_returns = returns - (self.RISK_FREE_RATE / 252)  # Daily risk-free rate
-        sharpe_ratio = (
-            excess_returns.mean() / returns.std() * np.sqrt(252)
-            if returns.std() > 0
-            else 0
-        )
+        sharpe_ratio = excess_returns.mean() / returns.std() * np.sqrt(252) if returns.std() > 0 else 0
 
         # Maximum drawdown
         cumulative_returns = (1 + returns).cumprod()
@@ -246,9 +204,7 @@ class MultiTimeframeAnalyzer:
         # Add benchmark-relative metrics if benchmark data is provided
         if benchmark_returns is not None and not benchmark_returns.empty:
             # Align the series by date
-            aligned_returns, aligned_benchmark = returns.align(
-                benchmark_returns, join="inner"
-            )
+            aligned_returns, aligned_benchmark = returns.align(benchmark_returns, join="inner")
 
             if len(aligned_returns) > 1 and len(aligned_benchmark) > 1:
                 # Beta calculation
@@ -258,34 +214,21 @@ class MultiTimeframeAnalyzer:
 
                 # Alpha calculation (Jensen's alpha)
                 benchmark_total_return = (1 + aligned_benchmark).prod() - 1
-                benchmark_annualized = (
-                    (1 + benchmark_total_return) ** (1 / years) - 1 if years > 0 else 0
-                )
-                alpha = annualized_return - (
-                    self.RISK_FREE_RATE
-                    + beta * (benchmark_annualized - self.RISK_FREE_RATE)
-                )
+                benchmark_annualized = (1 + benchmark_total_return) ** (1 / years) - 1 if years > 0 else 0
+                alpha = annualized_return - (self.RISK_FREE_RATE + beta * (benchmark_annualized - self.RISK_FREE_RATE))
 
                 # Up/Down capture ratios
                 up_periods = aligned_benchmark > 0
                 down_periods = aligned_benchmark < 0
 
                 up_capture = (
-                    (
-                        aligned_returns[up_periods].mean()
-                        / aligned_benchmark[up_periods].mean()
-                    )
-                    if up_periods.sum() > 0
-                    and aligned_benchmark[up_periods].mean() != 0
+                    (aligned_returns[up_periods].mean() / aligned_benchmark[up_periods].mean())
+                    if up_periods.sum() > 0 and aligned_benchmark[up_periods].mean() != 0
                     else 0
                 )
                 down_capture = (
-                    (
-                        aligned_returns[down_periods].mean()
-                        / aligned_benchmark[down_periods].mean()
-                    )
-                    if down_periods.sum() > 0
-                    and aligned_benchmark[down_periods].mean() != 0
+                    (aligned_returns[down_periods].mean() / aligned_benchmark[down_periods].mean())
+                    if down_periods.sum() > 0 and aligned_benchmark[down_periods].mean() != 0
                     else 0
                 )
 
@@ -305,9 +248,7 @@ class MultiTimeframeAnalyzer:
 
         return metrics
 
-    def analyze_portfolio_timeframes(
-        self, portfolio_id: int, calculation_date: date = None
-    ) -> Dict:
+    def analyze_portfolio_timeframes(self, portfolio_id: int, calculation_date: date = None) -> Dict:
         """
         Analyze portfolio performance across all timeframes.
 
@@ -324,93 +265,76 @@ class MultiTimeframeAnalyzer:
         results = {}
 
         # Get the earliest transaction date to determine MAX timeframe
-        cursor = self.connection.cursor()
-        cursor.execute(
-            """
-            SELECT MIN(transaction_date) as earliest_date
-            FROM portfolio_transactions
-            WHERE portfolio_id = %s
-        """,
-            (portfolio_id,),
-        )
-        result = cursor.fetchone()
-        earliest_date = (
-            result[0]
-            if result and result[0]
-            else calculation_date - timedelta(days=365)
-        )
-        cursor.close()
-
-        # Analyze each timeframe
-        for timeframe, days in self.TIMEFRAMES.items():
-            start_date = calculation_date - timedelta(days=days)
-
-            # Skip if start_date is before earliest transaction
-            if start_date < earliest_date:
-                continue
-
-            self.logger.info(
-                f"Analyzing {timeframe} timeframe for portfolio {portfolio_id}"
+        with self.get_connection() as connection:
+            cursor = connection.cursor()
+            cursor.execute(
+                """
+                SELECT MIN(transaction_date) as earliest_date
+                FROM portfolio_transactions
+                WHERE portfolio_id = %s
+            """,
+                (portfolio_id,),
             )
+            result = cursor.fetchone()
+            earliest_date = result[0] if result and result[0] else calculation_date - timedelta(days=365)
+            cursor.close()
 
-            # Get portfolio value history
-            portfolio_data = self.get_portfolio_value_history(
-                portfolio_id, start_date, calculation_date
-            )
-            if portfolio_data.empty:
-                self.logger.warning(f"No portfolio data for {timeframe} timeframe")
-                continue
+            # Analyze each timeframe
+            for timeframe, days in self.TIMEFRAMES.items():
+                start_date = calculation_date - timedelta(days=days)
 
-            # Calculate portfolio returns
-            portfolio_returns = self.calculate_returns(portfolio_data)
-            if portfolio_returns.empty:
-                continue
+                # Skip if start_date is before earliest transaction
+                if start_date < earliest_date:
+                    continue
 
-            # Get S&P 500 benchmark data
-            benchmark_data = self.get_benchmark_data(
-                self.sp500_ticker_id, start_date, calculation_date
-            )
-            benchmark_returns = None
-            if not benchmark_data.empty:
-                benchmark_returns_df = self.calculate_returns(benchmark_data)
-                if not benchmark_returns_df.empty:
-                    benchmark_returns = benchmark_returns_df.iloc[:, 0]
+                self.logger.info("Analyzing {timeframe} timeframe for portfolio %s", portfolio_id)
 
-            # Calculate metrics
-            portfolio_returns_series = portfolio_returns.iloc[:, 0]
-            metrics = self.calculate_performance_metrics(
-                portfolio_returns_series, benchmark_returns
-            )
+                # Get portfolio value history
+                portfolio_data = self.get_portfolio_value_history(portfolio_id, start_date, calculation_date)
+                if portfolio_data.empty:
+                    self.logger.warning("No portfolio data for %s timeframe", timeframe)
+                    continue
 
-            if metrics:
-                results[timeframe] = metrics
-
-        # Add MAX timeframe (from earliest date to calculation_date)
-        if earliest_date < calculation_date:
-            self.logger.info(f"Analyzing MAX timeframe for portfolio {portfolio_id}")
-            portfolio_data = self.get_portfolio_value_history(
-                portfolio_id, earliest_date, calculation_date
-            )
-            if not portfolio_data.empty:
+                # Calculate portfolio returns
                 portfolio_returns = self.calculate_returns(portfolio_data)
-                if not portfolio_returns.empty:
-                    benchmark_data = self.get_benchmark_data(
-                        self.sp500_ticker_id, earliest_date, calculation_date
-                    )
-                    benchmark_returns = None
-                    if not benchmark_data.empty:
-                        benchmark_returns_df = self.calculate_returns(benchmark_data)
-                        if not benchmark_returns_df.empty:
-                            benchmark_returns = benchmark_returns_df.iloc[:, 0]
+                if portfolio_returns.empty:
+                    continue
 
-                    portfolio_returns_series = portfolio_returns.iloc[:, 0]
-                    metrics = self.calculate_performance_metrics(
-                        portfolio_returns_series, benchmark_returns
-                    )
-                    if metrics:
-                        results["MAX"] = metrics
+                # Get S&P 500 benchmark data
+                benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, start_date, calculation_date)
+                benchmark_returns = None
+                if not benchmark_data.empty:
+                    benchmark_returns_df = self.calculate_returns(benchmark_data)
+                    if not benchmark_returns_df.empty:
+                        benchmark_returns = benchmark_returns_df.iloc[:, 0]
 
-        return results
+                # Calculate metrics
+                portfolio_returns_series = portfolio_returns.iloc[:, 0]
+                metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
+
+                if metrics:
+                    results[timeframe] = metrics
+
+            # Add MAX timeframe (from earliest date to calculation_date)
+            if earliest_date < calculation_date:
+                self.logger.info("Analyzing MAX timeframe for portfolio %s", portfolio_id)
+                portfolio_data = self.get_portfolio_value_history(portfolio_id, earliest_date, calculation_date)
+                if not portfolio_data.empty:
+                    portfolio_returns = self.calculate_returns(portfolio_data)
+                    if not portfolio_returns.empty:
+                        benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, earliest_date, calculation_date)
+                        benchmark_returns = None
+                        if not benchmark_data.empty:
+                            benchmark_returns_df = self.calculate_returns(benchmark_data)
+                            if not benchmark_returns_df.empty:
+                                benchmark_returns = benchmark_returns_df.iloc[:, 0]
+
+                        portfolio_returns_series = portfolio_returns.iloc[:, 0]
+                        metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
+                        if metrics:
+                            results["MAX"] = metrics
+
+            return results
 
     def save_portfolio_metrics(
         self,
@@ -429,75 +353,70 @@ class MultiTimeframeAnalyzer:
         if calculation_date is None:
             calculation_date = date.today()
 
-        cursor = self.connection.cursor()
-
         try:
-            for timeframe, metrics in metrics_by_timeframe.items():
-                # Convert metrics to Decimal for database storage
-                db_metrics = {}
-                for key, value in metrics.items():
-                    if (
-                        value is not None
-                        and not np.isnan(value)
-                        and not np.isinf(value)
-                    ):
-                        db_metrics[key] = Decimal(str(round(float(value), 4)))
-                    else:
-                        db_metrics[key] = None
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
 
-                # Insert or update portfolio performance metrics
-                query = """
-                    INSERT INTO portfolio_performance_metrics 
-                    (portfolio_id, calculation_date, timeframe, total_return_pct, annualized_return_pct, 
-                     volatility_pct, sharpe_ratio, max_drawdown_pct, alpha, beta, up_capture_ratio, 
-                     down_capture_ratio, benchmark_return_pct, excess_return_pct)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    ON DUPLICATE KEY UPDATE
-                    total_return_pct = VALUES(total_return_pct),
-                    annualized_return_pct = VALUES(annualized_return_pct),
-                    volatility_pct = VALUES(volatility_pct),
-                    sharpe_ratio = VALUES(sharpe_ratio),
-                    max_drawdown_pct = VALUES(max_drawdown_pct),
-                    alpha = VALUES(alpha),
-                    beta = VALUES(beta),
-                    up_capture_ratio = VALUES(up_capture_ratio),
-                    down_capture_ratio = VALUES(down_capture_ratio),
-                    benchmark_return_pct = VALUES(benchmark_return_pct),
-                    excess_return_pct = VALUES(excess_return_pct)
-                """
+                for timeframe, metrics in metrics_by_timeframe.items():
+                    # Convert metrics to Decimal for database storage
+                    db_metrics = {}
+                    for key, value in metrics.items():
+                        if value is not None and not np.isnan(value) and not np.isinf(value):
+                            db_metrics[key] = Decimal(str(round(float(value), 4)))
+                        else:
+                            db_metrics[key] = None
 
-                values = (
-                    portfolio_id,
-                    calculation_date,
-                    timeframe,
-                    db_metrics.get("total_return_pct"),
-                    db_metrics.get("annualized_return_pct"),
-                    db_metrics.get("volatility_pct"),
-                    db_metrics.get("sharpe_ratio"),
-                    db_metrics.get("max_drawdown_pct"),
-                    db_metrics.get("alpha"),
-                    db_metrics.get("beta"),
-                    db_metrics.get("up_capture_ratio"),
-                    db_metrics.get("down_capture_ratio"),
-                    db_metrics.get("benchmark_return_pct"),
-                    db_metrics.get("excess_return_pct"),
-                )
+                    # Insert or update portfolio performance metrics
+                    query = """
+                        INSERT INTO portfolio_performance_metrics 
+                        (portfolio_id, calculation_date, timeframe, total_return_pct, annualized_return_pct, 
+                        volatility_pct, sharpe_ratio, max_drawdown_pct, alpha, beta, up_capture_ratio, 
+                        down_capture_ratio, benchmark_return_pct, excess_return_pct)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE
+                        total_return_pct = VALUES(total_return_pct),
+                        annualized_return_pct = VALUES(annualized_return_pct),
+                        volatility_pct = VALUES(volatility_pct),
+                        sharpe_ratio = VALUES(sharpe_ratio),
+                        max_drawdown_pct = VALUES(max_drawdown_pct),
+                        alpha = VALUES(alpha),
+                        beta = VALUES(beta),
+                        up_capture_ratio = VALUES(up_capture_ratio),
+                        down_capture_ratio = VALUES(down_capture_ratio),
+                        benchmark_return_pct = VALUES(benchmark_return_pct),
+                        excess_return_pct = VALUES(excess_return_pct)
+                    """
 
-                cursor.execute(query, values)
+                    values = (
+                        portfolio_id,
+                        calculation_date,
+                        timeframe,
+                        db_metrics.get("total_return_pct"),
+                        db_metrics.get("annualized_return_pct"),
+                        db_metrics.get("volatility_pct"),
+                        db_metrics.get("sharpe_ratio"),
+                        db_metrics.get("max_drawdown_pct"),
+                        db_metrics.get("alpha"),
+                        db_metrics.get("beta"),
+                        db_metrics.get("up_capture_ratio"),
+                        db_metrics.get("down_capture_ratio"),
+                        db_metrics.get("benchmark_return_pct"),
+                        db_metrics.get("excess_return_pct"),
+                    )
 
-            self.connection.commit()
-            self.logger.info(f"Saved performance metrics for portfolio {portfolio_id}")
+                    cursor.execute(query, values)
+
+                self.current_connection.commit()
+                self.logger.info("Saved performance metrics for portfolio %s", portfolio_id)
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error saving portfolio metrics: {e}")
-            self.connection.rollback()
+            self.logger.error("Error saving portfolio metrics: %s", e)
+            self.current_connection.rollback()
             raise
         finally:
             cursor.close()
 
-    def get_portfolio_metrics(
-        self, portfolio_id: int, calculation_date: date = None
-    ) -> Dict:
+    def get_portfolio_metrics(self, portfolio_id: int, calculation_date: date = None) -> Dict:
         """
         Retrieve saved portfolio metrics from the database.
 
@@ -511,38 +430,38 @@ class MultiTimeframeAnalyzer:
         if calculation_date is None:
             calculation_date = date.today()
 
-        cursor = self.connection.cursor(dictionary=True)
-
         try:
-            query = """
-                SELECT * FROM portfolio_performance_metrics
-                WHERE portfolio_id = %s AND calculation_date = %s
-                ORDER BY FIELD(timeframe, '1M', '3M', '6M', '1Y', '2Y', '5Y', 'MAX')
-            """
-            cursor.execute(query, (portfolio_id, calculation_date))
-            results = cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                query = """
+                    SELECT * FROM portfolio_performance_metrics
+                    WHERE portfolio_id = %s AND calculation_date = %s
+                    ORDER BY FIELD(timeframe, '1M', '3M', '6M', '1Y', '2Y', '5Y', 'MAX')
+                """
+                cursor.execute(query, (portfolio_id, calculation_date))
+                results = cursor.fetchall()
 
-            metrics_by_timeframe = {}
-            for row in results:
-                timeframe = row["timeframe"]
-                metrics = {
-                    k: float(v) if v is not None else None
-                    for k, v in row.items()
-                    if k
-                    not in [
-                        "id",
-                        "portfolio_id",
-                        "calculation_date",
-                        "timeframe",
-                        "created_at",
-                    ]
-                }
-                metrics_by_timeframe[timeframe] = metrics
+                metrics_by_timeframe = {}
+                for row in results:
+                    timeframe = row["timeframe"]
+                    metrics = {
+                        k: float(v) if v is not None else None
+                        for k, v in row.items()
+                        if k
+                        not in [
+                            "id",
+                            "portfolio_id",
+                            "calculation_date",
+                            "timeframe",
+                            "created_at",
+                        ]
+                    }
+                    metrics_by_timeframe[timeframe] = metrics
 
-            return metrics_by_timeframe
+                return metrics_by_timeframe
 
         except mysql.connector.Error as e:
-            self.logger.error(f"Error retrieving portfolio metrics: {e}")
+            self.logger.error("Error retrieving portfolio metrics: %s", e)
             return {}
         finally:
             cursor.close()
@@ -557,17 +476,8 @@ class MultiTimeframeAnalyzer:
         try:
             from data.data_retrieval_consolidated import DataRetrieval
 
-            # Get database config
-            config = Config()
-            db_config = config.get_database_config()
-
             # Initialize data retrieval
-            data_retrieval = DataRetrieval(
-                db_config["user"],
-                db_config["password"],
-                db_config["host"],
-                db_config["database"],
-            )
+            data_retrieval = DataRetrieval(self.pool)
 
             # Update S&P 500 data
             self.logger.info("Updating S&P 500 benchmark data...")
@@ -576,4 +486,4 @@ class MultiTimeframeAnalyzer:
             self.logger.info("S&P 500 data update completed")
 
         except Exception as e:
-            self.logger.error(f"Error updating S&P 500 data: {e}")
+            self.logger.error("Error updating S&P 500 data: %s", e)

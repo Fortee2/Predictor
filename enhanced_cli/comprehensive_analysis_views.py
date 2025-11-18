@@ -10,8 +10,7 @@ from typing import Dict
 
 from rich.prompt import Prompt
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
@@ -39,7 +38,7 @@ class ComprehensiveAnalysisCommand(Command):
 
         if portfolio_id is None:
             # First list portfolios for selection
-            from enhanced_cli.portfolio_views import ListPortfoliosCommand
+            from enhanced_cli.portfolio import ListPortfoliosCommand
 
             list_command = ListPortfoliosCommand()
             list_command.execute(cli)
@@ -255,7 +254,7 @@ class ViewSavedMetricsCommand(Command):
 
         if portfolio_id is None:
             # First list portfolios for selection
-            from enhanced_cli.portfolio_views import ListPortfoliosCommand
+            from enhanced_cli.portfolio.portfolio_views import ListPortfoliosCommand
 
             list_command = ListPortfoliosCommand()
             list_command.execute(cli)

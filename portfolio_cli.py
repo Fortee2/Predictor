@@ -3,8 +3,8 @@ import datetime
 import decimal
 import os
 
-from data.config import Config
 from data.bollinger_bands import BollingerBandAnalyzer
+from data.config import Config
 from data.data_retrieval_consolidated import DataRetrieval
 from data.fundamental_data_dao import FundamentalDataDAO
 from data.macd import MACD
@@ -20,6 +20,7 @@ from data.shared_analysis_metrics import SharedAnalysisMetrics
 from data.stochastic_oscillator import StochasticOscillator
 from data.ticker_dao import TickerDao
 from data.trend_analyzer import TrendAnalyzer
+from data.utility import DatabaseConnectionPool
 from data.watch_list_dao import WatchListDAO
 
 
@@ -28,59 +29,37 @@ class PortfolioCLI:
         # Initialize configuration
         self.config = Config()
         db_config = self.config.get_database_config()
-        
-        # Get database credentials from config
-        db_user = db_config['user']
-        db_password = db_config['password']
-        db_host = db_config['host']
-        db_name = db_config['database']
+
+        # Initialize connection pool ONCE - NEW PATTERN
+        self.db_pool = DatabaseConnectionPool(
+            user=db_config["user"],
+            password=db_config["password"],
+            host=db_config["host"],
+            database=db_config["database"],
+            pool_size=20,  # Optional, already defaults to 20
+        )
 
         # Initialize ticker_dao first since it's needed by BollingerBandAnalyzer
-        self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
+        self.ticker_dao = TickerDao(self.db_pool)
 
         # Initialize DAOs with database credentials
-        self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
-        self.transactions_dao = PortfolioTransactionsDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.rsi_calc = rsi_calculations(db_user, db_password, db_host, db_name)
-        self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
+        self.portfolio_dao = PortfolioDAO(pool=self.db_pool)
+        self.transactions_dao = PortfolioTransactionsDAO(pool=self.db_pool)
+        self.rsi_calc = rsi_calculations(pool=self.db_pool)
+        self.moving_avg = moving_averages(pool=self.db_pool)
         self.bb_analyzer = BollingerBandAnalyzer(
             self.ticker_dao
         )  # Pass ticker_dao instance
-        self.fundamental_dao = FundamentalDataDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
-        self.news_analyzer = NewsSentimentAnalyzer(
-            db_user, db_password, db_host, db_name
-        )
-        self.data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
-        self.value_calculator = PortfolioValueCalculator(
-            db_user, db_password, db_host, db_name
-        )
-        self.value_service = PortfolioValueService(
-            db_user, db_password, db_host, db_name
-        )
-        self.options_analyzer = OptionsData(db_user, db_password, db_host, db_name)
-        self.trend_analyzer = TrendAnalyzer(db_user, db_password, db_host, db_name)
-        self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
-        self.stochastic_analyzer = StochasticOscillator(
-            db_user, db_password, db_host, db_name
-        )
-
-        # Open database connections for classes that need it
-        self.portfolio_dao.open_connection()
-        self.transactions_dao.open_connection()
-        self.ticker_dao.open_connection()
-        self.rsi_calc.open_connection()
-        self.moving_avg.open_connection()
-        self.fundamental_dao.open_connection()
-        self.value_calculator.open_connection()
-        self.macd_analyzer.open_connection()
-        self.trend_analyzer.open_connection()
-        self.watch_list_dao.open_connection()
-        self.stochastic_analyzer.open_connection()
+        self.fundamental_dao = FundamentalDataDAO(pool=self.db_pool)
+        self.macd_analyzer = MACD(pool=self.db_pool)
+        self.news_analyzer = NewsSentimentAnalyzer(pool=self.db_pool)
+        self.data_retrieval = DataRetrieval(pool=self.db_pool)
+        self.value_calculator = PortfolioValueCalculator(pool=self.db_pool)
+        self.value_service = PortfolioValueService(pool=self.db_pool)
+        self.options_analyzer = OptionsData(pool=self.db_pool)
+        self.trend_analyzer = TrendAnalyzer(pool=self.db_pool)
+        self.watch_list_dao = WatchListDAO(pool=self.db_pool)
+        self.stochastic_analyzer = StochasticOscillator(pool=self.db_pool)
 
         # Initialize shared analysis metrics with stochastic support
         self.shared_metrics = SharedAnalysisMetrics(
@@ -375,7 +354,7 @@ class PortfolioCLI:
                     portfolio_id, amount, cash_action, description, date
                 )
 
-                print(f"\nSuccessfully logged cash transaction:")
+                print("\nSuccessfully logged cash transaction:")
                 if amount > 0:
                     print(f"${amount:.2f} deposit")
                 else:
@@ -642,7 +621,7 @@ class PortfolioCLI:
 
             # If no performance data exists yet, generate it
             # First check if any records exist
-            cursor = self.value_calculator.connection.cursor()
+            cursor = self.value_calculator.current_connection.cursor()
             cursor.execute(
                 "SELECT COUNT(*) FROM portfolio_value WHERE portfolio_id = %s",
                 (portfolio_id,),
@@ -936,7 +915,7 @@ class PortfolioCLI:
                     )
 
                     # Use shared analysis metrics for comprehensive analysis
-                    self.shared_metrics.analyze_ticker_comprehensive(ticker_id, symbol)
+                    self.shared_metrics.get_comprehensive_analysis(ticker_id, symbol)
 
                 except Exception as e:
                     print(f"║ Error analyzing {symbol}: {str(e):<42}║")
@@ -951,12 +930,12 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Create Portfolio
-    create_parser = subparsers.add_parser(
+    create_portfolio_parser = subparsers.add_parser(
         "create-portfolio", help="Create a new portfolio"
     )
-    create_parser.add_argument("name", help="Portfolio name")
-    create_parser.add_argument("description", help="Portfolio description")
-    create_parser.add_argument(
+    create_portfolio_parser.add_argument("name", help="Portfolio name")
+    create_portfolio_parser.add_argument("description", help="Portfolio description")
+    create_portfolio_parser.add_argument(
         "--initial_cash", type=float, default=0.0, help="Initial cash balance"
     )
 
@@ -1088,7 +1067,7 @@ def main():
     create_wl_parser.add_argument("--description", help="Watch list description")
 
     # View Watch Lists
-    view_wl_parser = subparsers.add_parser(
+    subparsers.add_parser(
         "view-watchlists", help="View all watch lists"
     )
 

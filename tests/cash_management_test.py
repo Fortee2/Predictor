@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 # Add proper imports for portfolio functionality
 from data.portfolio_dao import PortfolioDAO
+from data.utility import DatabaseConnectionPool
 from portfolio_cli import PortfolioCLI
 
 
@@ -25,17 +26,16 @@ class CashManagementTests(unittest.TestCase):
         """Setup test environment once before all tests"""
         load_dotenv()
 
-        # Get database credentials from environment variables
-        cls.db_user = os.getenv("DB_USER")
-        cls.db_password = os.getenv("DB_PASSWORD")
-        cls.db_host = os.getenv("DB_HOST")
-        cls.db_name = os.getenv("DB_NAME")
-
-        # Initialize DAOs and CLI
-        cls.portfolio_dao = PortfolioDAO(
-            cls.db_user, cls.db_password, cls.db_host, cls.db_name
+        # Initialize connection pool
+        cls.db_pool = DatabaseConnectionPool(
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            database=os.getenv("DB_NAME"),
         )
-        cls.portfolio_dao.open_connection()
+
+        # Initialize DAOs with connection pool
+        cls.portfolio_dao = PortfolioDAO(cls.db_pool)
         cls.cli = PortfolioCLI()
 
         # Create a test portfolio for all tests to use
@@ -45,65 +45,67 @@ class CashManagementTests(unittest.TestCase):
     def tearDownClass(cls):
         """Clean up after all tests have run"""
         cls._delete_test_portfolio(cls.test_portfolio_id)
-        cls.portfolio_dao.close_connection()
+        # No need to close connection - pool manages this
 
     @classmethod
     def _create_test_portfolio(cls):
         """Create a test portfolio and return its ID"""
-        cursor = cls.portfolio_dao.connection.cursor()
-
         # First check if our test portfolio already exists
-        query = "SELECT id FROM portfolio WHERE name = 'CashManagementTest'"
-        cursor.execute(query)
-        result = cursor.fetchone()
+        with cls.db_pool.get_connection_context() as connection:
+            cursor = connection.cursor()
+            query = "SELECT id FROM portfolio WHERE name = 'CashManagementTest'"
+            cursor.execute(query)
+            result = cursor.fetchone()
+            cursor.close()
+            
+            if result:
+                # If it exists, delete it first to start fresh (outside this context)
+                portfolio_id = result[0]
 
+        # Delete existing portfolio if found (uses its own context manager)
         if result:
-            # If it exists, delete it first to start fresh
-            portfolio_id = result[0]
-            cls._delete_test_portfolio(portfolio_id)
+            cls._delete_test_portfolio(result[0])
 
-        # Create a new test portfolio
+        # Create a new test portfolio (uses DAO's context manager)
         portfolio_id = cls.portfolio_dao.create_portfolio(
             "CashManagementTest",
             "Test portfolio for cash management tests",
             1000.00,  # Initial cash balance
         )
 
-        cursor.close()
         return portfolio_id
 
     @classmethod
     def _delete_test_portfolio(cls, portfolio_id):
         """Delete the test portfolio"""
-        # First delete related records
-        cursor = cls.portfolio_dao.connection.cursor()
+        with cls.db_pool.get_connection_context() as connection:
+            cursor = connection.cursor()
 
-        # Delete cash transaction history
-        try:
-            query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
+            # Delete cash transaction history
+            try:
+                query = "DELETE FROM cash_balance_history WHERE portfolio_id = %s"
+                cursor.execute(query, (portfolio_id,))
+            except Exception:
+                pass  # Table might not exist
+
+            # Delete portfolio transactions
+            query = "SELECT id FROM portfolio_securities WHERE portfolio_id = %s"
             cursor.execute(query, (portfolio_id,))
-        except:
-            pass  # Table might not exist
+            security_ids = [row[0] for row in cursor.fetchall()]
 
-        # Delete portfolio transactions
-        query = "SELECT id FROM portfolio_securities WHERE portfolio_id = %s"
-        cursor.execute(query, (portfolio_id,))
-        security_ids = [row[0] for row in cursor.fetchall()]
+            for security_id in security_ids:
+                query = "DELETE FROM portfolio_transactions WHERE security_id = %s"
+                cursor.execute(query, (security_id,))
 
-        for security_id in security_ids:
-            query = "DELETE FROM portfolio_transactions WHERE security_id = %s"
-            cursor.execute(query, (security_id,))
+            # Delete portfolio securities
+            query = "DELETE FROM portfolio_securities WHERE portfolio_id = %s"
+            cursor.execute(query, (portfolio_id,))
 
-        # Delete portfolio securities
-        query = "DELETE FROM portfolio_securities WHERE portfolio_id = %s"
-        cursor.execute(query, (portfolio_id,))
+            # Delete portfolio itself
+            query = "DELETE FROM portfolio WHERE id = %s"
+            cursor.execute(query, (portfolio_id,))
 
-        # Delete portfolio itself
-        query = "DELETE FROM portfolio WHERE id = %s"
-        cursor.execute(query, (portfolio_id,))
-
-        cls.portfolio_dao.connection.commit()
-        cursor.close()
+            cursor.close()
 
     def setUp(self):
         """Setup before each test - reset the cash balance"""
@@ -179,7 +181,7 @@ class CashManagementTests(unittest.TestCase):
             self.assertEqual(latest["description"], "Test deposit transaction")
             self.assertEqual(float(latest["balance_after"]), expected)
             print(
-                f"✅ log_cash_transaction test passed. Transaction logged successfully."
+                "✅ log_cash_transaction test passed. Transaction logged successfully."
             )
         else:
             self.fail("No transaction history found")
@@ -192,7 +194,7 @@ class CashManagementTests(unittest.TestCase):
         excessive_amount = initial + 1000.0  # More than we have
 
         # Withdraw should give a warning but still allow the withdrawal
-        new_balance = self.portfolio_dao.withdraw_cash(
+        self.portfolio_dao.withdraw_cash(
             self.test_portfolio_id, excessive_amount
         )
 

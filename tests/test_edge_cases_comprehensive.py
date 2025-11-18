@@ -8,9 +8,8 @@ that might not be covered in the main test suite.
 import os
 import sys
 import unittest
-from datetime import date, timedelta
 from decimal import Decimal
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
 import pandas as pd
@@ -18,8 +17,7 @@ import pandas as pd
 # Add the project root to the path so we can import modules
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
-from data.comprehensive_performance_formatter import \
-    ComprehensivePerformanceFormatter
+from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
 
@@ -28,11 +26,15 @@ class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-        self.analyzer.connection = Mock()
+        # Mock database connection pool
+        mock_pool = Mock()
+        mock_connection = Mock()
+        mock_pool.get_connection.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
     def test_calculate_performance_metrics_with_nan_values(self):
         """Test performance metrics calculation with NaN values in returns."""
@@ -335,11 +337,15 @@ class TestDataValidationAndSanitization(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        with patch("mysql.connector.connect"):
-            self.analyzer = MultiTimeframeAnalyzer(
-                db_user="test", db_password="test", db_host="test", db_name="test"
-            )
-        self.analyzer.connection = Mock()
+        # Mock database connection pool
+        mock_pool = Mock()
+        mock_connection = Mock()
+        mock_pool.get_connection.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
+        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
     def test_returns_calculation_with_mixed_data_types(self):
         """Test returns calculation with mixed data types."""

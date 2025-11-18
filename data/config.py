@@ -1,7 +1,6 @@
 import json
 import logging
 import os
-from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -82,7 +81,7 @@ class Config:
             if os.path.exists(self.config_file):
                 with open(self.config_file, "r") as f:
                     user_config = json.load(f)
-                    logger.info(f"Loaded configuration from {self.config_file}")
+                    logger.info("Loaded configuration from %s", self.config_file)
                     # Merge with defaults for any missing values
                     return self._merge_config(self.default_config, user_config)
             else:
@@ -90,10 +89,10 @@ class Config:
                 os.makedirs(os.path.dirname(self.config_file), exist_ok=True)
                 with open(self.config_file, "w") as f:
                     json.dump(self.default_config, f, indent=4)
-                logger.info(f"Created default configuration at {self.config_file}")
+                logger.info("Created default configuration at %s", self.config_file)
                 return self.default_config
         except Exception as e:
-            logger.error(f"Error loading configuration: {str(e)}")
+            logger.error("Error loading configuration: %s", str(e))
             return self.default_config
 
     def _merge_config(self, default_config, user_config):
@@ -117,10 +116,10 @@ class Config:
         try:
             with open(self.config_file, "w") as f:
                 json.dump(self.config, f, indent=4)
-            logger.info(f"Configuration saved to {self.config_file}")
+            logger.info("Configuration saved to %s", self.config_file)
             return True
         except Exception as e:
-            logger.error(f"Error saving configuration: {str(e)}")
+            logger.error("Error saving configuration: %s", str(e))
             return False
 
     def get(self, section, key=None):
@@ -132,16 +131,16 @@ class Config:
                         return self.config[section][key]
                     else:
                         logger.warning(
-                            f"Configuration key '{key}' not found in section '{section}'"
+                            "Configuration key '%s' not found in section '%s'", key, section
                         )
                         return None
                 else:
                     return self.config[section]
             else:
-                logger.warning(f"Configuration section '{section}' not found")
+                logger.warning("Configuration section '%s' not found", section)
                 return None
         except Exception as e:
-            logger.error(f"Error getting configuration: {str(e)}")
+            logger.error("Error getting configuration: %s", str(e))
             return None
 
     def set(self, section, key, value):
@@ -151,10 +150,10 @@ class Config:
                 self.config[section] = {}
 
             self.config[section][key] = value
-            logger.info(f"Configuration updated: {section}.{key} = {value}")
+            logger.info("Configuration updated: %s.%s = %s", section, key, value)
             return True
         except Exception as e:
-            logger.error(f"Error setting configuration: {str(e)}")
+            logger.error("Error setting configuration: %s", str(e))
             return False
 
     def get_database_config(self):

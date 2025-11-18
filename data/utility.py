@@ -3,7 +3,6 @@ from contextlib import contextmanager
 
 import mysql.connector
 import requests
-from mysql.connector import pooling
 
 
 class utility:

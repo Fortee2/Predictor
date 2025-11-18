@@ -33,21 +33,14 @@ class UpdateDataCommand(Command):
             return
 
         # Import here to avoid startup delay
-        import os
 
         from data.data_retrieval_consolidated import DataRetrieval
-
-        # Get database credentials from PortfolioCLI instance
-        db_user = os.getenv("DB_USER")
-        db_password = os.getenv("DB_PASSWORD")
-        db_host = os.getenv("DB_HOST")
-        db_name = os.getenv("DB_NAME")
 
         with ui.progress("Updating stock data...") as progress:
             progress.add_task("", total=None)
 
             # Create DataRetrieval instance only when needed
-            data_retrieval = DataRetrieval(db_user, db_password, db_host, db_name)
+            data_retrieval = DataRetrieval(pool=cli.cli.db_pool)
             data_retrieval.update_stock_activity()
 
         ui.status_message("Data update complete", "success")

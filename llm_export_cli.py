@@ -10,9 +10,7 @@ import argparse
 import json
 import sys
 
-from enhanced_cli.llm_export_views import (LLMAnalysisPromptCommand,
-                                           PortfolioSnapshotCommand)
-from enhanced_cli.ui_components import ui
+from enhanced_cli.llm_export_views import LLMAnalysisPromptCommand, PortfolioSnapshotCommand
 from portfolio_cli import PortfolioCLI
 
 

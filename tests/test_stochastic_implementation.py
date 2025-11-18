@@ -16,13 +16,12 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv()
 
 from data.bollinger_bands import BollingerBandAnalyzer
-from data.fundamental_data_dao import FundamentalDataDAO
 from data.macd import MACD
 from data.moving_averages import moving_averages
-from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.options_data import OptionsData
 from data.rsi_calculations import rsi_calculations
 from data.shared_analysis_metrics import SharedAnalysisMetrics
+from data.utility import DatabaseConnectionPool
+
 # Import required modules - following existing patterns
 from data.stochastic_oscillator import StochasticOscillator
 from data.ticker_dao import TickerDao
@@ -36,13 +35,16 @@ def test_stochastic_basic_functionality():
     print("=" * 80)
 
     try:
-        # Initialize stochastic analyzer - reusing existing DB connection pattern
-        stoch_analyzer = StochasticOscillator(
+        # Initialize connection pool
+        db_pool = DatabaseConnectionPool(
             user=os.getenv("DB_USER"),
             password=os.getenv("DB_PASSWORD"),
             host=os.getenv("DB_HOST"),
             database=os.getenv("DB_NAME"),
         )
+        
+        # Initialize stochastic analyzer with connection pool
+        stoch_analyzer = StochasticOscillator(db_pool)
 
         # Test with a sample ticker (assuming ticker_id 1 exists)
         ticker_id = 1
@@ -51,7 +53,7 @@ def test_stochastic_basic_functionality():
         stoch_data = stoch_analyzer.calculate_stochastic(ticker_id)
 
         if stoch_data is not None and not stoch_data.empty:
-            print(f"   ✓ Successfully calculated stochastic data")
+            print("   ✓ Successfully calculated stochastic data")
             print(f"   ✓ Data points: {len(stoch_data)}")
             print(f"   ✓ Latest %K: {stoch_data.iloc[-1]['stoch_k']:.2f}")
             print(f"   ✓ Latest %D: {stoch_data.iloc[-1]['stoch_d']:.2f}")
@@ -59,7 +61,7 @@ def test_stochastic_basic_functionality():
             print("   ✗ No stochastic data calculated")
             return False
 
-        print(f"\n2. Testing signal generation...")
+        print("\n2. Testing signal generation...")
         signals = stoch_analyzer.get_stochastic_signals(ticker_id)
 
         if signals.get("success"):
@@ -72,16 +74,16 @@ def test_stochastic_basic_functionality():
             print(f"   ✗ Signal generation failed: {signals.get('error')}")
             return False
 
-        print(f"\n3. Testing divergence analysis...")
+        print("\n3. Testing divergence analysis...")
         divergence = stoch_analyzer.analyze_divergence(ticker_id)
 
         if divergence.get("success"):
-            print(f"   ✓ Divergence analysis completed")
+            print("   ✓ Divergence analysis completed")
             print(f"   ✓ {divergence['display_text']}")
         else:
             print(f"   ⚠ Divergence analysis: {divergence.get('error')}")
 
-        stoch_analyzer.close_connection()
+        # No need to close connection - pool manages this
         return True
 
     except Exception as e:
@@ -96,30 +98,24 @@ def test_shared_analysis_integration():
     print("=" * 80)
 
     try:
-        # Initialize all required components - following existing patterns
-        db_config = {
-            "user": os.getenv("DB_USER"),
-            "password": os.getenv("DB_PASSWORD"),
-            "host": os.getenv("DB_HOST"),
-            "database": os.getenv("DB_NAME"),
-        }
+        # Initialize connection pool
+        db_pool = DatabaseConnectionPool(
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            database=os.getenv("DB_NAME"),
+        )
 
         print("\n1. Initializing analysis components...")
 
-        # Initialize components (some may not be fully functional without proper setup)
-        rsi_calc = rsi_calculations(**db_config)
-        rsi_calc.open_connection()
-
-        moving_avg = moving_averages(**db_config)
-
-        ticker_dao = TickerDao(**db_config)
+        # Initialize components with connection pool
+        rsi_calc = rsi_calculations(db_pool)
+        moving_avg = moving_averages(db_pool)
+        ticker_dao = TickerDao(db_pool)
         bb_analyzer = BollingerBandAnalyzer(ticker_dao)
-
-        macd_analyzer = MACD(**db_config)
-        trend_analyzer = TrendAnalyzer(**db_config)
-
-        # Initialize stochastic analyzer
-        stochastic_analyzer = StochasticOscillator(**db_config)
+        macd_analyzer = MACD(db_pool)
+        trend_analyzer = TrendAnalyzer(db_pool)
+        stochastic_analyzer = StochasticOscillator(db_pool)
 
         # Mock components that might not be available
         class MockFundamentalDao:
@@ -179,9 +175,7 @@ def test_shared_analysis_integration():
         print("\n4. Testing comprehensive analysis with stochastic...")
 
         # Get ticker symbol for comprehensive analysis
-        ticker_dao.open_connection()
         symbol = ticker_dao.get_ticker_symbol(ticker_id)
-        ticker_dao.close_connection()
 
         if not symbol:
             symbol = "TEST"  # Fallback for testing
@@ -223,13 +217,7 @@ def test_shared_analysis_integration():
         else:
             print("   ⚠ Stochastic data not found in formatted output")
 
-        # Clean up connections
-        rsi_calc.close_connection()
-        moving_avg.close_connection()
-        macd_analyzer.close_connection()
-        trend_analyzer.close_connection()
-        stochastic_analyzer.close_connection()
-
+        # No need to close connections - pool manages this
         return True
 
     except Exception as e:

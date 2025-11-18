@@ -7,7 +7,7 @@ This module provides functions for formatting various types of data
 
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 
 def format_date(

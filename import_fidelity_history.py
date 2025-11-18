@@ -1,8 +1,7 @@
 import csv
 import datetime
 
-from portfolio_cli import \
-    PortfolioCLI  # Assuming portfolio_cli.py is in the same directory
+from portfolio_cli import PortfolioCLI  # Assuming portfolio_cli.py is in the same directory
 
 
 def import_transactions_from_csv(portfolio_id, csv_filepath):
@@ -222,7 +221,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
         cli.trend_analyzer.close_connection()
         cli.watch_list_dao.close_connection()
 
-        print(f"\n--- Transaction Import Summary ---")
+        print("\n--- Transaction Import Summary ---")
         print(
             f"Total rows processed from CSV (excluding header and blank rows): {total_transactions}"
         )

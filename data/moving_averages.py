@@ -1,11 +1,10 @@
 import logging
-from contextlib import contextmanager
 from datetime import timedelta
 
 import mysql.connector
 import pandas as pd
 
-from data.utility import DatabaseConnectionPool
+from .base_dao import BaseDAO
 
 # Set up logging - Modified to only log to file, not console
 logging.basicConfig(
@@ -26,74 +25,7 @@ for handler in logger.handlers[:]:
         logger.removeHandler(handler)
 
 
-class moving_averages:
-
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
-
-        # Initialize connection pool if not already initialized
-        try:
-            self.pool = DatabaseConnectionPool(user, password, host, database)
-            self.current_connection = None
-            logger.info("Moving averages initialized with database connection pool")
-        except Exception as e:
-            logger.error(f"Failed to initialize database connection pool: {str(e)}")
-            raise
-
-    @contextmanager
-    def get_connection(self):
-        """Context manager for database connections."""
-        connection = None
-        try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
-                # Use existing connection if it's still valid
-                connection = self.current_connection
-                yield connection
-            else:
-                # Get a new connection from the pool
-                connection = self.pool.get_connection()
-                self.current_connection = connection
-                yield connection
-        except mysql.connector.Error as e:
-            logger.error(f"Database connection error: {str(e)}")
-            raise
-        finally:
-            # Don't close the connection here, just pass
-            # The connection will be closed when open_connection() is explicitly called
-            pass
-
-    def open_connection(self):
-        """Open a new database connection or return the existing one if valid."""
-        try:
-            if (
-                self.current_connection is None
-                or not self.current_connection.is_connected()
-            ):
-                self.current_connection = self.pool.get_connection()
-                logger.debug("Opened new database connection")
-            return self.current_connection
-        except mysql.connector.Error as e:
-            logger.error(f"Failed to open database connection: {str(e)}")
-            raise
-
-    def close_connection(self):
-        """Close the current database connection if open."""
-        try:
-            if (
-                self.current_connection is not None
-                and self.current_connection.is_connected()
-            ):
-                self.current_connection.close()
-                logger.debug("Closed database connection")
-                self.current_connection = None
-        except mysql.connector.Error as e:
-            logger.error(f"Error closing database connection: {str(e)}")
+class moving_averages(BaseDAO):
 
     def calculateAverage(self, resultColumn, columnToAvg, interval, avgDataFrame):
         """Calculate moving average for a DataFrame column."""
@@ -110,7 +42,7 @@ class moving_averages:
 
             return avgDataFrame
         except Exception as e:
-            logger.error(f"Error calculating average: {str(e)}")
+            logger.error("Error calculating average: %s", str(e))
             raise
 
     def loadAveragesFromDB(self, ticker_id, averageType):
@@ -138,21 +70,21 @@ class moving_averages:
                 cursor.close()
 
                 logger.debug(
-                    f"Loaded {len(df)} average data points for ticker {ticker_id}, type {averageType}"
+                    "Loaded %s average data points for ticker %s, type %s", len(df), ticker_id, averageType
                 )
                 return df
         except mysql.connector.Error as e:
             logger.error(
-                f"Database error loading averages for ticker {ticker_id}, type {averageType}: {str(e)}"
+                "Database error loading averages for ticker %s, type %s: %s", ticker_id, averageType, str(e)
             )
             raise
         except Exception as e:
-            logger.error(f"Error loading averages from DB: {str(e)}")
+            logger.error("Error loading averages from DB: %s", str(e))
             raise
 
     def update_moving_averages(self, ticker_id, period):
         """Calculate and update moving averages for a ticker over a period."""
-        logger.info(f"Updating moving averages for ticker {ticker_id}, period {period}")
+        logger.info("Updating moving averages for ticker %s, period %s", ticker_id, period)
 
         try:
             with self.get_connection() as connection:
@@ -174,12 +106,12 @@ class moving_averages:
                 if last_date is None:
                     last_date = "1900-01-01"
                     logger.debug(
-                        f"No previous moving averages found for ticker {ticker_id}, calculating all"
+                        "No previous moving averages found for ticker %s, calculating all", ticker_id
                     )
                 else:
                     last_date = last_date - timedelta(days=period)
                     logger.debug(
-                        f"Last moving average date for ticker {ticker_id}: {last_date}"
+                        "Last moving average date for ticker %s: %s", ticker_id, last_date
                     )
 
                 # Retrieve new data from the activity table since the last moving average calculation
@@ -200,7 +132,7 @@ class moving_averages:
 
                 if not new_data.empty:
                     logger.info(
-                        f"Found {len(new_data)} new data points to calculate moving averages"
+                        "Found %s new data points to calculate moving averages", len(new_data)
                     )
 
                     new_data["activity_date"] = pd.to_datetime(
@@ -232,11 +164,11 @@ class moving_averages:
                     # Commit the changes to the database
                     connection.commit()
                     logger.info(
-                        f"Updated {rows_updated} moving averages for ticker {ticker_id}"
+                        "Updated %s moving averages for ticker %s", rows_updated, ticker_id
                     )
                 else:
                     logger.info(
-                        f"No new data found for ticker {ticker_id} since {last_date}"
+                        "No new data found for ticker %s since %s", ticker_id, last_date
                     )
 
                 cursor.close()
@@ -244,8 +176,8 @@ class moving_averages:
                 # Return the updated moving averages from the database
                 return self.loadAveragesFromDB(ticker_id, period)
         except mysql.connector.Error as e:
-            logger.error(f"Database error updating moving averages: {str(e)}")
+            logger.error("Database error updating moving averages: %s", str(e))
             raise
         except Exception as e:
-            logger.error(f"Error updating moving averages: {str(e)}")
+            logger.error("Error updating moving averages: %s", str(e))
             raise

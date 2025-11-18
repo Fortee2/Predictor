@@ -1,33 +1,17 @@
 import mysql.connector
 
-from data.ticker_dao import TickerDao
+from .base_dao import BaseDAO
+from .ticker_dao import TickerDao
+from .utility import DatabaseConnectionPool
 
 
-class WatchListDAO:
-    def __init__(self, db_user, db_password, db_host, db_name):
-        self.db_user = db_user
-        self.db_password = db_password
-        self.db_host = db_host
-        self.db_name = db_name
-        self.ticker_dao = TickerDao(db_user, db_password, db_host, db_name)
-        self.connection = None
+class WatchListDAO(BaseDAO):
+    def __init__(self, pool: DatabaseConnectionPool):
+        super().__init__(pool)
+        self.db_pool = pool
+        self.current_connection = None
 
-    def open_connection(self):
-        try:
-            self.connection = mysql.connector.connect(
-                user=self.db_user,
-                password=self.db_password,
-                host=self.db_host,
-                database=self.db_name,
-            )
-            self.ticker_dao.open_connection()
-        except mysql.connector.Error as e:
-            print(f"Error connecting to MySQL: {e}")
-
-    def close_connection(self):
-        if self.connection:
-            self.connection.close()
-            self.ticker_dao.close_connection()
+        self.ticker_dao = TickerDao(pool=self.db_pool)
 
     def create_watch_list(self, name, description=None):
         """
@@ -41,13 +25,14 @@ class WatchListDAO:
             int: The ID of the created watch list
         """
         try:
-            cursor = self.connection.cursor()
-            query = "INSERT INTO watch_lists (name, description) VALUES (%s, %s)"
-            values = (name, description)
-            cursor.execute(query, values)
-            self.connection.commit()
-            watch_list_id = cursor.lastrowid
-            return watch_list_id
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "INSERT INTO watch_lists (name, description) VALUES (%s, %s)"
+                values = (name, description)
+                cursor.execute(query, values)
+                connection.commit()
+                watch_list_id = cursor.lastrowid
+                return watch_list_id
         except mysql.connector.Error as e:
             print(f"Error creating watch list: {e}")
             return None
@@ -63,7 +48,7 @@ class WatchListDAO:
             dict or list: The requested watch list or all watch lists
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
             if watch_list_id:
                 query = "SELECT * FROM watch_lists WHERE id = %s"
                 values = (watch_list_id,)
@@ -91,24 +76,25 @@ class WatchListDAO:
             bool: True if successful, False otherwise
         """
         try:
-            cursor = self.connection.cursor()
-            query = "UPDATE watch_lists SET "
-            values = []
-            if name:
-                query += "name = %s, "
-                values.append(name)
-            if description:
-                query += "description = %s, "
-                values.append(description)
-            query = query.rstrip(", ") + " WHERE id = %s"
-            values.append(watch_list_id)
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "UPDATE watch_lists SET "
+                values = []
+                if name:
+                    query += "name = %s, "
+                    values.append(name)
+                if description:
+                    query += "description = %s, "
+                    values.append(description)
+                query = query.rstrip(", ") + " WHERE id = %s"
+                values.append(watch_list_id)
 
-            if len(values) == 1:  # Only watch_list_id, nothing to update
-                return True
+                if len(values) == 1:  # Only watch_list_id, nothing to update
+                    return True
 
-            cursor.execute(query, values)
-            self.connection.commit()
-            return cursor.rowcount > 0
+                cursor.execute(query, values)
+                connection.commit()
+                return cursor.rowcount > 0
         except mysql.connector.Error as e:
             print(f"Error updating watch list: {e}")
             return False
@@ -124,12 +110,13 @@ class WatchListDAO:
             bool: True if successful, False otherwise
         """
         try:
-            cursor = self.connection.cursor()
-            query = "DELETE FROM watch_lists WHERE id = %s"
-            values = (watch_list_id,)
-            cursor.execute(query, values)
-            self.connection.commit()
-            return cursor.rowcount > 0
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "DELETE FROM watch_lists WHERE id = %s"
+                values = (watch_list_id,)
+                cursor.execute(query, values)
+                connection.commit()
+                return cursor.rowcount > 0
         except mysql.connector.Error as e:
             print(f"Error deleting watch list: {e}")
             return False
@@ -152,12 +139,13 @@ class WatchListDAO:
                 print(f"Error: Ticker '{ticker_symbol}' not found")
                 return False
 
-            cursor = self.connection.cursor()
-            query = "INSERT INTO watch_list_tickers (watch_list_id, ticker_id, notes) VALUES (%s, %s, %s)"
-            values = (watch_list_id, ticker_id, notes)
-            cursor.execute(query, values)
-            self.connection.commit()
-            return True
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "INSERT INTO watch_list_tickers (watch_list_id, ticker_id, notes) VALUES (%s, %s, %s)"
+                values = (watch_list_id, ticker_id, notes)
+                cursor.execute(query, values)
+                connection.commit()
+                return True
         except mysql.connector.IntegrityError as e:
             if e.errno == 1062:  # Duplicate entry error
                 print(f"Ticker '{ticker_symbol}' is already in this watch list")
@@ -185,12 +173,13 @@ class WatchListDAO:
                 print(f"Error: Ticker '{ticker_symbol}' not found")
                 return False
 
-            cursor = self.connection.cursor()
-            query = "DELETE FROM watch_list_tickers WHERE watch_list_id = %s AND ticker_id = %s"
-            values = (watch_list_id, ticker_id)
-            cursor.execute(query, values)
-            self.connection.commit()
-            return cursor.rowcount > 0
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "DELETE FROM watch_list_tickers WHERE watch_list_id = %s AND ticker_id = %s"
+                values = (watch_list_id, ticker_id)
+                cursor.execute(query, values)
+                connection.commit()
+                return cursor.rowcount > 0
         except mysql.connector.Error as e:
             print(f"Error removing ticker from watch list: {e}")
             return False
@@ -206,7 +195,7 @@ class WatchListDAO:
             list: A list of dictionaries with ticker information
         """
         try:
-            cursor = self.connection.cursor(dictionary=True)
+            cursor = self.current_connection.cursor(dictionary=True)
             query = """
                 SELECT wlt.id, wlt.ticker_id, t.ticker as symbol, t.ticker_name as name, 
                        wlt.date_added, wlt.notes
@@ -238,12 +227,13 @@ class WatchListDAO:
             if not ticker_id:
                 return False
 
-            cursor = self.connection.cursor()
-            query = "SELECT COUNT(*) FROM watch_list_tickers WHERE watch_list_id = %s AND ticker_id = %s"
-            values = (watch_list_id, ticker_id)
-            cursor.execute(query, values)
-            count = cursor.fetchone()[0]
-            return count > 0
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "SELECT COUNT(*) FROM watch_list_tickers WHERE watch_list_id = %s AND ticker_id = %s"
+                values = (watch_list_id, ticker_id)
+                cursor.execute(query, values)
+                count = cursor.fetchone()[0]
+                return count > 0
         except mysql.connector.Error as e:
             print(f"Error checking if ticker is in watch list: {e}")
             return False
@@ -266,12 +256,13 @@ class WatchListDAO:
                 print(f"Error: Ticker '{ticker_symbol}' not found")
                 return False
 
-            cursor = self.connection.cursor()
-            query = "UPDATE watch_list_tickers SET notes = %s WHERE watch_list_id = %s AND ticker_id = %s"
-            values = (notes, watch_list_id, ticker_id)
-            cursor.execute(query, values)
-            self.connection.commit()
-            return cursor.rowcount > 0
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = "UPDATE watch_list_tickers SET notes = %s WHERE watch_list_id = %s AND ticker_id = %s"
+                values = (notes, watch_list_id, ticker_id)
+                cursor.execute(query, values)
+                connection.commit()
+                return cursor.rowcount > 0
         except mysql.connector.Error as e:
             print(f"Error updating ticker notes: {e}")
             return False
@@ -284,21 +275,22 @@ class WatchListDAO:
             list: A list of dictionaries with watch list and ticker information
         """
         try:
-            cursor = self.connection.cursor()
-            query = """
-                SELECT distinct
-                    t.id as id,
-                    t.ticker as symbol,
-                    max(activity_date) as last_update
-                FROM watch_lists w
-                JOIN watch_list_tickers wlt ON w.id = wlt.watch_list_id
-                JOIN tickers t ON wlt.ticker_id = t.id
-                LEFT JOIN activity a ON t.id = a.ticker_id
-                    group by t.id, t.ticker
-                    order by 3;
-            """
-            cursor.execute(query)
-            return cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                query = """
+                    SELECT distinct
+                        t.id as id,
+                        t.ticker as symbol,
+                        max(activity_date) as last_update
+                    FROM watch_lists w
+                    JOIN watch_list_tickers wlt ON w.id = wlt.watch_list_id
+                    JOIN tickers t ON wlt.ticker_id = t.id
+                    LEFT JOIN activity a ON t.id = a.ticker_id
+                        group by t.id, t.ticker
+                        order by 3;
+                """
+                cursor.execute(query)
+                return cursor.fetchall()
         except mysql.connector.Error as e:
             print(f"Error retrieving all watch list tickers: {e}")
             return []

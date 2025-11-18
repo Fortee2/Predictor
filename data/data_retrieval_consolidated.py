@@ -1,57 +1,43 @@
-import os
 import random
 import time
 from datetime import date, datetime, timedelta
 
 import pandas as pd
 import yfinance as yf
-from dotenv import load_dotenv
 
 from data import rsi_calculations as rsi_calc
 from data import ticker_dao, utility
-from data.bollinger_bands import BollingerBandAnalyzer
-from data.fundamental_data_dao import FundamentalDataDAO
-from data.macd import MACD
-from data.moving_averages import moving_averages
-from data.news_sentiment_analyzer import NewsSentimentAnalyzer
-from data.portfolio_dao import PortfolioDAO
-from data.portfolio_transactions_dao import PortfolioTransactionsDAO
-from data.stochastic_oscillator import StochasticOscillator
-from data.watch_list_dao import WatchListDAO
+from .base_dao import BaseDAO
+from .bollinger_bands import BollingerBandAnalyzer
+from .fundamental_data_dao import FundamentalDataDAO
+from .macd import MACD
+from .moving_averages import moving_averages
+from .news_sentiment_analyzer import NewsSentimentAnalyzer
+from .portfolio_dao import PortfolioDAO
+from .portfolio_transactions_dao import PortfolioTransactionsDAO
+from .stochastic_oscillator import StochasticOscillator
+from .utility import DatabaseConnectionPool
+from .watch_list_dao import WatchListDAO
 
 
-class DataRetrieval:
-    def __init__(self, db_user, db_password, db_host, db_name):
-        self.dao = ticker_dao.TickerDao(db_user, db_password, db_host, db_name)
+class DataRetrieval(BaseDAO):
+    def __init__(self, pool: DatabaseConnectionPool):
+        super().__init__(pool)
+        self.dao = ticker_dao.TickerDao(pool=self.pool)
         self.utility = utility.utility()
-        self.dao.open_connection()
-        self.rsi = rsi_calc.rsi_calculations(db_user, db_password, db_host, db_name)
-        self.rsi.open_connection()
-        self.portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
-        self.portfolio_dao.open_connection()
-        self.portfolio_transactions_dao = PortfolioTransactionsDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.portfolio_transactions_dao.open_connection()
-        self.watch_list_dao = WatchListDAO(db_user, db_password, db_host, db_name)
-        self.watch_list_dao.open_connection()
-        self.fundamental_dao = FundamentalDataDAO(
-            db_user, db_password, db_host, db_name
-        )
-        self.fundamental_dao.open_connection()
-        self.sentiment_analyzer = NewsSentimentAnalyzer(
-            db_user, db_password, db_host, db_name
-        )
-        
-        # Initialize technical indicator calculators
-        self.macd_analyzer = MACD(db_user, db_password, db_host, db_name)
-        self.macd_analyzer.open_connection()
-        self.moving_avg = moving_averages(db_user, db_password, db_host, db_name)
-        self.moving_avg.open_connection()
-        self.bb_analyzer = BollingerBandAnalyzer(self.dao)
-        self.stochastic_analyzer = StochasticOscillator(db_user, db_password, db_host, db_name)
-        self.stochastic_analyzer.open_connection()
+        self.rsi = rsi_calc.rsi_calculations(pool=self.pool)
+        self.portfolio_dao = PortfolioDAO(pool=self.pool)
+        self.portfolio_transactions_dao = PortfolioTransactionsDAO(pool=self.pool)
+        self.watch_list_dao = WatchListDAO(pool=self.pool)
+        self.fundamental_dao = FundamentalDataDAO(pool=self.pool)
+        self.sentiment_analyzer = NewsSentimentAnalyzer(pool=self.pool)
 
+        # Initialize technical indicator calculators
+        self.macd_analyzer = MACD(pool=self.pool)
+        self.moving_avg = moving_averages(pool=self.pool)
+        self.bb_analyzer = BollingerBandAnalyzer(self.dao)
+        self.stochastic_analyzer = StochasticOscillator(pool=self.pool)
+        
         # Enhanced configurations for rate limiting
         self.requests_per_batch = 1  # Process only one ticker at a time
         self.batch_pause_time = 300  # 5-minute pause between tickers
@@ -124,7 +110,7 @@ class DataRetrieval:
                         or ticker_data["sector"] is None
                         or ticker_data["sector"] == "Unknown"
                     )
-                    
+
                     if should_update:
                         time.sleep(random.randint(1, 3))  # Small delay before API call
                         ticker = yf.Ticker(symbol)
@@ -158,7 +144,7 @@ class DataRetrieval:
                                 and attempt < self.max_retries - 1
                             ):
                                 print(
-                                    f"Rate limit hit when accessing fast_info. Will retry."
+                                    "Rate limit hit when accessing fast_info. Will retry."
                                 )
                                 continue
 
@@ -189,7 +175,7 @@ class DataRetrieval:
                                     and attempt < self.max_retries - 1
                                 ):
                                     print(
-                                        f"Rate limit hit when accessing info. Will retry."
+                                        "Rate limit hit when accessing info. Will retry."
                                     )
                                     continue
                                 print(
@@ -423,7 +409,7 @@ class DataRetrieval:
                         is_delisted = True
                 except Exception as e:
                     if "Too Many Requests" in str(e) and attempt < self.max_retries - 1:
-                        print(f"Rate limit hit when checking fast_info. Will retry.")
+                        print("Rate limit hit when checking fast_info. Will retry.")
                         continue
 
                     print(
@@ -448,7 +434,7 @@ class DataRetrieval:
                             "Too Many Requests" in str(info_e)
                             and attempt < self.max_retries - 1
                         ):
-                            print(f"Rate limit hit when checking info. Will retry.")
+                            print("Rate limit hit when checking info. Will retry.")
                             continue
                         print(f"Error accessing info for {symbol}: {str(info_e)}")
 
@@ -550,7 +536,7 @@ class DataRetrieval:
                         "Too Many Requests" in str(hist_e)
                         and attempt < self.max_retries - 1
                     ):
-                        print(f"Rate limit hit when retrieving history. Will retry.")
+                        print("Rate limit hit when retrieving history. Will retry.")
                         continue
                     else:
                         print(f"Error retrieving history data: {str(hist_e)}")
@@ -634,7 +620,7 @@ class DataRetrieval:
         while not is_weekday:
             trading_day += timedelta(days=-1)
             is_weekday = trading_day.weekday() < 5
-            
+
         print(f"Last trading day determined to be: {trading_day.date()}")
         return trading_day
 
@@ -645,30 +631,30 @@ class DataRetrieval:
             )  # Set to 5 years ago if never updated
         if last_update_date >= trading_day_date:
             return True
-        
+
         return False
-            
+
     def update_stock_activity(self, update_watch_list=True):
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
 
             trading_day = self._find_last_trading_day()
-            #TODO: Pass in portfolio_id
+            # TODO: Pass in portfolio_id
             portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
             open_positions = self.portfolio_transactions_dao.get_current_positions(1)
             loop_tickers = portfolio_tickers.copy()
-            
+
             for security in loop_tickers:
                 if security[0] in open_positions:
                     if open_positions[security[0]]["shares"] <= 0:
-                         portfolio_tickers.remove(security)
+                        portfolio_tickers.remove(security)
                 else:
                     portfolio_tickers.remove(security)
-            
+
             if update_watch_list:
                 watch_list_tickers = self.watch_list_dao.get_all_watchlist_tickers()
                 portfolio_tickers.extend(watch_list_tickers)
-                
+
             portfolio_tickers = list(set(portfolio_tickers))  # Remove duplicates
 
             if not portfolio_tickers:
@@ -736,7 +722,9 @@ class DataRetrieval:
                             self.moving_avg.update_moving_averages(ticker_id, period)
                         print(f"Updated Moving Averages for {symbol}")
                     except Exception as e:
-                        print(f"Error calculating Moving Averages for {symbol}: {str(e)}")
+                        print(
+                            f"Error calculating Moving Averages for {symbol}: {str(e)}"
+                        )
                         success = False
 
                     # Calculate Stochastic Oscillator
@@ -779,19 +767,3 @@ class DataRetrieval:
         except Exception as e:
             print(f"Error in update_stock_activity: {str(e)}")
             raise
-
-
-def main():
-    load_dotenv()
-
-    stock_activity = DataRetrieval(
-        os.getenv("DB_USER"),
-        os.getenv("DB_PASSWORD"),
-        os.getenv("DB_HOST"),
-        os.getenv("DB_NAME"),
-    )
-    stock_activity.update_stock_activity()
-
-
-if __name__ == "__main__":
-    main()

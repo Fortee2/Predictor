@@ -1,11 +1,9 @@
 from datetime import date
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
-import pandas as pd
 from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich.text import Text
 
 
 class ComprehensivePerformanceFormatter:
@@ -456,7 +454,7 @@ class ComprehensivePerformanceFormatter:
         self.console.print("\n")
         self.console.print("=" * 100, style="bold blue")
         self.console.print(
-            f"COMPREHENSIVE PORTFOLIO ANALYSIS", style="bold blue", justify="center"
+            "COMPREHENSIVE PORTFOLIO ANALYSIS", style="bold blue", justify="center"
         )
         self.console.print("=" * 100, style="bold blue")
         self.console.print("\n")

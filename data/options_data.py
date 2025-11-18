@@ -1,29 +1,11 @@
-from datetime import datetime
 
-import mysql.connector
 import pandas as pd
 import yfinance as yf
 
+from .base_dao import BaseDAO
 
-class OptionsData:
-    def __init__(self, user, password, host, database):
-        self.db_user = user
-        self.db_password = password
-        self.db_host = host
-        self.db_name = database
-        self.current_connection = None
 
-    def open_connection(self):
-        self.current_connection = mysql.connector.connect(
-            user=self.db_user,
-            password=self.db_password,
-            host=self.db_host,
-            database=self.db_name,
-        )
-
-    def close_connection(self):
-        if self.current_connection:
-            self.current_connection.close()
+class OptionsData(BaseDAO):
 
     def get_options_chain(self, symbol):
         """

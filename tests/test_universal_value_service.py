@@ -19,6 +19,7 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from data.portfolio_dao import PortfolioDAO
 from data.portfolio_transactions_dao import PortfolioTransactionsDAO
 from data.portfolio_value_service import PortfolioValueService
+from data.utility import DatabaseConnectionPool
 
 
 def test_universal_value_service():
@@ -30,26 +31,19 @@ def test_universal_value_service():
     # Load environment variables
     load_dotenv()
 
-    # Get database credentials
-    db_user = os.getenv("DB_USER")
-    db_password = os.getenv("DB_PASSWORD")
-    db_host = os.getenv("DB_HOST")
-    db_name = os.getenv("DB_NAME")
-
-    if not all([db_user, db_password, db_host, db_name]):
-        print("Error: Missing database credentials in environment variables")
-        return False
-
     try:
-        # Initialize services
-        value_service = PortfolioValueService(db_user, db_password, db_host, db_name)
-        portfolio_dao = PortfolioDAO(db_user, db_password, db_host, db_name)
-        transactions_dao = PortfolioTransactionsDAO(
-            db_user, db_password, db_host, db_name
+        # Initialize connection pool
+        db_pool = DatabaseConnectionPool(
+            user=os.getenv("DB_USER"),
+            password=os.getenv("DB_PASSWORD"),
+            host=os.getenv("DB_HOST"),
+            database=os.getenv("DB_NAME"),
         )
 
-        portfolio_dao.open_connection()
-        transactions_dao.open_connection()
+        # Initialize services with connection pool
+        value_service = PortfolioValueService(db_pool)
+        portfolio_dao = PortfolioDAO(db_pool)
+        transactions_dao = PortfolioTransactionsDAO(db_pool)
 
         # Get the first available portfolio for testing
         portfolios = portfolio_dao.read_portfolio()
@@ -141,9 +135,9 @@ def test_universal_value_service():
                     )
 
                     if not shares_match or not price_match:
-                        print(f"    ⚠️  DISCREPANCY DETECTED!")
+                        print("    ⚠️  DISCREPANCY DETECTED!")
                     else:
-                        print(f"    ✅ Match")
+                        print("    ✅ Match")
 
         # Test 5: Summary comparison
         print("\nTest 5: Summary Comparison")
@@ -170,11 +164,7 @@ def test_universal_value_service():
         print("\n" + "=" * 50)
         print("Universal Value Service Test Complete")
 
-        # Clean up
-        value_service.close_connection()
-        portfolio_dao.close_connection()
-        transactions_dao.close_connection()
-
+        # No need to close connections - pool manages this
         return True
 
     except Exception as e:
