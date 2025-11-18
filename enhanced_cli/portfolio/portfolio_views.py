@@ -28,6 +28,4 @@ def register_portfolio_commands(registry: CommandRegistry) -> None:
     registry.register("view_portfolio", ViewPortfolioCommand(), "portfolio")
     registry.register("add_tickers", AddTickersCommand(), "portfolio")
     registry.register("remove_tickers", RemoveTickersCommand(), "portfolio")
-    registry.register(
-        "recalculate_portfolio_values", RecalculatePortfolioValuesCommand(), "portfolio"
-    )
+    registry.register("recalculate_portfolio_values", RecalculatePortfolioValuesCommand(), "portfolio")

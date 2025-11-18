@@ -1,8 +1,11 @@
+import logging
 import mysql.connector
 
 from .base_dao import BaseDAO
 from .ticker_dao import TickerDao
 from .utility import DatabaseConnectionPool
+
+logger = logging.getLogger(__name__)
 
 
 class WatchListDAO(BaseDAO):
@@ -34,7 +37,7 @@ class WatchListDAO(BaseDAO):
                 watch_list_id = cursor.lastrowid
                 return watch_list_id
         except mysql.connector.Error as e:
-            print(f"Error creating watch list: {e}")
+            logger.error("Error creating watch list: %s", e)
             return None
 
     def get_watch_list(self, watch_list_id=None):
@@ -60,7 +63,7 @@ class WatchListDAO(BaseDAO):
                 return cursor.fetchone()
             return cursor.fetchall()
         except mysql.connector.Error as e:
-            print(f"Error retrieving watch list(s): {e}")
+            logger.error("Error retrieving watch list(s): %s", e)
             return [] if watch_list_id is None else None
 
     def update_watch_list(self, watch_list_id, name=None, description=None):
@@ -96,7 +99,7 @@ class WatchListDAO(BaseDAO):
                 connection.commit()
                 return cursor.rowcount > 0
         except mysql.connector.Error as e:
-            print(f"Error updating watch list: {e}")
+            logger.error("Error updating watch list: %s", e)
             return False
 
     def delete_watch_list(self, watch_list_id):
@@ -118,7 +121,7 @@ class WatchListDAO(BaseDAO):
                 connection.commit()
                 return cursor.rowcount > 0
         except mysql.connector.Error as e:
-            print(f"Error deleting watch list: {e}")
+            logger.error("Error deleting watch list: %s", e)
             return False
 
     def add_ticker_to_watch_list(self, watch_list_id, ticker_symbol, notes=None):
@@ -150,10 +153,10 @@ class WatchListDAO(BaseDAO):
             if e.errno == 1062:  # Duplicate entry error
                 print(f"Ticker '{ticker_symbol}' is already in this watch list")
             else:
-                print(f"Error adding ticker to watch list: {e}")
+                logger.error("Error adding ticker to watch list: %s", e)
             return False
         except mysql.connector.Error as e:
-            print(f"Error adding ticker to watch list: {e}")
+            logger.error("Error adding ticker to watch list: %s", e)
             return False
 
     def remove_ticker_from_watch_list(self, watch_list_id, ticker_symbol):
@@ -181,7 +184,7 @@ class WatchListDAO(BaseDAO):
                 connection.commit()
                 return cursor.rowcount > 0
         except mysql.connector.Error as e:
-            print(f"Error removing ticker from watch list: {e}")
+            logger.error("Error removing ticker from watch list: %s", e)
             return False
 
     def get_tickers_in_watch_list(self, watch_list_id):
@@ -197,7 +200,7 @@ class WatchListDAO(BaseDAO):
         try:
             cursor = self.current_connection.cursor(dictionary=True)
             query = """
-                SELECT wlt.id, wlt.ticker_id, t.ticker as symbol, t.ticker_name as name, 
+                SELECT wlt.id, wlt.ticker_id, t.ticker as symbol, t.ticker_name as name,
                        wlt.date_added, wlt.notes
                 FROM watch_list_tickers wlt
                 JOIN tickers t ON wlt.ticker_id = t.id
@@ -208,7 +211,7 @@ class WatchListDAO(BaseDAO):
             cursor.execute(query, values)
             return cursor.fetchall()
         except mysql.connector.Error as e:
-            print(f"Error retrieving tickers in watch list: {e}")
+            logger.error("Error retrieving tickers in watch list: %s", e)
             return []
 
     def is_ticker_in_watch_list(self, watch_list_id, ticker_symbol):
@@ -235,7 +238,7 @@ class WatchListDAO(BaseDAO):
                 count = cursor.fetchone()[0]
                 return count > 0
         except mysql.connector.Error as e:
-            print(f"Error checking if ticker is in watch list: {e}")
+            logger.error("Error checking if ticker is in watch list: %s", e)
             return False
 
     def update_ticker_notes(self, watch_list_id, ticker_symbol, notes):
@@ -264,7 +267,7 @@ class WatchListDAO(BaseDAO):
                 connection.commit()
                 return cursor.rowcount > 0
         except mysql.connector.Error as e:
-            print(f"Error updating ticker notes: {e}")
+            logger.error("Error updating ticker notes: %s", e)
             return False
 
     def get_all_watchlist_tickers(self):
@@ -292,5 +295,5 @@ class WatchListDAO(BaseDAO):
                 cursor.execute(query)
                 return cursor.fetchall()
         except mysql.connector.Error as e:
-            print(f"Error retrieving all watch list tickers: {e}")
+            logger.error("Error retrieving all watch list tickers: %s", e)
             return []

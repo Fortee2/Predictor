@@ -17,9 +17,7 @@ class AnalyzePortfolioCommand(Command):
     """Command to analyze a portfolio with technical indicators."""
 
     def __init__(self):
-        super().__init__(
-            "Analyze Portfolio", "Analyze portfolio with technical indicators"
-        )
+        super().__init__("Analyze Portfolio", "Analyze portfolio with technical indicators")
 
     @error_handler("analyzing portfolio")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -48,21 +46,15 @@ class AnalyzePortfolioCommand(Command):
                 list_command.execute(cli)
 
                 try:
-                    portfolio_id = int(
-                        Prompt.ask("[bold]Enter Portfolio ID to analyze[/bold]")
-                    )
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to analyze[/bold]"))
                 except ValueError:
                     ui.status_message("Invalid portfolio ID", "error")
                     return
 
         # Ask for analysis date if not provided
-        if analysis_date is None and ui.confirm_action(
-            "Analyze for a specific historical date?"
-        ):
+        if analysis_date is None and ui.confirm_action("Analyze for a specific historical date?"):
             while True:
-                analysis_date = Prompt.ask(
-                    "[bold]Enter analysis date[/bold] (YYYY-MM-DD, or leave empty for today)"
-                )
+                analysis_date = Prompt.ask("[bold]Enter analysis date[/bold] (YYYY-MM-DD, or leave empty for today)")
                 if analysis_date == "":
                     analysis_date = None
                     break
@@ -70,9 +62,7 @@ class AnalyzePortfolioCommand(Command):
                     datetime.strptime(analysis_date, "%Y-%m-%d")
                     break
                 except ValueError:
-                    ui.status_message(
-                        "Invalid date format. Please use YYYY-MM-DD.", "error"
-                    )
+                    ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
         # Ask if they want to analyze a specific ticker
         if ticker_symbol is None and ui.confirm_action("Analyze specific ticker?"):
@@ -84,9 +74,7 @@ class AnalyzePortfolioCommand(Command):
             for i, ticker in enumerate(tickers, 1):
                 ui.console.print(f"[{i}] {ticker}")
 
-            ticker_symbol = Prompt.ask(
-                "[bold]Enter ticker symbol[/bold] (or leave empty for all)"
-            ).upper()
+            ticker_symbol = Prompt.ask("[bold]Enter ticker symbol[/bold] (or leave empty for all)").upper()
             if ticker_symbol == "":
                 ticker_symbol = None
 
@@ -153,9 +141,7 @@ class ViewPerformanceCommand(Command):
             ui.status_message(f"Portfolio with ID {portfolio_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(f"Portfolio Performance: {portfolio['name']}")
-        )
+        ui.console.print(ui.section_header(f"Portfolio Performance: {portfolio['name']}"))
 
         # Time period options
         options = {
@@ -196,9 +182,7 @@ class ViewPerformanceCommand(Command):
                     datetime.strptime(start_date, "%Y-%m-%d")
                     break
                 except ValueError:
-                    ui.status_message(
-                        "Invalid date format. Please use YYYY-MM-DD.", "error"
-                    )
+                    ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
             while True:
                 end_date = Prompt.ask(
@@ -215,9 +199,7 @@ class ViewPerformanceCommand(Command):
                         end_date = today.strftime("%Y-%m-%d")
                     break
                 except ValueError:
-                    ui.status_message(
-                        "Invalid date format. Please use YYYY-MM-DD.", "error"
-                    )
+                    ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
         # Ask about chart generation
         generate_chart = ui.confirm_action("Generate performance chart?")
@@ -260,17 +242,13 @@ class ViewPerformanceCommand(Command):
 
         # Calculate returns
         if initial_result["total_value"] > 0:
-            total_return = (
-                (final_result["total_value"] / initial_result["total_value"]) - 1
-            ) * 100
+            total_return = ((final_result["total_value"] / initial_result["total_value"]) - 1) * 100
             ui.console.print(f"Total Return: {total_return:+.2f}%")
 
             # Calculate annualized return if period is longer than a day
             period_days = (end_date_obj - start_date_obj).days
             if period_days > 0:
-                annualized_return = (
-                    (1 + (total_return / 100)) ** (365 / period_days) - 1
-                ) * 100
+                annualized_return = ((1 + (total_return / 100)) ** (365 / period_days) - 1) * 100
                 ui.console.print(f"Annualized Return: {annualized_return:+.2f}%")
         else:
             ui.console.print("Total Return: N/A (no initial value)")
@@ -280,20 +258,14 @@ class ViewPerformanceCommand(Command):
         ui.console.print(f"Stock Value: ${final_result['stock_value']:,.2f}")
         ui.console.print(f"Cash Balance: ${final_result['cash_balance']:,.2f}")
         if final_result["dividend_value"] > 0:
-            ui.console.print(
-                f"Cumulative Dividends: ${final_result['dividend_value']:,.2f}"
-            )
+            ui.console.print(f"Cumulative Dividends: ${final_result['dividend_value']:,.2f}")
 
         # Generate chart if requested
         if generate_chart:
             try:
-                chart_path = cli.cli.value_calculator.generate_performance_chart(
-                    portfolio_id, start_date, end_date
-                )
+                chart_path = cli.cli.value_calculator.generate_performance_chart(portfolio_id, start_date, end_date)
                 if chart_path:
-                    ui.console.print(
-                        f"\n[green]Performance chart saved to:[/green] {chart_path}"
-                    )
+                    ui.console.print(f"\n[green]Performance chart saved to:[/green] {chart_path}")
                     # Try to open the chart
                     try:
                         import os
@@ -307,9 +279,7 @@ class ViewPerformanceCommand(Command):
                         elif system == "Linux":
                             os.system(f"xdg-open {chart_path}")
                     except Exception as e:
-                        ui.console.print(
-                            f"[yellow]Note: Could not automatically open the chart: {e}[/yellow]"
-                        )
+                        ui.console.print(f"[yellow]Note: Could not automatically open the chart: {e}[/yellow]")
             except Exception as e:
                 ui.console.print(f"[red]Error generating chart: {e}[/red]")
 

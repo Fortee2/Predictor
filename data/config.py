@@ -17,9 +17,7 @@ logger = logging.getLogger("config")
 
 # Ensure no handlers are outputting to console
 for handler in logger.handlers[:]:
-    if isinstance(handler, logging.StreamHandler) and not isinstance(
-        handler, logging.FileHandler
-    ):
+    if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
         logger.removeHandler(handler)
 
 
@@ -100,11 +98,7 @@ class Config:
         result = default_config.copy()
 
         for key, value in user_config.items():
-            if (
-                key in result
-                and isinstance(value, dict)
-                and isinstance(result[key], dict)
-            ):
+            if key in result and isinstance(value, dict) and isinstance(result[key], dict):
                 result[key] = self._merge_config(result[key], value)
             else:
                 result[key] = value
@@ -130,9 +124,7 @@ class Config:
                     if key in self.config[section]:
                         return self.config[section][key]
                     else:
-                        logger.warning(
-                            "Configuration key '%s' not found in section '%s'", key, section
-                        )
+                        logger.warning("Configuration key '%s' not found in section '%s'", key, section)
                         return None
                 else:
                     return self.config[section]
@@ -177,7 +169,7 @@ class Config:
             "embed_model": os.getenv("BEDROCK_EMBED_MODEL", "amazon.titan-embed-text-v2:0"),
         }
         return bedrock_config
-    
+
     def get_all(self):
         """Get the entire configuration."""
         return self.config

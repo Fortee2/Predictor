@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 import mysql.connector
@@ -5,11 +6,11 @@ import pandas as pd
 
 from data.base_dao import BaseDAO
 
-import logging
+logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG)
 
+
 class FundamentalDataDAO(BaseDAO):
-   
     def save_fundamental_data(
         self,
         ticker_id,
@@ -31,7 +32,7 @@ class FundamentalDataDAO(BaseDAO):
         """
         try:
             with self.get_connection() as connection:
-                cursor = connection.cursor()()
+                cursor = connection.cursor()
 
                 sql = """
                 INSERT INTO fundamental_data (
@@ -67,7 +68,7 @@ class FundamentalDataDAO(BaseDAO):
                 return True
 
         except mysql.connector.Error as err:
-            print(f"Error saving fundamental data: {err}")
+            logger.error("Error saving fundamental data: %s", err)
             return False
 
     def get_latest_fundamental_data(self, ticker_id):
@@ -79,7 +80,7 @@ class FundamentalDataDAO(BaseDAO):
                 cursor = connection.cursor()
 
                 sql = """
-                SELECT 
+                SELECT
                     date, pe_ratio, forward_pe, peg_ratio, price_to_book,
                     dividend_yield, dividend_rate, eps_ttm, eps_growth, revenue_growth,
                     profit_margin, debt_to_equity, market_cap
@@ -112,7 +113,7 @@ class FundamentalDataDAO(BaseDAO):
                 return None
 
         except mysql.connector.Error as err:
-            print(f"Error retrieving fundamental data: {err}")
+            logger.error("Error retrieving fundamental data: %s", err)
             return None
 
     def get_fundamental_history(self, ticker_id, days=30):
@@ -124,7 +125,7 @@ class FundamentalDataDAO(BaseDAO):
                 cursor = connection.cursor()
 
                 sql = """
-                SELECT 
+                SELECT
                     date, pe_ratio, forward_pe, peg_ratio, price_to_book,
                     dividend_yield, dividend_rate, eps_ttm, eps_growth, revenue_growth,
                     profit_margin, debt_to_equity, market_cap
@@ -159,5 +160,5 @@ class FundamentalDataDAO(BaseDAO):
                 return None
 
         except mysql.connector.Error as err:
-            print(f"Error retrieving fundamental history: {err}")
+            logger.error("Error retrieving fundamental history: %s", err)
             return None

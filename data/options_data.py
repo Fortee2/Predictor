@@ -1,12 +1,13 @@
-
 import pandas as pd
+import logging
 import yfinance as yf
+
+logger = logging.getLogger(__name__)
 
 from .base_dao import BaseDAO
 
 
 class OptionsData(BaseDAO):
-
     def get_options_chain(self, symbol):
         """
         Retrieves the options chain for a given symbol.
@@ -41,16 +42,8 @@ class OptionsData(BaseDAO):
                 options_data["puts"].append(puts)
 
             # Combine all data
-            all_calls = (
-                pd.concat(options_data["calls"])
-                if options_data["calls"]
-                else pd.DataFrame()
-            )
-            all_puts = (
-                pd.concat(options_data["puts"])
-                if options_data["puts"]
-                else pd.DataFrame()
-            )
+            all_calls = pd.concat(options_data["calls"]) if options_data["calls"] else pd.DataFrame()
+            all_puts = pd.concat(options_data["puts"]) if options_data["puts"] else pd.DataFrame()
 
             return {
                 "calls": all_calls,
@@ -60,7 +53,7 @@ class OptionsData(BaseDAO):
             }
 
         except Exception as e:
-            print(f"Error retrieving options data for {symbol}: {str(e)}")
+            logger.error("Error retrieving options data for %s: %s", symbol, str(e))
             return None
 
     def get_options_summary(self, symbol):
@@ -115,7 +108,7 @@ class OptionsData(BaseDAO):
             return summary
 
         except Exception as e:
-            print(f"Error creating options summary for {symbol}: {str(e)}")
+            logger.error("Error creating options summary for %s: %s", symbol, str(e))
             return None
 
     def get_nearest_expiry_options(self, symbol):
@@ -130,12 +123,8 @@ class OptionsData(BaseDAO):
             nearest_expiry = min(options_data["expirations"])
 
             # Filter for nearest expiration
-            nearest_calls = options_data["calls"][
-                options_data["calls"]["expirationDate"] == nearest_expiry
-            ]
-            nearest_puts = options_data["puts"][
-                options_data["puts"]["expirationDate"] == nearest_expiry
-            ]
+            nearest_calls = options_data["calls"][options_data["calls"]["expirationDate"] == nearest_expiry]
+            nearest_puts = options_data["puts"][options_data["puts"]["expirationDate"] == nearest_expiry]
 
             return {
                 "expiration": nearest_expiry,
@@ -145,5 +134,5 @@ class OptionsData(BaseDAO):
             }
 
         except Exception as e:
-            print(f"Error retrieving nearest expiry options for {symbol}: {str(e)}")
+            logger.error("Error retrieving nearest expiry options for %s: %s", symbol, str(e))
             return None

@@ -27,7 +27,7 @@ class PortfolioValueService:
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize DAO with a shared database connection pool.
-        
+
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
@@ -51,7 +51,6 @@ class PortfolioValueService:
             raise
         finally:
             pass
-
 
     def calculate_portfolio_value(
         self,
@@ -160,10 +159,7 @@ class PortfolioValueService:
             }
 
         except Exception as e:
-            print(f"Error calculating portfolio value: {e}")
-            import traceback
-
-            traceback.print_exc()
+            logger.error("Error calculating portfolio value: %s", e, exc_info=True)
             return {
                 "total_value": 0.0,
                 "stock_value": 0.0,
@@ -185,8 +181,8 @@ class PortfolioValueService:
 
                 # Get all buy/sell transactions up to the calculation date
                 query = """
-                    SELECT 
-                        s.ticker_id, 
+                    SELECT
+                        s.ticker_id,
                         s.id as security_id,
                         tk.ticker as symbol,
                         t.transaction_type,
@@ -196,7 +192,7 @@ class PortfolioValueService:
                     FROM portfolio_transactions t
                     JOIN portfolio_securities s ON t.security_id = s.id
                     JOIN tickers tk ON s.ticker_id = tk.id
-                    WHERE t.portfolio_id = %s 
+                    WHERE t.portfolio_id = %s
                     AND t.transaction_date <= %s
                     AND t.transaction_type IN ('buy', 'sell')
                     ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
@@ -241,9 +237,7 @@ class PortfolioValueService:
                 return positions
 
         except Exception as e:
-            print(f"Error getting current positions: {e}")
-            import traceback
-            traceback.print_exc()
+            logger.error("Error getting current positions: %s", e, exc_info=True)
             return {}
 
     def _calculate_position_from_queue(self, buy_queue: list, symbol: str) -> Dict[str, Any] | None:
@@ -271,8 +265,7 @@ class PortfolioValueService:
                 buy_queue[0] = (buy_shares - shares_to_sell, buy_price)
                 shares_to_sell = 0
 
-    def _get_ticker_price(
-        self, ticker_id: int, symbol: str, calculation_date: date) -> Optional[float]:
+    def _get_ticker_price(self, ticker_id: int, symbol: str, calculation_date: date) -> Optional[float]:
         """
         Get ticker price for a specific date.
 
@@ -290,7 +283,7 @@ class PortfolioValueService:
                 try:
                     hist_query = """
                         SELECT close
-                        FROM investing.activity 
+                        FROM investing.activity
                         WHERE ticker_id = %s AND activity_date <= %s
                         ORDER BY activity_date DESC
                         LIMIT 1
@@ -311,9 +304,15 @@ class PortfolioValueService:
                     hist_data = stock.history(start=start_date, end=end_date)
 
                     if not hist_data.empty:
-                        hist_data.index = hist_data.index.tz_localize(None)
-                        calc_timestamp = pd.Timestamp(calculation_date)
+                        # Remove timezone information from the index if present
+                        try:
+                            # Try to remove timezone (works if index is timezone-aware)
+                            hist_data.index = hist_data.index.tz_localize(None)
+                        except (TypeError, AttributeError):
+                            # Index is already timezone-naive or doesn't support tz operations
+                            pass
 
+                        calc_timestamp = pd.Timestamp(calculation_date)
                         valid_dates = hist_data.index[hist_data.index <= calc_timestamp]
                         if len(valid_dates) > 0:
                             closest_date = valid_dates[-1]
@@ -329,7 +328,7 @@ class PortfolioValueService:
                     WHERE ps.ticker_id = %s AND pt.price IS NOT NULL
                     ORDER BY pt.transaction_date DESC, pt.id DESC
                     LIMIT 1
-                """,
+                    """,
                     (ticker_id,),
                 )
                 result = cursor.fetchone()
@@ -339,7 +338,7 @@ class PortfolioValueService:
                 return None
 
         except Exception as e:
-            print(f"Error getting ticker price for {symbol}: {e}")
+            logger.error("Error getting ticker price for %s: %s", symbol, e)
             return None
 
     def _get_cash_balance(self, portfolio_id: int, calculation_date: date | None = None) -> float:
@@ -355,7 +354,7 @@ class PortfolioValueService:
             return portfolio_dao.get_cash_balance(portfolio_id, calculation_date)
 
         except Exception as e:
-            print(f"Error getting cash balance: {e}")
+            logger.error("Error getting cash balance: %s", e)
             return 0.0
 
     def _get_cumulative_dividends(self, portfolio_id: int, calculation_date: date) -> float:
@@ -366,8 +365,8 @@ class PortfolioValueService:
                 query = """
                     SELECT SUM(amount) as total_dividends
                     FROM portfolio_transactions
-                    WHERE portfolio_id = %s 
-                    AND transaction_type = 'dividend' 
+                    WHERE portfolio_id = %s
+                    AND transaction_type = 'dividend'
                     AND transaction_date <= %s
                 """
                 cursor.execute(query, (portfolio_id, calculation_date))
@@ -376,7 +375,7 @@ class PortfolioValueService:
                     return float(result[0])
                 return 0.0
         except Exception as e:
-            print(f"Error getting cumulative dividends: {e}")
+            logger.error("Error getting cumulative dividends: %s", e)
             return 0.0
 
     def get_portfolio_summary(self, portfolio_id: int, **kwargs) -> str:

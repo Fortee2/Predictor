@@ -290,9 +290,7 @@ class TrendAnalyzer(BaseDAO):
                 df = df.set_index("activity_date")
 
                 # Calculate moving averages
-                df["moving_average"] = (
-                    df["close"].rolling(window=period, min_periods=period).mean()
-                )
+                df["moving_average"] = df["close"].rolling(window=period, min_periods=period).mean()
 
                 # Remove rows where MA couldn't be calculated (first period-1 rows)
                 df_with_ma = df.dropna()

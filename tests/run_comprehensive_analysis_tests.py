@@ -190,13 +190,9 @@ def run_comprehensive_tests():
 
     if failures == 0 and errors == 0:
         print("🎉 ALL TESTS PASSED! Comprehensive Analysis calculations are verified.")
-        print(
-            "The system is ready for production use with confidence in calculation accuracy."
-        )
+        print("The system is ready for production use with confidence in calculation accuracy.")
     else:
-        print(
-            "⚠️  Some tests failed. Please review the failures above before deployment."
-        )
+        print("⚠️  Some tests failed. Please review the failures above before deployment.")
 
         if failures > 0:
             print(f"\nFAILED TESTS ({failures}):")

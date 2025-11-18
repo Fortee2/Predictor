@@ -71,6 +71,11 @@ else
 fi
 echo ""
 
+echo "🔧 Fixing code issues..."
+ruff check . --fix
+ruff format .
+echo "✅ Code fixed!"
+
 # Summary
 echo "=============================="
 echo "✅ Code check complete!"

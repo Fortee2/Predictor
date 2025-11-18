@@ -50,14 +50,10 @@ class CreatePortfolioCommand(Command):
                 )
 
             if portfolio_id:
-                ui.status_message(
-                    f"Portfolio created successfully with ID: {portfolio_id}", "success"
-                )
+                ui.status_message(f"Portfolio created successfully with ID: {portfolio_id}", "success")
 
                 # Ask if user wants to add tickers
-                if ui.confirm_action(
-                    "Would you like to add tickers to this portfolio now?"
-                ):
+                if ui.confirm_action("Would you like to add tickers to this portfolio now?"):
                     add_tickers_command = AddTickersCommand()
                     add_tickers_command.execute(cli, portfolio_id=portfolio_id)
             else:

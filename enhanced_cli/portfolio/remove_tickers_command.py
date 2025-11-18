@@ -59,21 +59,15 @@ class RemoveTickersCommand(Command):
         for i, symbol in enumerate(tickers, 1):
             ui.console.print(f"[{i}] {symbol}")
 
-        ticker_input = Prompt.ask(
-            "[bold]Enter ticker symbols to remove[/bold] (separated by spaces)"
-        )
+        ticker_input = Prompt.ask("[bold]Enter ticker symbols to remove[/bold] (separated by spaces)")
         ticker_symbols = ticker_input.upper().split()
 
         if ticker_symbols:
-            if ui.confirm_action(
-                f"Remove {len(ticker_symbols)} ticker(s) from portfolio #{portfolio_id}?"
-            ):
+            if ui.confirm_action(f"Remove {len(ticker_symbols)} ticker(s) from portfolio #{portfolio_id}?"):
                 with ui.progress("Removing tickers...") as progress:
                     progress.add_task("", total=None)
                     cli.cli.remove_tickers(portfolio_id, ticker_symbols)
 
-                ui.status_message(
-                    f"Tickers removed from portfolio: {portfolio['name']}", "success"
-                )
+                ui.status_message(f"Tickers removed from portfolio: {portfolio['name']}", "success")
         else:
             ui.status_message("No tickers specified for removal.", "warning")

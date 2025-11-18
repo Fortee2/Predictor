@@ -6,12 +6,21 @@ in structured JSON format for analysis and recommendations.
 """
 
 import json
+import os
+import sys
 from datetime import date, datetime
 from decimal import Decimal
+from pathlib import Path
 from typing import Any, Dict, List
 
 from rich.prompt import Prompt
 
+# Ensure project root is in Python path
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
+from data.utility import DatabaseConnectionPool
 from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -20,9 +29,8 @@ class PortfolioSnapshotCommand(Command):
     """Command to generate a comprehensive LLM-friendly portfolio snapshot."""
 
     def __init__(self):
-        super().__init__(
-            "Portfolio Snapshot", "Generate LLM-friendly portfolio analysis data"
-        )
+        super().__init__("Portfolio Snapshot", "Generate LLM-friendly portfolio analysis data")
+        self.pool = DatabaseConnectionPool()
 
     @error_handler("generating portfolio snapshot")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -47,9 +55,7 @@ class PortfolioSnapshotCommand(Command):
                 list_command.execute(cli)
 
                 try:
-                    portfolio_id = int(
-                        Prompt.ask("[bold]Enter Portfolio ID for snapshot[/bold]")
-                    )
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID for snapshot[/bold]"))
                 except ValueError:
                     ui.status_message("Invalid portfolio ID", "error")
                     return
@@ -60,23 +66,17 @@ class PortfolioSnapshotCommand(Command):
             ui.status_message(f"Portfolio with ID {portfolio_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(f"Generating Portfolio Snapshot: {portfolio['name']}")
-        )
+        ui.console.print(ui.section_header(f"Generating Portfolio Snapshot: {portfolio['name']}"))
 
         with ui.progress("Gathering portfolio data...") as progress:
             task = progress.add_task("Collecting data...", total=100)
 
             # Generate comprehensive snapshot
-            snapshot = self._generate_portfolio_snapshot(
-                cli, portfolio_id, portfolio, progress, task
-            )
+            snapshot = self._generate_portfolio_snapshot(cli, portfolio_id, portfolio, progress, task)
 
         if snapshot:
             # Display the JSON output
-            ui.console.print(
-                "\n[bold green]Portfolio Snapshot (LLM-Ready Format):[/bold green]"
-            )
+            ui.console.print("\n[bold green]Portfolio Snapshot (LLM-Ready Format):[/bold green]")
             ui.console.print("=" * 80)
 
             # Pretty print the JSON
@@ -87,7 +87,7 @@ class PortfolioSnapshotCommand(Command):
             if ui.confirm_action("Save snapshot to file?"):
                 filename = f"portfolio_snapshot_{portfolio_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
                 try:
-                    with open(filename, "w") as f:
+                    with open(filename, "w", encoding="utf-8") as f:
                         json.dump(snapshot, f, indent=2, default=self._json_serializer)
                     ui.status_message(f"Snapshot saved to {filename}", "success")
                 except Exception as e:
@@ -95,9 +95,11 @@ class PortfolioSnapshotCommand(Command):
         else:
             ui.status_message("Failed to generate portfolio snapshot", "error")
 
-    def _generate_portfolio_snapshot(
-        self, cli, portfolio_id: int, portfolio: Dict, progress, task
-    ) -> Dict[str, Any]:
+    def _generate_portfolio_snapshot(self,
+                                     cli, portfolio_id: int,
+                                     portfolio: Dict,
+                                     progress, task
+                                     ) -> Dict[str, Any] | None:
         """
         Generate a comprehensive portfolio snapshot.
 
@@ -132,11 +134,7 @@ class PortfolioSnapshotCommand(Command):
             snapshot["portfolio_info"] = {
                 "name": portfolio["name"],
                 "description": portfolio.get("description", ""),
-                "created_date": (
-                    portfolio["date_added"].isoformat()
-                    if portfolio["date_added"]
-                    else None
-                ),
+                "created_date": (portfolio["date_added"].isoformat() if portfolio["date_added"] else None),
                 "active": portfolio.get("active", True),
                 "last_updated": datetime.now().isoformat(),
             }
@@ -187,17 +185,13 @@ class PortfolioSnapshotCommand(Command):
             try:
                 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 
-                analyzer = MultiTimeframeAnalyzer()
-                portfolio_metrics = analyzer.get_portfolio_metrics(
-                    portfolio_id, date.today()
-                )
+                analyzer = MultiTimeframeAnalyzer(self.pool)
+                portfolio_metrics = analyzer.get_portfolio_metrics(portfolio_id, date.today())
                 if portfolio_metrics:
                     snapshot["performance_metrics"] = portfolio_metrics
-                analyzer.close_connection()
+
             except Exception as e:
-                snapshot["performance_metrics"] = {
-                    "error": f"Could not load performance metrics: {str(e)}"
-                }
+                snapshot["performance_metrics"] = {"error": f"Could not load performance metrics: {str(e)}"}
 
             progress.update(task, advance=20)
 
@@ -222,23 +216,15 @@ class PortfolioSnapshotCommand(Command):
                                     "status": (
                                         "Overbought"
                                         if latest_rsi["rsi"] > 70
-                                        else (
-                                            "Oversold"
-                                            if latest_rsi["rsi"] < 30
-                                            else "Neutral"
-                                        )
+                                        else ("Oversold" if latest_rsi["rsi"] < 30 else "Neutral")
                                     ),
                                 }
                         except Exception as e:
-                            tech_analysis["rsi"] = {
-                                "error": f"RSI calculation failed: {str(e)}"
-                            }
+                            tech_analysis["rsi"] = {"error": f"RSI calculation failed: {str(e)}"}
 
                         # Get moving averages
                         try:
-                            ma_data = cli.cli.moving_avg.update_moving_averages(
-                                ticker_id, 20
-                            )
+                            ma_data = cli.cli.moving_avg.update_moving_averages(ticker_id, 20)
                             if not ma_data.empty:
                                 latest_ma = ma_data.iloc[-1]
                                 date_str = str(ma_data.index[-1]).split()[0]
@@ -247,42 +233,30 @@ class PortfolioSnapshotCommand(Command):
                                     "date": date_str,
                                 }
                         except Exception as e:
-                            tech_analysis["moving_average_20"] = {
-                                "error": f"MA calculation failed: {str(e)}"
-                            }
+                            tech_analysis["moving_average_20"] = {"error": f"MA calculation failed: {str(e)}"}
 
                         # Get Bollinger Bands
                         try:
-                            bb_data = cli.cli.bb_analyzer.generate_bollinger_band_data(
-                                ticker_id
-                            )
+                            bb_data = cli.cli.bb_analyzer.generate_bollinger_band_data(ticker_id)
                             if bb_data:
                                 tech_analysis["bollinger_bands"] = {
                                     "mean": float(bb_data["bollinger_bands"]["mean"]),
-                                    "stddev": float(
-                                        bb_data["bollinger_bands"]["stddev"]
-                                    ),
+                                    "stddev": float(bb_data["bollinger_bands"]["stddev"]),
                                 }
                         except Exception as e:
-                            tech_analysis["bollinger_bands"] = {
-                                "error": f"BB calculation failed: {str(e)}"
-                            }
+                            tech_analysis["bollinger_bands"] = {"error": f"BB calculation failed: {str(e)}"}
 
                         technical_data[symbol] = tech_analysis
                     else:
                         technical_data[symbol] = {"error": "Ticker ID not found"}
                 except Exception as e:
-                    technical_data[symbol] = {
-                        "error": f"Could not load technical data: {str(e)}"
-                    }
+                    technical_data[symbol] = {"error": f"Could not load technical data: {str(e)}"}
 
             snapshot["technical_analysis"] = technical_data
             progress.update(task, advance=20)
 
             # Risk analysis
-            snapshot["risk_analysis"] = self._calculate_risk_metrics(
-                holdings_data, portfolio_result["total_value"]
-            )
+            snapshot["risk_analysis"] = self._calculate_risk_metrics(holdings_data, portfolio_result["total_value"])
             progress.update(task, advance=10)
 
             # Market context (news sentiment if available)
@@ -292,31 +266,19 @@ class PortfolioSnapshotCommand(Command):
                 try:
                     ticker_id = cli.cli.ticker_dao.get_ticker_id(symbol)
                     if ticker_id:
-                        sentiment_data = cli.cli.news_analyzer.get_sentiment_summary(
-                            ticker_id, symbol
-                        )
-                        if (
-                            sentiment_data
-                            and sentiment_data["status"]
-                            != "No sentiment data available"
-                        ):
+                        sentiment_data = cli.cli.news_analyzer.get_sentiment_summary(ticker_id, symbol)
+                        if sentiment_data and sentiment_data["status"] != "No sentiment data available":
                             market_context[symbol] = {
                                 "status": sentiment_data["status"],
-                                "average_sentiment": sentiment_data[
-                                    "average_sentiment"
-                                ],
+                                "average_sentiment": sentiment_data["average_sentiment"],
                                 "article_count": sentiment_data["article_count"],
                             }
                         else:
-                            market_context[symbol] = {
-                                "status": "No sentiment data available"
-                            }
+                            market_context[symbol] = {"status": "No sentiment data available"}
                     else:
                         market_context[symbol] = {"error": "Ticker ID not found"}
                 except Exception as e:
-                    market_context[symbol] = {
-                        "error": f"Could not load sentiment data: {str(e)}"
-                    }
+                    market_context[symbol] = {"error": f"Could not load sentiment data: {str(e)}"}
 
             snapshot["market_context"] = market_context
             progress.update(task, advance=10)
@@ -327,9 +289,7 @@ class PortfolioSnapshotCommand(Command):
             ui.status_message(f"Error generating snapshot: {e}", "error")
             return None
 
-    def _calculate_risk_metrics(
-        self, holdings_data: List[Dict], total_value: float
-    ) -> Dict[str, Any]:
+    def _calculate_risk_metrics(self, holdings_data: List[Dict], total_value: float) -> Dict[str, Any]:
         """
         Calculate basic risk metrics from holdings data.
 
@@ -345,11 +305,7 @@ class PortfolioSnapshotCommand(Command):
 
         # Concentration risk
         max_weight = max(holding["weight_percent"] for holding in holdings_data)
-        top_3_weight = sum(
-            sorted(
-                [holding["weight_percent"] for holding in holdings_data], reverse=True
-            )[:3]
-        )
+        top_3_weight = sum(sorted([holding["weight_percent"] for holding in holdings_data], reverse=True)[:3])
 
         # Sector diversification (basic - would need sector data for full analysis)
         num_holdings = len(holdings_data)
@@ -360,12 +316,8 @@ class PortfolioSnapshotCommand(Command):
                 "top_3_positions_percent": top_3_weight,
                 "number_of_holdings": num_holdings,
             },
-            "diversification_score": min(
-                100, (num_holdings / 20) * 100
-            ),  # Simple score based on number of holdings
-            "risk_level": (
-                "High" if max_weight > 20 else "Medium" if max_weight > 10 else "Low"
-            ),
+            "diversification_score": min(100, (num_holdings / 20) * 100),  # Simple score based on number of holdings
+            "risk_level": ("High" if max_weight > 20 else "Medium" if max_weight > 10 else "Low"),
         }
 
     def _json_serializer(self, obj):
@@ -423,9 +375,7 @@ class LLMAnalysisPromptCommand(Command):
         snapshot_cmd = PortfolioSnapshotCommand()
         with ui.progress("Generating portfolio data...") as progress:
             task = progress.add_task("", total=100)
-            snapshot = snapshot_cmd._generate_portfolio_snapshot(
-                cli, portfolio_id, portfolio, progress, task
-            )
+            snapshot = snapshot_cmd._generate_portfolio_snapshot(cli, portfolio_id, portfolio, progress, task)
 
         if not snapshot:
             ui.status_message("Failed to generate portfolio data", "error")
@@ -442,7 +392,7 @@ class LLMAnalysisPromptCommand(Command):
         if ui.confirm_action("Save prompt to file?"):
             filename = f"llm_prompt_{portfolio_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             try:
-                with open(filename, "w") as f:
+                with open(filename, "w", encoding="utf-8") as f:
                     f.write(prompt)
                 ui.status_message(f"Prompt saved to {filename}", "success")
             except Exception as e:

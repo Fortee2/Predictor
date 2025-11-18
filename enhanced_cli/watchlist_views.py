@@ -48,9 +48,7 @@ class ListWatchListsCommand(Command):
         # Prepare table rows
         rows = []
         for wl in watch_lists:
-            ticker_count = len(
-                cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"])
-            )
+            ticker_count = len(cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
 
             rows.append(
                 [
@@ -106,9 +104,7 @@ class CreateWatchListCommand(Command):
         ):
             with ui.progress("Creating watch list...") as progress:
                 progress.add_task("", total=None)
-                watch_list_id = cli.cli.create_watch_list(
-                    data["name"], data["description"]
-                )
+                watch_list_id = cli.cli.create_watch_list(data["name"], data["description"])
 
             if watch_list_id:
                 ui.status_message(
@@ -116,9 +112,7 @@ class CreateWatchListCommand(Command):
                     "success",
                 )
 
-                if ui.confirm_action(
-                    "Would you like to add tickers to this watch list now?"
-                ):
+                if ui.confirm_action("Would you like to add tickers to this watch list now?"):
                     add_tickers_command = AddTickersToWatchListCommand()
                     add_tickers_command.execute(cli, watch_list_id=watch_list_id)
             else:
@@ -166,9 +160,7 @@ class ViewWatchListCommand(Command):
             ui.console.print(table)
 
             try:
-                watch_list_id = int(
-                    Prompt.ask("[bold]Enter Watch List ID to view[/bold]")
-                )
+                watch_list_id = int(Prompt.ask("[bold]Enter Watch List ID to view[/bold]"))
             except ValueError:
                 ui.status_message("Invalid watch list ID", "error")
                 return
@@ -188,9 +180,7 @@ class ViewWatchListCommand(Command):
         # Watch List details
         if watch_list["description"]:
             ui.console.print(f"[bold]Description:[/bold] {watch_list['description']}")
-        ui.console.print(
-            f"[bold]Date Created:[/bold] {watch_list['date_created'].strftime('%Y-%m-%d')}"
-        )
+        ui.console.print(f"[bold]Date Created:[/bold] {watch_list['date_created'].strftime('%Y-%m-%d')}")
 
         # Get tickers in watch list
         with ui.progress("Loading tickers...") as progress:
@@ -284,15 +274,9 @@ class AddTickersToWatchListCommand(Command):
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(
-                f"Add Tickers to Watch List #{watch_list_id} - {watch_list['name']}"
-            )
-        )
+        ui.console.print(ui.section_header(f"Add Tickers to Watch List #{watch_list_id} - {watch_list['name']}"))
 
-        ticker_input = Prompt.ask(
-            "[bold]Enter ticker symbols[/bold] (separated by spaces)"
-        )
+        ticker_input = Prompt.ask("[bold]Enter ticker symbols[/bold] (separated by spaces)")
         ticker_symbols = ticker_input.upper().split()
 
         if not ticker_symbols:
@@ -301,9 +285,7 @@ class AddTickersToWatchListCommand(Command):
 
         notes = Prompt.ask("[bold]Notes[/bold] (optional, will apply to all tickers)")
 
-        if ui.confirm_action(
-            f"Add {len(ticker_symbols)} ticker(s) to watch list #{watch_list_id}?"
-        ):
+        if ui.confirm_action(f"Add {len(ticker_symbols)} ticker(s) to watch list #{watch_list_id}?"):
             with ui.progress("Adding tickers...") as progress:
                 progress.add_task("", total=None)
                 for symbol in ticker_symbols:
@@ -316,9 +298,7 @@ class RemoveTickersFromWatchListCommand(Command):
     """Command to remove tickers from a watchlist."""
 
     def __init__(self):
-        super().__init__(
-            "Remove Tickers from Watch List", "Remove tickers from a watchlist"
-        )
+        super().__init__("Remove Tickers from Watch List", "Remove tickers from a watchlist")
 
     @error_handler("removing tickers from watchlist")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -363,9 +343,7 @@ class RemoveTickersFromWatchListCommand(Command):
             ui.console.print(f"- {ticker['symbol']}")
             ticker_symbols.append(ticker["symbol"])
 
-        ticker_input = Prompt.ask(
-            "[bold]Enter ticker symbols to remove[/bold] (separated by spaces)"
-        )
+        ticker_input = Prompt.ask("[bold]Enter ticker symbols to remove[/bold] (separated by spaces)")
         to_remove = ticker_input.upper().split()
 
         valid_tickers = [t for t in to_remove if t in ticker_symbols]
@@ -373,9 +351,7 @@ class RemoveTickersFromWatchListCommand(Command):
             ui.status_message("No valid tickers selected for removal.", "warning")
             return
 
-        if ui.confirm_action(
-            f"Remove {len(valid_tickers)} ticker(s) from watch list #{watch_list_id}?"
-        ):
+        if ui.confirm_action(f"Remove {len(valid_tickers)} ticker(s) from watch list #{watch_list_id}?"):
             with ui.progress("Removing tickers...") as progress:
                 progress.add_task("", total=None)
                 cli.cli.remove_watch_list_ticker(watch_list_id, valid_tickers)
@@ -387,9 +363,7 @@ class UpdateTickerNotesCommand(Command):
     """Command to update notes for a ticker in a watchlist."""
 
     def __init__(self):
-        super().__init__(
-            "Update Ticker Notes", "Update notes for a ticker in a watchlist"
-        )
+        super().__init__("Update Ticker Notes", "Update notes for a ticker in a watchlist")
 
     @error_handler("updating ticker notes")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -437,23 +411,17 @@ class UpdateTickerNotesCommand(Command):
         # Check if ticker exists in the watch list
         ticker_exists = any(t["symbol"] == ticker_symbol for t in tickers)
         if not ticker_exists:
-            ui.status_message(
-                f"Ticker {ticker_symbol} not found in this watch list.", "error"
-            )
+            ui.status_message(f"Ticker {ticker_symbol} not found in this watch list.", "error")
             return
 
         # Get current notes
-        current_notes = next(
-            (t["notes"] for t in tickers if t["symbol"] == ticker_symbol), ""
-        )
+        current_notes = next((t["notes"] for t in tickers if t["symbol"] == ticker_symbol), "")
         notes = Prompt.ask("[bold]Enter new notes[/bold]", default=current_notes or "")
 
         if ui.confirm_action(f"Update notes for {ticker_symbol}?"):
             with ui.progress("Updating notes...") as progress:
                 progress.add_task("", total=None)
-                cli.cli.update_watch_list_ticker_notes(
-                    watch_list_id, ticker_symbol, notes
-                )
+                cli.cli.update_watch_list_ticker_notes(watch_list_id, ticker_symbol, notes)
 
             ui.status_message("Notes updated successfully", "success")
 
@@ -494,18 +462,14 @@ class DeleteWatchListCommand(Command):
 
             rows = []
             for wl in watch_lists:
-                ticker_count = len(
-                    cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"])
-                )
+                ticker_count = len(cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
                 rows.append([str(wl["id"]), wl["name"], str(ticker_count)])
 
             table = ui.data_table("Your Watch Lists", columns, rows)
             ui.console.print(table)
 
             try:
-                watch_list_id = int(
-                    Prompt.ask("[bold]Enter Watch List ID to delete[/bold]")
-                )
+                watch_list_id = int(Prompt.ask("[bold]Enter Watch List ID to delete[/bold]"))
             except ValueError:
                 ui.status_message("Invalid watch list ID", "error")
                 return
@@ -585,15 +549,11 @@ class AnalyzeWatchListCommand(Command):
 
             analyze_all = ui.confirm_action("Analyze all tickers?", True)
             if not analyze_all:
-                ticker_symbol = Prompt.ask(
-                    "[bold]Enter ticker symbol to analyze[/bold]"
-                ).upper()
+                ticker_symbol = Prompt.ask("[bold]Enter ticker symbol to analyze[/bold]").upper()
                 # Check if ticker exists in the watch list
                 ticker_exists = any(t["symbol"] == ticker_symbol for t in tickers)
                 if not ticker_exists:
-                    ui.status_message(
-                        f"Ticker {ticker_symbol} not found in this watch list.", "error"
-                    )
+                    ui.status_message(f"Ticker {ticker_symbol} not found in this watch list.", "error")
                     return
 
         header_text = f"Analyzing Watch List: {watch_list['name']}"
@@ -622,14 +582,8 @@ def register_watchlist_commands(registry: CommandRegistry) -> None:
     registry.register("list_watch_lists", ListWatchListsCommand(), "watchlist")
     registry.register("create_watch_list", CreateWatchListCommand(), "watchlist")
     registry.register("view_watch_list", ViewWatchListCommand(), "watchlist")
-    registry.register(
-        "add_watch_list_ticker", AddTickersToWatchListCommand(), "watchlist"
-    )
-    registry.register(
-        "remove_watch_list_ticker", RemoveTickersFromWatchListCommand(), "watchlist"
-    )
-    registry.register(
-        "update_watch_list_notes", UpdateTickerNotesCommand(), "watchlist"
-    )
+    registry.register("add_watch_list_ticker", AddTickersToWatchListCommand(), "watchlist")
+    registry.register("remove_watch_list_ticker", RemoveTickersFromWatchListCommand(), "watchlist")
+    registry.register("update_watch_list_notes", UpdateTickerNotesCommand(), "watchlist")
     registry.register("delete_watch_list", DeleteWatchListCommand(), "watchlist")
     registry.register("analyze_watch_list", AnalyzeWatchListCommand(), "watchlist")

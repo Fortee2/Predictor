@@ -76,11 +76,7 @@ class SharedAnalysisMetrics:
                 latest_rsi = rsi_result.iloc[-1]
                 rsi_value = latest_rsi["rsi"]
                 rsi_date = rsi_result.index[-1]
-                rsi_status = (
-                    "Overbought"
-                    if rsi_value > 70
-                    else "Oversold" if rsi_value < 30 else "Neutral"
-                )
+                rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
 
                 return {
                     "success": True,
@@ -94,9 +90,7 @@ class SharedAnalysisMetrics:
         except Exception as e:
             return {"success": False, "error": f"Unable to calculate RSI: {str(e)}"}
 
-    def analyze_moving_average(
-        self, ticker_id: int, period: int = 20
-    ) -> Dict[str, Any]:
+    def analyze_moving_average(self, ticker_id: int, period: int = 20) -> Dict[str, Any]:
         """
         Analyze moving average and trend for a given ticker.
 
@@ -131,7 +125,9 @@ class SharedAnalysisMetrics:
                         direction_emoji = (
                             "↗️"
                             if ma_trend.get("direction") == "UP"
-                            else "↘️" if ma_trend.get("direction") == "DOWN" else "➡️"
+                            else "↘️"
+                            if ma_trend.get("direction") == "DOWN"
+                            else "➡️"
                         )
                         direction = ma_trend.get("direction", "UNKNOWN")
                         strength = ma_trend.get("strength", "UNKNOWN")
@@ -145,9 +141,7 @@ class SharedAnalysisMetrics:
                         }
 
                         if ma_trend.get("percent_change") is not None:
-                            result["trend"][
-                                "rate_display"
-                            ] = f"Rate of Change: {ma_trend['percent_change']:.2f}%"
+                            result["trend"]["rate_display"] = f"Rate of Change: {ma_trend['percent_change']:.2f}%"
                     else:
                         result["trend"] = {
                             "direction": "UNKNOWN",
@@ -160,18 +154,12 @@ class SharedAnalysisMetrics:
 
                 # Add price vs MA analysis
                 try:
-                    price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(
-                        ticker_id, period
-                    )
+                    price_vs_ma = self.trend_analyzer.analyze_price_vs_ma(ticker_id, period)
                     if price_vs_ma["position"] != "UNKNOWN":
                         position_text = (
                             "Above MA"
                             if price_vs_ma["position"] == "ABOVE_MA"
-                            else (
-                                "Below MA"
-                                if price_vs_ma["position"] == "BELOW_MA"
-                                else "At MA"
-                            )
+                            else ("Below MA" if price_vs_ma["position"] == "BELOW_MA" else "At MA")
                         )
                         distance_formatted = f"{price_vs_ma['distance_percent']:.2f}"
 
@@ -181,13 +169,9 @@ class SharedAnalysisMetrics:
                             "display_text": f"Price Position: {position_text} ({distance_formatted}% from MA)",
                         }
                     else:
-                        result["price_position"] = {
-                            "error": "Unable to determine price position"
-                        }
+                        result["price_position"] = {"error": "Unable to determine price position"}
                 except Exception as e:
-                    result["price_position"] = {
-                        "error": f"Unable to analyze price position: {str(e)}"
-                    }
+                    result["price_position"] = {"error": f"Unable to analyze price position: {str(e)}"}
 
                 return result
             else:
@@ -249,28 +233,22 @@ class SharedAnalysisMetrics:
                 # Determine current MACD signal
                 if latest_macd["macd"] > latest_macd["signal_line"]:
                     current_signal = "BUY"
-                    signal_strength = (
-                        "Strong" if latest_macd["histogram"] > 0.1 else "Weak"
-                    )
+                    signal_strength = "Strong" if latest_macd["histogram"] > 0.1 else "Weak"
                 else:
                     current_signal = "SELL"
-                    signal_strength = (
-                        "Strong" if latest_macd["histogram"] < -0.1 else "Weak"
-                    )
+                    signal_strength = "Strong" if latest_macd["histogram"] < -0.1 else "Weak"
 
                 # Determine trend direction based on histogram
                 if latest_macd["histogram"] > 0:
                     trend_direction = (
                         "Strengthening"
-                        if len(macd_data) > 1
-                        and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
+                        if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
                         else "Weakening"
                     )
                 else:
                     trend_direction = (
                         "Strengthening"
-                        if len(macd_data) > 1
-                        and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
+                        if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
                         else "Weakening"
                     )
 
@@ -301,25 +279,19 @@ class SharedAnalysisMetrics:
             Dictionary containing fundamental analysis results
         """
         try:
-            fundamental_data = self.fundamental_dao.get_latest_fundamental_data(
-                ticker_id
-            )
+            fundamental_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
 
             if fundamental_data:
                 result = {"success": True, "data": fundamental_data}
 
                 display_items = []
                 if fundamental_data.get("pe_ratio") is not None:
-                    display_items.append(
-                        f"P/E Ratio: {fundamental_data['pe_ratio']:.2f}"
-                    )
+                    display_items.append(f"P/E Ratio: {fundamental_data['pe_ratio']:.2f}")
                 if fundamental_data.get("market_cap") is not None:
                     market_cap_str = f"{fundamental_data['market_cap']:,.2f}"
                     display_items.append(f"Market Cap: ${market_cap_str}")
                 if fundamental_data.get("dividend_yield"):
-                    display_items.append(
-                        f"Dividend Yield: {fundamental_data['dividend_yield']:.2f}%"
-                    )
+                    display_items.append(f"Dividend Yield: {fundamental_data['dividend_yield']:.2f}%")
 
                 result["display_items"] = display_items
                 return result
@@ -345,10 +317,7 @@ class SharedAnalysisMetrics:
         try:
             sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id, symbol)
 
-            if (
-                sentiment_data
-                and sentiment_data["status"] != "No sentiment data available"
-            ):
+            if sentiment_data and sentiment_data["status"] != "No sentiment data available":
                 return {
                     "success": True,
                     "status": sentiment_data["status"],
@@ -364,9 +333,7 @@ class SharedAnalysisMetrics:
                 "error": f"Unable to analyze news sentiment: {str(e)}",
             }
 
-    def analyze_stochastic(
-        self, ticker_id: int, k_period: int = 14, d_period: int = 3
-    ) -> Dict[str, Any]:
+    def analyze_stochastic(self, ticker_id: int, k_period: int = 14, d_period: int = 3) -> Dict[str, Any]:
         """
         Analyze Stochastic Oscillator for a given ticker - following existing analysis patterns.
 
@@ -382,9 +349,7 @@ class SharedAnalysisMetrics:
             return {"success": False, "error": "Stochastic analyzer not available"}
 
         try:
-            stoch_signals = self.stochastic_analyzer.get_stochastic_signals(
-                ticker_id, k_period, d_period
-            )
+            stoch_signals = self.stochastic_analyzer.get_stochastic_signals(ticker_id, k_period, d_period)
 
             if stoch_signals.get("success"):
                 result = {
@@ -400,9 +365,7 @@ class SharedAnalysisMetrics:
 
                 # Add divergence analysis if available
                 try:
-                    divergence_analysis = self.stochastic_analyzer.analyze_divergence(
-                        ticker_id, k_period, d_period
-                    )
+                    divergence_analysis = self.stochastic_analyzer.analyze_divergence(ticker_id, k_period, d_period)
                     if divergence_analysis.get("success"):
                         result["divergence"] = {
                             "type": divergence_analysis["divergence"],
@@ -412,22 +375,16 @@ class SharedAnalysisMetrics:
                         }
                     else:
                         result["divergence"] = {
-                            "error": divergence_analysis.get(
-                                "error", "Unable to analyze divergence"
-                            )
+                            "error": divergence_analysis.get("error", "Unable to analyze divergence")
                         }
                 except Exception as e:
-                    result["divergence"] = {
-                        "error": f"Unable to analyze divergence: {str(e)}"
-                    }
+                    result["divergence"] = {"error": f"Unable to analyze divergence: {str(e)}"}
 
                 return result
             else:
                 return {
                     "success": False,
-                    "error": stoch_signals.get(
-                        "error", "Unable to calculate stochastic"
-                    ),
+                    "error": stoch_signals.get("error", "Unable to calculate stochastic"),
                 }
         except Exception as e:
             return {
@@ -465,9 +422,7 @@ class SharedAnalysisMetrics:
                         result["last_closed_price"] = last_price
                         result["last_update"] = ticker_data.get("last_update")
                 except Exception as e:
-                    result["last_closed_price_error"] = (
-                        f"Unable to get last price: {str(e)}"
-                    )
+                    result["last_closed_price_error"] = f"Unable to get last price: {str(e)}"
 
             # If position data is provided, calculate position metrics
             if position_data:
@@ -541,25 +496,16 @@ class SharedAnalysisMetrics:
                     except (ZeroDivisionError, decimal.DivisionUndefined):
                         put_call_ratio = 0
 
-                    sentiment = (
-                        "Bearish"
-                        if put_call_ratio > 1
-                        else "Bullish" if put_call_ratio < 1 else "Neutral"
-                    )
+                    sentiment = "Bearish" if put_call_ratio > 1 else "Bullish" if put_call_ratio < 1 else "Neutral"
 
                     # Calculate average implied volatility
                     avg_call_iv = (
-                        options_summary["calls_iv_range"]["min"]
-                        + options_summary["calls_iv_range"]["max"]
+                        options_summary["calls_iv_range"]["min"] + options_summary["calls_iv_range"]["max"]
                     ) / 2
                     market_expectation = (
                         "High Volatility"
                         if avg_call_iv > 0.5
-                        else (
-                            "Moderate Volatility"
-                            if avg_call_iv > 0.2
-                            else "Low Volatility"
-                        )
+                        else ("Moderate Volatility" if avg_call_iv > 0.2 else "Low Volatility")
                     )
 
                     result.update(
@@ -620,9 +566,7 @@ class SharedAnalysisMetrics:
 
         # Add portfolio position metrics if position data is provided
         if position_data:
-            analysis["portfolio_metrics"] = self.analyze_portfolio_position_metrics(
-                ticker_id, symbol, position_data
-            )
+            analysis["portfolio_metrics"] = self.analyze_portfolio_position_metrics(ticker_id, symbol, position_data)
 
         if include_options:
             analysis["options"] = self.analyze_options_data(symbol)
@@ -632,9 +576,7 @@ class SharedAnalysisMetrics:
 
         return analysis
 
-    def format_analysis_output(
-        self, analysis: Dict[str, Any], shares_info: str = "", notes: str = None
-    ) -> str:
+    def format_analysis_output(self, analysis: Dict[str, Any], shares_info: str = "", notes: str = None) -> str:
         """
         Format analysis results for display output.
 
@@ -651,23 +593,17 @@ class SharedAnalysisMetrics:
 
         # Header
         output_lines.append(f"║ {symbol}{shares_info:<56}║")
-        output_lines.append(
-            "║──────────────────────────────────────────────────────────║"
-        )
+        output_lines.append("║──────────────────────────────────────────────────────────║")
 
         # Portfolio Position Metrics (if available)
         portfolio_metrics = analysis.get("portfolio_metrics", {})
         if portfolio_metrics.get("success"):
-            output_lines.append(
-                "║ Portfolio Position Metrics:                                  ║"
-            )
+            output_lines.append("║ Portfolio Position Metrics:                                  ║")
 
             # Average Cost
             if "average_cost" in portfolio_metrics:
                 avg_cost = portfolio_metrics["average_cost"]
-                output_lines.append(
-                    f"║   Average Cost: ${avg_cost:.2f}{' ' * (44 - len(f'{avg_cost:.2f}'))}║"
-                )
+                output_lines.append(f"║   Average Cost: ${avg_cost:.2f}{' ' * (44 - len(f'{avg_cost:.2f}'))}║")
 
             # Current Value
             if "current_value" in portfolio_metrics:
@@ -697,10 +633,7 @@ class SharedAnalysisMetrics:
                 output_lines.append(f"║   Last Closed Price: {error_msg:<40}║")
 
             # Gain/Loss information
-            if (
-                "gain_loss" in portfolio_metrics
-                and "gain_loss_pct" in portfolio_metrics
-            ):
+            if "gain_loss" in portfolio_metrics and "gain_loss_pct" in portfolio_metrics:
                 gain_loss = portfolio_metrics["gain_loss"]
                 gain_loss_pct = portfolio_metrics["gain_loss_pct"]
                 gl_color_start = "" if gain_loss >= 0 else ""
@@ -710,9 +643,7 @@ class SharedAnalysisMetrics:
                     f"║   Gain/Loss: {gl_color_start}{sign}${gain_loss:.2f} ({sign}{gain_loss_pct:.2f}%){gl_color_end}{' ' * (25 - len(f'{gain_loss:.2f}') - len(f'{gain_loss_pct:.2f}'))}║"
                 )
 
-            output_lines.append(
-                "║──────────────────────────────────────────────────────────║"
-            )
+            output_lines.append("║──────────────────────────────────────────────────────────║")
 
         # RSI
         rsi = analysis.get("rsi", {})
@@ -721,9 +652,7 @@ class SharedAnalysisMetrics:
             padding = 45 - len(rsi_status)
             output_lines.append(f"║ {rsi['display_text']:<{60 - padding}}║")
         else:
-            output_lines.append(
-                f"║ RSI: {rsi.get('error', 'Unable to calculate'):<51}║"
-            )
+            output_lines.append(f"║ RSI: {rsi.get('error', 'Unable to calculate'):<51}║")
 
         # Moving Average
         ma = analysis.get("moving_average", {})
@@ -747,33 +676,23 @@ class SharedAnalysisMetrics:
                 padding = 60 - len(pos_text)
                 output_lines.append(f"║ {pos_text}{' ' * padding}║")
         else:
-            output_lines.append(
-                f"║ Moving Average: {ma.get('error', 'Unable to calculate'):<42}║"
-            )
+            output_lines.append(f"║ Moving Average: {ma.get('error', 'Unable to calculate'):<42}║")
 
         # Bollinger Bands
         bb = analysis.get("bollinger_bands", {})
         if bb.get("success"):
-            output_lines.append(
-                "║ Bollinger Bands:                                             ║"
-            )
+            output_lines.append("║ Bollinger Bands:                                             ║")
             output_lines.append(f"║   Mean: {bb['mean']:.2f}{' ' * 49}║")
             output_lines.append(f"║   StdDev: {bb['stddev']:.2f}{' ' * 47}║")
         else:
-            output_lines.append(
-                f"║ Bollinger Bands: {bb.get('error', 'Unable to calculate'):<37}║"
-            )
+            output_lines.append(f"║ Bollinger Bands: {bb.get('error', 'Unable to calculate'):<37}║")
 
         # MACD
         macd = analysis.get("macd", {})
         if macd.get("success"):
-            output_lines.append(
-                f"║ MACD ({macd['date'].strftime('%Y-%m-%d')}):                                ║"
-            )
+            output_lines.append(f"║ MACD ({macd['date'].strftime('%Y-%m-%d')}):                                ║")
             output_lines.append(f"║   MACD Line: {macd['macd_line']:.2f}{' ' * 44}║")
-            output_lines.append(
-                f"║   Signal Line: {macd['signal_line']:.2f}{' ' * 42}║"
-            )
+            output_lines.append(f"║   Signal Line: {macd['signal_line']:.2f}{' ' * 42}║")
             output_lines.append(f"║   Histogram: {macd['histogram']:.2f}{' ' * 44}║")
             output_lines.append(
                 f"║ Current MACD Signal ({macd['date'].strftime('%Y-%m-%d')}): {macd['current_signal']} ({macd['signal_strength']}){' ' * (25 - len(macd['signal_strength']))}║"
@@ -782,38 +701,26 @@ class SharedAnalysisMetrics:
                 f"║ MACD Momentum: {macd['trend_direction']}{' ' * (47 - len(macd['trend_direction']))}║"
             )
         else:
-            output_lines.append(
-                f"║ MACD: {macd.get('error', 'Unable to calculate'):<51}║"
-            )
+            output_lines.append(f"║ MACD: {macd.get('error', 'Unable to calculate'):<51}║")
 
         # Fundamental Data
         fund = analysis.get("fundamental", {})
         if fund.get("success") and fund.get("display_items"):
-            output_lines.append(
-                "║ Fundamental Data:                                            ║"
-            )
+            output_lines.append("║ Fundamental Data:                                            ║")
             for item in fund["display_items"]:
                 padding = 60 - len(f"   {item}")
                 output_lines.append(f"║   {item}{' ' * padding}║")
         else:
-            output_lines.append(
-                f"║ Fundamental Data: {fund.get('error', 'Unable to retrieve'):<37}║"
-            )
+            output_lines.append(f"║ Fundamental Data: {fund.get('error', 'Unable to retrieve'):<37}║")
 
         # News Sentiment
         news = analysis.get("news_sentiment", {})
         if news.get("success"):
             output_lines.append(f"║ News Sentiment: {news['status']:<47}║")
-            output_lines.append(
-                f"║   Average Score: {news['average_sentiment']:.2f}{' ' * 41}║"
-            )
-            output_lines.append(
-                f"║   Articles Analyzed: {news['article_count']}{' ' * 39}║"
-            )
+            output_lines.append(f"║   Average Score: {news['average_sentiment']:.2f}{' ' * 41}║")
+            output_lines.append(f"║   Articles Analyzed: {news['article_count']}{' ' * 39}║")
         else:
-            output_lines.append(
-                f"║ News Sentiment: {news.get('error', 'No data available'):<43}║"
-            )
+            output_lines.append(f"║ News Sentiment: {news.get('error', 'No data available'):<43}║")
 
         # Stochastic Oscillator
         stochastic = analysis.get("stochastic", {})
@@ -827,34 +734,21 @@ class SharedAnalysisMetrics:
                 output_lines.append(f"║{crossover_text}{' ' * padding}║")
 
             # Divergence analysis if available
-            if (
-                "divergence" in stochastic
-                and "display_text" in stochastic["divergence"]
-            ):
+            if "divergence" in stochastic and "display_text" in stochastic["divergence"]:
                 div_text = f"   {stochastic['divergence']['display_text']}"
                 padding = 60 - len(div_text)
                 output_lines.append(f"║{div_text}{' ' * padding}║")
         else:
-            output_lines.append(
-                f"║ Stochastic: {stochastic.get('error', 'Not available'):<45}║"
-            )
+            output_lines.append(f"║ Stochastic: {stochastic.get('error', 'Not available'):<45}║")
 
-        output_lines.append(
-            "════════════════════════════════════════════════════════════════"
-        )
+        output_lines.append("════════════════════════════════════════════════════════════════")
 
         # Options Data
         options = analysis.get("options", {})
         if options.get("success"):
-            output_lines.append(
-                "║ Options Data:                                                  ║"
-            )
-            output_lines.append(
-                f"║   Available Expirations: {options['num_expirations']}{' ' * 37}║"
-            )
-            output_lines.append(
-                f"║   Nearest Expiry: {options['nearest_expiration']}{' ' * 35}║"
-            )
+            output_lines.append("║ Options Data:                                                  ║")
+            output_lines.append(f"║   Available Expirations: {options['num_expirations']}{' ' * 37}║")
+            output_lines.append(f"║   Nearest Expiry: {options['nearest_expiration']}{' ' * 35}║")
 
             if "calls_volume" in options:
                 calls_volume = options["calls_volume"]
@@ -862,51 +756,29 @@ class SharedAnalysisMetrics:
                 put_call_ratio = options["put_call_ratio"]
                 sentiment = options["volume_sentiment"]
 
-                output_lines.append(
-                    f"║   Total Calls Volume: {calls_volume:,}{' ' * (37 - len(str(calls_volume)))}║"
-                )
-                output_lines.append(
-                    f"║   Total Puts Volume: {puts_volume:,}{' ' * (38 - len(str(puts_volume)))}║"
-                )
-                output_lines.append(
-                    f"║   Put/Call Ratio: {put_call_ratio:.2f}{' ' * 42}║"
-                )
-                output_lines.append(
-                    f"║   Volume Sentiment: {sentiment}{' ' * (42 - len(sentiment))}║"
-                )
+                output_lines.append(f"║   Total Calls Volume: {calls_volume:,}{' ' * (37 - len(str(calls_volume)))}║")
+                output_lines.append(f"║   Total Puts Volume: {puts_volume:,}{' ' * (38 - len(str(puts_volume)))}║")
+                output_lines.append(f"║   Put/Call Ratio: {put_call_ratio:.2f}{' ' * 42}║")
+                output_lines.append(f"║   Volume Sentiment: {sentiment}{' ' * (42 - len(sentiment))}║")
 
-                output_lines.append(
-                    "║   Implied Volatility Range:                                  ║"
-                )
+                output_lines.append("║   Implied Volatility Range:                                  ║")
                 output_lines.append(
                     f"║     Calls: {options['calls_iv_range']['min']:.2%} - {options['calls_iv_range']['max']:.2%}{' ' * 35}║"
                 )
                 output_lines.append(
                     f"║     Puts: {options['puts_iv_range']['min']:.2%} - {options['puts_iv_range']['max']:.2%}{' ' * 36}║"
                 )
-                output_lines.append(
-                    f"║   Market Expectation: {options['market_expectation']:<42}║"
-                )
+                output_lines.append(f"║   Market Expectation: {options['market_expectation']:<42}║")
         else:
-            output_lines.append(
-                f"║ Options Data: {options.get('error', 'Not available'):<45}║"
-            )
+            output_lines.append(f"║ Options Data: {options.get('error', 'Not available'):<45}║")
 
         # Notes
         if notes:
-            output_lines.append(
-                "════════════════════════════════════════════════════════════════"
-            )
-            output_lines.append(
-                f"║ Notes: {notes[:50]}{' ' * (51 - min(50, len(notes)))}║"
-            )
+            output_lines.append("════════════════════════════════════════════════════════════════")
+            output_lines.append(f"║ Notes: {notes[:50]}{' ' * (51 - min(50, len(notes)))}║")
             if len(notes) > 50:
-                output_lines.append(
-                    f"║   {notes[50:100]}{' ' * (57 - min(50, len(notes) - 50))}║"
-                )
+                output_lines.append(f"║   {notes[50:100]}{' ' * (57 - min(50, len(notes) - 50))}║")
 
-        output_lines.append(
-            "════════════════════════════════════════════════════════════════"
-        )
+        output_lines.append("════════════════════════════════════════════════════════════════")
 
         return "\n".join(output_lines)

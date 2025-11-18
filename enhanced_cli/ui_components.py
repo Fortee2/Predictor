@@ -39,9 +39,7 @@ class UIComponents:
         Returns:
             A Rich Panel instance
         """
-        return Panel(
-            f"[bold blue]{title}[/bold blue]", subtitle=subtitle, box=box.DOUBLE
-        )
+        return Panel(f"[bold blue]{title}[/bold blue]", subtitle=subtitle, box=box.DOUBLE)
 
     def section_header(self, title: str) -> Panel:
         """
@@ -55,9 +53,7 @@ class UIComponents:
         """
         return Panel(f"[bold]{title}[/bold]", box=box.ROUNDED)
 
-    def data_table(
-        self, title: str, columns: List[Dict[str, Any]], rows: List[List[str]]
-    ) -> Table:
+    def data_table(self, title: str, columns: List[Dict[str, Any]], rows: List[List[str]]) -> Table:
         """
         Create a data table with standardized formatting.
 
@@ -128,15 +124,11 @@ class UIComponents:
             choices = field.get("choices")
 
             if field_type == bool:
-                result[name] = Confirm.ask(
-                    prompt, default=bool(default) if default is not None else None
-                )
+                result[name] = Confirm.ask(prompt, default=bool(default) if default is not None else None)
             elif choices:
                 result[name] = Prompt.ask(prompt, choices=choices, default=default)
             else:
-                value = Prompt.ask(
-                    prompt, default=str(default) if default is not None else None
-                )
+                value = Prompt.ask(prompt, default=str(default) if default is not None else None)
 
                 # Convert value to expected type
                 if field_type == int:
@@ -145,13 +137,9 @@ class UIComponents:
                     result[name] = float(value)
                 elif field_type == datetime:
                     try:
-                        result[name] = datetime.strptime(
-                            value, field.get("format", "%Y-%m-%d")
-                        )
+                        result[name] = datetime.strptime(value, field.get("format", "%Y-%m-%d"))
                     except ValueError:
-                        self.console.print(
-                            "[bold red]Invalid date format. Using default.[/bold red]"
-                        )
+                        self.console.print("[bold red]Invalid date format. Using default.[/bold red]")
                         result[name] = default or datetime.now()
                 else:
                     result[name] = value

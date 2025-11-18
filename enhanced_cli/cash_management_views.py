@@ -60,9 +60,7 @@ class ManageCashCommand(Command):
         cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
 
         ui.console.print(ui.section_header(f"Cash Management for {portfolio['name']}"))
-        ui.console.print(
-            f"[bold]Current Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]"
-        )
+        ui.console.print(f"[bold]Current Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]")
 
         # Cash management actions
         options = {
@@ -75,9 +73,7 @@ class ManageCashCommand(Command):
         choice = ui.menu("Select Action", options)
 
         if choice == "1":  # Deposit
-            amount = float(
-                Prompt.ask("[bold]Enter deposit amount ($)[/bold]", default="0.00")
-            )
+            amount = float(Prompt.ask("[bold]Enter deposit amount ($)[/bold]", default="0.00"))
 
             if amount <= 0:
                 ui.status_message("Amount must be greater than zero.", "error")
@@ -95,14 +91,10 @@ class ManageCashCommand(Command):
                     )
 
                 ui.status_message(f"Deposited ${amount:.2f} successfully", "success")
-                ui.console.print(
-                    f"[bold]New Cash Balance:[/bold] [green]${new_balance:.2f}[/green]"
-                )
+                ui.console.print(f"[bold]New Cash Balance:[/bold] [green]${new_balance:.2f}[/green]")
 
         elif choice == "2":  # Withdraw
-            amount = float(
-                Prompt.ask("[bold]Enter withdrawal amount ($)[/bold]", default="0.00")
-            )
+            amount = float(Prompt.ask("[bold]Enter withdrawal amount ($)[/bold]", default="0.00"))
 
             if amount <= 0:
                 ui.status_message("Amount must be greater than zero.", "error")
@@ -131,9 +123,7 @@ class ManageCashCommand(Command):
                     )
 
                 ui.status_message(f"Withdrew ${amount:.2f} successfully", "success")
-                ui.console.print(
-                    f"[bold]New Cash Balance:[/bold] [green]${new_balance:.2f}[/green]"
-                )
+                ui.console.print(f"[bold]New Cash Balance:[/bold] [green]${new_balance:.2f}[/green]")
 
         elif choice == "3":  # View cash transactions
             self.view_cash_transactions(cli, portfolio_id)
@@ -159,7 +149,7 @@ class ManageCashCommand(Command):
             progress.add_task("", total=None)
             portfolio = cli.cli.portfolio_dao.read_portfolio(portfolio_id)
 
-           # We'll use a direct SQL query to get the cash_balance_history
+            # We'll use a direct SQL query to get the cash_balance_history
             connection = cli.cli.portfolio_dao.current_connection
             cursor = connection.cursor(dictionary=True)
 
@@ -191,19 +181,13 @@ class ManageCashCommand(Command):
                     connection.commit()
 
                 # Get initial portfolio creation details
-                query_initial = (
-                    "SELECT cash_balance, date_added FROM portfolio WHERE id = %s"
-                )
+                query_initial = "SELECT cash_balance, date_added FROM portfolio WHERE id = %s"
                 cursor.execute(query_initial, (portfolio_id,))
                 initial_data = cursor.fetchone()
                 initial_cash = (
-                    float(initial_data["cash_balance"])
-                    if initial_data and "cash_balance" in initial_data
-                    else 0
+                    float(initial_data["cash_balance"]) if initial_data and "cash_balance" in initial_data else 0
                 )
-                creation_date = (
-                    initial_data["date_added"] if initial_data else datetime.now()
-                )
+                creation_date = initial_data["date_added"] if initial_data else datetime.now()
 
                 # Check if we already have a record of the initial deposit
                 check_initial_query = """
@@ -287,43 +271,21 @@ class ManageCashCommand(Command):
 
                         if t["transaction_type"] == "buy":
                             # Buy transactions decrease cash
-                            shares = (
-                                float(t["shares"])
-                                if hasattr(t["shares"], "as_tuple")
-                                else float(t["shares"])
-                            )
-                            price = (
-                                float(t["price"])
-                                if hasattr(t["price"], "as_tuple")
-                                else float(t["price"])
-                            )
+                            shares = float(t["shares"]) if hasattr(t["shares"], "as_tuple") else float(t["shares"])
+                            price = float(t["price"]) if hasattr(t["price"], "as_tuple") else float(t["price"])
                             cash_impact = -(shares * price)
                             transaction_type = "buy"
-                            description = (
-                                f"Purchase of {shares} {t['symbol']} at ${price}"
-                            )
+                            description = f"Purchase of {shares} {t['symbol']} at ${price}"
                         elif t["transaction_type"] == "sell":
                             # Sell transactions increase cash
-                            shares = (
-                                float(t["shares"])
-                                if hasattr(t["shares"], "as_tuple")
-                                else float(t["shares"])
-                            )
-                            price = (
-                                float(t["price"])
-                                if hasattr(t["price"], "as_tuple")
-                                else float(t["price"])
-                            )
+                            shares = float(t["shares"]) if hasattr(t["shares"], "as_tuple") else float(t["shares"])
+                            price = float(t["price"]) if hasattr(t["price"], "as_tuple") else float(t["price"])
                             cash_impact = shares * price
                             transaction_type = "sell"
                             description = f"Sale of {shares} {t['symbol']} at ${price}"
                         elif t["transaction_type"] == "dividend":
                             # Dividend transactions increase cash
-                            cash_impact = (
-                                float(t["amount"])
-                                if hasattr(t["amount"], "as_tuple")
-                                else float(t["amount"])
-                            )
+                            cash_impact = float(t["amount"]) if hasattr(t["amount"], "as_tuple") else float(t["amount"])
                             transaction_type = "dividend"
                             description = f"Dividend from {t['symbol']}"
 
@@ -337,15 +299,9 @@ class ManageCashCommand(Command):
                                 ORDER BY transaction_date DESC
                                 LIMIT 1
                             """
-                            cursor.execute(
-                                balance_query, (portfolio_id, t["transaction_date"])
-                            )
+                            cursor.execute(balance_query, (portfolio_id, t["transaction_date"]))
                             balance_result = cursor.fetchone()
-                            prior_balance = (
-                                float(balance_result["balance_after"])
-                                if balance_result
-                                else initial_cash
-                            )
+                            prior_balance = float(balance_result["balance_after"]) if balance_result else initial_cash
 
                             # Calculate new balance
                             new_balance = prior_balance + cash_impact
@@ -386,9 +342,7 @@ class ManageCashCommand(Command):
                 cursor.execute(query_initial, (portfolio_id,))
                 initial_result = cursor.fetchone()
                 initial_cash = (
-                    float(initial_result["cash_balance"])
-                    if initial_result and "cash_balance" in initial_result
-                    else 0
+                    float(initial_result["cash_balance"]) if initial_result and "cash_balance" in initial_result else 0
                 )
 
                 # Get all transactions that affected cash
@@ -434,41 +388,21 @@ class ManageCashCommand(Command):
 
                     if t["transaction_type"] == "buy":
                         # Buy transactions decrease cash
-                        shares = (
-                            float(t["shares"])
-                            if hasattr(t["shares"], "as_tuple")
-                            else float(t["shares"])
-                        )
-                        price = (
-                            float(t["price"])
-                            if hasattr(t["price"], "as_tuple")
-                            else float(t["price"])
-                        )
+                        shares = float(t["shares"]) if hasattr(t["shares"], "as_tuple") else float(t["shares"])
+                        price = float(t["price"]) if hasattr(t["price"], "as_tuple") else float(t["price"])
                         cash_impact = -(shares * price)
                         transaction_type = "buy"
                         description = f"Purchase of {shares} {t['symbol']} at ${price}"
                     elif t["transaction_type"] == "sell":
                         # Sell transactions increase cash
-                        shares = (
-                            float(t["shares"])
-                            if hasattr(t["shares"], "as_tuple")
-                            else float(t["shares"])
-                        )
-                        price = (
-                            float(t["price"])
-                            if hasattr(t["price"], "as_tuple")
-                            else float(t["price"])
-                        )
+                        shares = float(t["shares"]) if hasattr(t["shares"], "as_tuple") else float(t["shares"])
+                        price = float(t["price"]) if hasattr(t["price"], "as_tuple") else float(t["price"])
                         cash_impact = shares * price
                         transaction_type = "sell"
                         description = f"Sale of {shares} {t['symbol']} at ${price}"
                     elif t["transaction_type"] == "dividend":
                         # Dividend transactions increase cash
-                        cash_impact = (
-                            float(t["amount"])
-                            if hasattr(t["amount"], "as_tuple")
-                            else float(t["amount"])
-                        )
+                        cash_impact = float(t["amount"]) if hasattr(t["amount"], "as_tuple") else float(t["amount"])
                         transaction_type = "dividend"
                         description = f"Dividend from {t['symbol']}"
 
@@ -485,30 +419,20 @@ class ManageCashCommand(Command):
                         )
 
                 # Sort by date, newest first
-                cash_transactions = sorted(
-                    cash_transactions, key=lambda x: x["transaction_date"], reverse=True
-                )
+                cash_transactions = sorted(cash_transactions, key=lambda x: x["transaction_date"], reverse=True)
 
             finally:
                 cursor.close()
 
-        ui.console.print(
-            ui.section_header(f"Cash Transaction History for {portfolio['name']}")
-        )
+        ui.console.print(ui.section_header(f"Cash Transaction History for {portfolio['name']}"))
 
         if not cash_transactions:
-            ui.status_message(
-                "No cash transactions found for this portfolio.", "warning"
-            )
+            ui.status_message("No cash transactions found for this portfolio.", "warning")
 
             # Show helpful information about cash management
             ui.console.print("\n[bold]To manage cash in this portfolio:[/bold]")
-            ui.console.print(
-                "1. Use the 'Deposit Cash' or 'Withdraw Cash' options in the Cash Management menu"
-            )
-            ui.console.print(
-                "2. The system will automatically track cash flows from buy/sell/dividend transactions"
-            )
+            ui.console.print("1. Use the 'Deposit Cash' or 'Withdraw Cash' options in the Cash Management menu")
+            ui.console.print("2. The system will automatically track cash flows from buy/sell/dividend transactions")
             return
 
         # Prepare table columns
@@ -556,9 +480,7 @@ class ManageCashCommand(Command):
 
             # Make sure balance_after is a float too
             balance_after = (
-                float(t["balance_after"])
-                if hasattr(t["balance_after"], "as_tuple")
-                else float(t["balance_after"])
+                float(t["balance_after"]) if hasattr(t["balance_after"], "as_tuple") else float(t["balance_after"])
             )
 
             rows.append(

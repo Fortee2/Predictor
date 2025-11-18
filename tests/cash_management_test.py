@@ -57,7 +57,7 @@ class CashManagementTests(unittest.TestCase):
             cursor.execute(query)
             result = cursor.fetchone()
             cursor.close()
-            
+
             if result:
                 # If it exists, delete it first to start fresh (outside this context)
                 portfolio_id = result[0]
@@ -132,9 +132,7 @@ class CashManagementTests(unittest.TestCase):
         current = self.portfolio_dao.get_cash_balance(self.test_portfolio_id)
         self.assertEqual(current, expected)
 
-        print(
-            f"✅ add_cash test passed. Added ${amount:.2f}, New balance: ${current:.2f}"
-        )
+        print(f"✅ add_cash test passed. Added ${amount:.2f}, New balance: ${current:.2f}")
 
     def test_withdraw_cash(self):
         """Test withdrawing cash from portfolio"""
@@ -150,9 +148,7 @@ class CashManagementTests(unittest.TestCase):
         current = self.portfolio_dao.get_cash_balance(self.test_portfolio_id)
         self.assertEqual(current, expected)
 
-        print(
-            f"✅ withdraw_cash test passed. Withdrew ${amount:.2f}, New balance: ${current:.2f}"
-        )
+        print(f"✅ withdraw_cash test passed. Withdrew ${amount:.2f}, New balance: ${current:.2f}")
 
     def test_log_cash_transaction(self):
         """Test logging a cash transaction"""
@@ -169,9 +165,7 @@ class CashManagementTests(unittest.TestCase):
         self.assertEqual(new_balance, expected)
 
         # Get transaction history and check if our transaction is recorded
-        history = self.portfolio_dao.get_cash_transaction_history(
-            self.test_portfolio_id
-        )
+        history = self.portfolio_dao.get_cash_transaction_history(self.test_portfolio_id)
 
         # Latest transaction should be our test deposit
         if history:
@@ -180,9 +174,7 @@ class CashManagementTests(unittest.TestCase):
             self.assertEqual(latest["transaction_type"], "deposit")
             self.assertEqual(latest["description"], "Test deposit transaction")
             self.assertEqual(float(latest["balance_after"]), expected)
-            print(
-                "✅ log_cash_transaction test passed. Transaction logged successfully."
-            )
+            print("✅ log_cash_transaction test passed. Transaction logged successfully.")
         else:
             self.fail("No transaction history found")
 
@@ -194,9 +186,7 @@ class CashManagementTests(unittest.TestCase):
         excessive_amount = initial + 1000.0  # More than we have
 
         # Withdraw should give a warning but still allow the withdrawal
-        self.portfolio_dao.withdraw_cash(
-            self.test_portfolio_id, excessive_amount
-        )
+        self.portfolio_dao.withdraw_cash(self.test_portfolio_id, excessive_amount)
 
         # If the implementation allows overdrafts, the balance should be negative
         # But if it prevents withdrawing more than available, the balance should stay the same
@@ -207,15 +197,11 @@ class CashManagementTests(unittest.TestCase):
             # Implementation allows overdrafts
             expected = initial - excessive_amount
             self.assertEqual(current_balance, expected)
-            print(
-                f"✅ Negative balance scenario test passed. Balance correctly updated to: ${current_balance:.2f}"
-            )
+            print(f"✅ Negative balance scenario test passed. Balance correctly updated to: ${current_balance:.2f}")
         else:
             # Implementation prevents excessive withdrawals
             self.assertEqual(current_balance, initial)
-            print(
-                f"✅ Excessive withdrawal prevention test passed. Balance remained at: ${current_balance:.2f}"
-            )
+            print(f"✅ Excessive withdrawal prevention test passed. Balance remained at: ${current_balance:.2f}")
 
 
 def main():

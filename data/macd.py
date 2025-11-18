@@ -13,7 +13,7 @@ class MACD:
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize DAO with a shared database connection pool.
-        
+
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
@@ -79,9 +79,7 @@ class MACD:
                 signal_line = self.calculate_ema(macd_line, 9)
 
                 # Store results in database
-                for date, macd_value, signal_value in zip(
-                    macd_line.index, macd_line, signal_line
-                ):
+                for date, macd_value, signal_value in zip(macd_line.index, macd_line, signal_line):
                     # Store MACD line
                     # Convert date to date object if it's a datetime
                     store_date = date.date() if hasattr(date, "date") else date
@@ -134,9 +132,7 @@ class MACD:
 
                 cursor.execute(sql, (ticker_id,))
 
-                df = pd.DataFrame(
-                    cursor.fetchall(), columns=["activity_date", "macd", "signal_line"]
-                )
+                df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "macd", "signal_line"])
                 df = df.set_index("activity_date")
 
                 # Calculate histogram (MACD - Signal)

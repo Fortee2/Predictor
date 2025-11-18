@@ -19,7 +19,7 @@ class PortfolioValueCalculator:
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize DAO with a shared database connection pool.
-        
+
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
@@ -67,9 +67,7 @@ class PortfolioValueCalculator:
                 transactions = cursor.fetchall()
 
                 if not transactions:
-                    print(
-                        f"No transactions found for portfolio {portfolio_id} before {calculation_date}"
-                    )
+                    print(f"No transactions found for portfolio {portfolio_id} before {calculation_date}")
                     cursor.close()
                     return 0.0
 
@@ -95,10 +93,7 @@ class PortfolioValueCalculator:
                     price = float(price) if price is not None else 0
 
                     # Only process buy/sell transactions for position calculation
-                    if (
-                        transaction_type in ("buy", "sell", "split_adjustment")
-                        and shares > 0
-                    ):
+                    if transaction_type in ("buy", "sell", "split_adjustment") and shares > 0:
                         if transaction_type == "split_adjustment":
                             price = 0.0
                         elif price <= 0:
@@ -124,18 +119,14 @@ class PortfolioValueCalculator:
                 for ticker_id, ticker_transactions in transactions_by_ticker.items():
                     try:
                         # Use FIFO calculator for this ticker
-                        fifo_calc = calculate_fifo_position_from_transactions(
-                            ticker_transactions
-                        )
+                        fifo_calc = calculate_fifo_position_from_transactions(ticker_transactions)
 
                         total_shares = float(fifo_calc.get_total_shares())
                         if total_shares > 0:
                             shares_held[ticker_id] = total_shares
                             cost_basis_info[ticker_id] = {
                                 "total_cost_basis": float(fifo_calc.get_total_cost_basis()),
-                                "avg_cost_per_share": float(
-                                    fifo_calc.get_average_cost_per_share()
-                                ),
+                                "avg_cost_per_share": float(fifo_calc.get_average_cost_per_share()),
                                 "total_shares": total_shares,
                             }
                     except Exception as e:
@@ -179,14 +170,10 @@ class PortfolioValueCalculator:
                         if hist_result:
                             activity_date, close = hist_result
                             stock_prices[ticker_id] = float(close)
-                            print(
-                                f"  {symbol}: Using historical price from database: ${stock_prices[ticker_id]:.2f}"
-                            )
+                            print(f"  {symbol}: Using historical price from database: ${stock_prices[ticker_id]:.2f}")
                             continue
                         else:
-                            print(
-                                f"  {symbol}: No historical price data found in database, trying yfinance"
-                            )
+                            print(f"  {symbol}: No historical price data found in database, trying yfinance")
                     except Exception as e:
                         # If the investing.activity table doesn't exist or other error
                         print(f"  Could not query database for historical prices: {e}")
@@ -195,16 +182,12 @@ class PortfolioValueCalculator:
                     try:
                         stock = yf.Ticker(symbol)
                         # Get data for a few days before in case the exact date is a holiday/weekend
-                        start_date = (calculation_date - timedelta(days=5)).strftime(
-                            "%Y-%m-%d"
-                        )
+                        start_date = (calculation_date - timedelta(days=5)).strftime("%Y-%m-%d")
                         end_date = next_day
                         hist_data = stock.history(start=start_date, end=end_date)
 
                         if hist_data.empty:
-                            print(
-                                f"  Warning: No historical data found for {symbol} in yfinance"
-                            )
+                            print(f"  Warning: No historical data found for {symbol} in yfinance")
                             # Fall back to transaction price if available
                             for transaction in reversed(transactions):
                                 if transaction[5] == ticker_id:  # ticker_id
@@ -215,7 +198,6 @@ class PortfolioValueCalculator:
                                     )
                                     break
                         else:
-
                             # Convert all timestamps to tz-naive for comparison to avoid timezone issues
                             hist_data.index = hist_data.index.tz_localize(None)
                             calc_timestamp = pd.Timestamp(calculation_date)
@@ -226,9 +208,7 @@ class PortfolioValueCalculator:
                                 closest_date = valid_dates[-1]
                                 close_price = float(hist_data.loc[closest_date, "Close"])
                                 stock_prices[ticker_id] = close_price
-                                print(
-                                    f"  {symbol}: Using price from {closest_date.date()}: ${close_price:.2f}"
-                                )
+                                print(f"  {symbol}: Using price from {closest_date.date()}: ${close_price:.2f}")
                             else:
                                 # Fall back to first available price
                                 first_date = hist_data.index[0]
@@ -243,9 +223,7 @@ class PortfolioValueCalculator:
                         for transaction in reversed(transactions):
                             if transaction[5] == ticker_id:  # ticker_id
                                 stock_prices[ticker_id] = transaction[3]  # price
-                                print(
-                                    f"  Using last transaction price for {symbol}: ${stock_prices[ticker_id]:.2f}"
-                                )
+                                print(f"  Using last transaction price for {symbol}: ${stock_prices[ticker_id]:.2f}")
                                 break
 
                 # Calculate the portfolio value
@@ -265,15 +243,9 @@ class PortfolioValueCalculator:
 
                         # Calculate gain/loss
                         unrealized_gain_loss = position_value - total_cost_basis
-                        gain_loss_pct = (
-                            (unrealized_gain_loss / total_cost_basis * 100)
-                            if total_cost_basis > 0
-                            else 0
-                        )
+                        gain_loss_pct = (unrealized_gain_loss / total_cost_basis * 100) if total_cost_basis > 0 else 0
 
-                        print(
-                            f"  {symbol}: {share_count:.4f} shares @ ${price:.2f} = ${position_value:.2f}"
-                        )
+                        print(f"  {symbol}: {share_count:.4f} shares @ ${price:.2f} = ${position_value:.2f}")
 
                         portfolio_value += position_value
 
@@ -307,13 +279,17 @@ class PortfolioValueCalculator:
 
                     if existing:
                         # Update existing record
-                        query = "UPDATE portfolio_value SET value = %s WHERE portfolio_id = %s AND calculation_date = %s"
+                        query = (
+                            "UPDATE portfolio_value SET value = %s WHERE portfolio_id = %s AND calculation_date = %s"
+                        )
                         values = (portfolio_value_decimal, portfolio_id, calculation_date)
                         cursor.execute(query, values)
                         print(f"Updated existing value record for {calculation_date}")
                     else:
                         # Insert new record
-                        query = "INSERT INTO portfolio_value (portfolio_id, calculation_date, value) VALUES (%s, %s, %s)"
+                        query = (
+                            "INSERT INTO portfolio_value (portfolio_id, calculation_date, value) VALUES (%s, %s, %s)"
+                        )
                         values = (portfolio_id, calculation_date, portfolio_value_decimal)
                         cursor.execute(query, values)
                         print(f"Created new value record for {calculation_date}")
@@ -333,9 +309,7 @@ class PortfolioValueCalculator:
                         table_exists = cursor.fetchone()
                         if not table_exists:
                             print("ERROR: portfolio_value table does not exist!")
-                            print(
-                                "You may need to run the database setup script to create the table."
-                            )
+                            print("You may need to run the database setup script to create the table.")
                             cursor.close()
                             return None
                         else:
@@ -365,6 +339,7 @@ class PortfolioValueCalculator:
             logger.error("General error calculating portfolio value: %s", e)
             logger.error("Error type: %s", type(e))
             import traceback
+
             logger.error("Full traceback:")
             logger.error(traceback.format_exc())
             if cursor:
@@ -438,9 +413,7 @@ class PortfolioValueCalculator:
             logger.error("Error retrieving portfolio performance: %s", e)
             return pd.DataFrame(columns=["date", "value"])
 
-    def calculate_performance_metrics(
-        self, portfolio_id, start_date=None, end_date=None
-    ):
+    def calculate_performance_metrics(self, portfolio_id, start_date=None, end_date=None):
         """
         Calculate performance metrics for the specified portfolio.
 
@@ -475,9 +448,7 @@ class PortfolioValueCalculator:
         # Calculate annualized return if period is longer than a day
         annualized_return = None
         if period_days > 0:
-            annualized_return = (
-                (1 + (total_return_pct / 100)) ** (365 / period_days) - 1
-            ) * 100
+            annualized_return = ((1 + (total_return_pct / 100)) ** (365 / period_days) - 1) * 100
 
         return {
             "total_return": total_return_pct,
@@ -580,16 +551,12 @@ class PortfolioValueCalculator:
 
                 # Limit the number of days to prevent excessive processing
                 if days_to_calculate > 365:
-                    print(
-                        f"Warning: Attempting to recalculate {days_to_calculate} days. Limiting to 365 days."
-                    )
+                    print(f"Warning: Attempting to recalculate {days_to_calculate} days. Limiting to 365 days.")
                     days_to_calculate = 365
                     from_date = today - timedelta(days=364)
 
                 # Recalculate for each day
-                calculation_dates = [
-                    from_date + timedelta(days=i) for i in range(days_to_calculate)
-                ]
+                calculation_dates = [from_date + timedelta(days=i) for i in range(days_to_calculate)]
                 successful_calculations = 0
                 failed_calculations = 0
 
@@ -615,9 +582,7 @@ class PortfolioValueCalculator:
                 return successful_calculations > 0
 
         except mysql.connector.Error as db_error:
-            logger.error(
-                "Database error recalculating historical portfolio values: %s", db_error
-            )
+            logger.error("Database error recalculating historical portfolio values: %s", db_error)
             logger.error("Error code: %s", db_error.errno)
             logger.error("Error message: %s", db_error.msg)
             if connection:
@@ -684,9 +649,7 @@ class PortfolioValueCalculator:
 
             # Save the image to a temporary file in the user's home directory
             home_dir = os.path.expanduser("~")
-            file_path = os.path.join(
-                home_dir, f"portfolio_{portfolio_id}_performance.png"
-            )
+            file_path = os.path.join(home_dir, f"portfolio_{portfolio_id}_performance.png")
             with open(file_path, "wb") as f:
                 f.write(buffer.getvalue())
 

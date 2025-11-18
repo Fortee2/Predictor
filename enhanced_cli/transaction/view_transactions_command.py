@@ -52,9 +52,7 @@ class ViewTransactionsCommand(Command):
             for i, ticker in enumerate(tickers, 1):
                 ui.console.print(f"[{i}] {ticker}")
 
-            ticker_symbol = Prompt.ask(
-                "[bold]Enter ticker symbol[/bold] (or leave empty for all)"
-            ).upper()
+            ticker_symbol = Prompt.ask("[bold]Enter ticker symbol[/bold] (or leave empty for all)").upper()
             if ticker_symbol == "":
                 ticker_symbol = None
 
@@ -67,13 +65,9 @@ class ViewTransactionsCommand(Command):
             if ticker_symbol:
                 ticker_id = cli.cli.ticker_dao.get_ticker_id(ticker_symbol)
                 if ticker_id:
-                    security_id = cli.cli.portfolio_dao.get_security_id(
-                        portfolio_id, ticker_id
-                    )
+                    security_id = cli.cli.portfolio_dao.get_security_id(portfolio_id, ticker_id)
 
-            transactions = cli.cli.transactions_dao.get_transaction_history(
-                portfolio_id, security_id
-            )
+            transactions = cli.cli.transactions_dao.get_transaction_history(portfolio_id, security_id)
 
         # Create header based on filter
         header_text = f"Transaction History for {portfolio['name']}"

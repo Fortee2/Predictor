@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 
 
 class TickerDao:
-
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize TickerDao with a shared database connection pool.
-        
+
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
@@ -51,13 +50,11 @@ class TickerDao:
                 cursor.execute(query)
                 results = cursor.fetchall()
                 cursor.close()
-                
+
                 if not results:
                     return pd.DataFrame()
 
-                df_ticks = pd.DataFrame(
-                    results, columns=["ticker", "ticker_name", "id", "industry", "sector"]
-                )
+                df_ticks = pd.DataFrame(results, columns=["ticker", "ticker_name", "id", "industry", "sector"])
 
                 return df_ticks
         except mysql.connector.Error as err:
@@ -84,9 +81,7 @@ class TickerDao:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
-                query = (
-                    "UPDATE investing.tickers SET trend = %s, close =%s WHERE ticker = %s"
-                )
+                query = "UPDATE investing.tickers SET trend = %s, close =%s WHERE ticker = %s"
                 cursor.execute(query, (trend, float(close), ticker))
 
                 connection.commit()
@@ -323,7 +318,7 @@ class TickerDao:
     def retrieve_last_rsi(self, ticker_id):
         try:
             with self.get_connection() as connection:
-                cursor = connection.cursor()    
+                cursor = connection.cursor()
 
                 query = "SELECT activity_date, rsi FROM investing.rsi  WHERE ticker_id = %s order by activity_date desc limit 10"
 

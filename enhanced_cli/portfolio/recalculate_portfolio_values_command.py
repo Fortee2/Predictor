@@ -12,9 +12,7 @@ class RecalculatePortfolioValuesCommand(Command):
     """Command to recalculate portfolio historical values."""
 
     def __init__(self):
-        super().__init__(
-            "Recalculate Portfolio Values", "Recalculate historical portfolio values"
-        )
+        super().__init__("Recalculate Portfolio Values", "Recalculate historical portfolio values")
 
     @error_handler("recalculating portfolio values")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -39,9 +37,7 @@ class RecalculatePortfolioValuesCommand(Command):
                 list_command.execute(cli)
 
                 try:
-                    portfolio_id = int(
-                        Prompt.ask("[bold]Enter Portfolio ID to recalculate[/bold]")
-                    )
+                    portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID to recalculate[/bold]"))
                 except ValueError:
                     ui.status_message("Invalid portfolio ID", "error")
                     return
@@ -52,11 +48,7 @@ class RecalculatePortfolioValuesCommand(Command):
             ui.status_message(f"Portfolio with ID {portfolio_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(
-                f"Recalculate Values for Portfolio #{portfolio_id} - {portfolio['name']}"
-            )
-        )
+        ui.console.print(ui.section_header(f"Recalculate Values for Portfolio #{portfolio_id} - {portfolio['name']}"))
 
         # Ask for start date
         from_date = None
@@ -74,18 +66,12 @@ class RecalculatePortfolioValuesCommand(Command):
                     from_date = date_input
                     break
                 except ValueError:
-                    ui.status_message(
-                        "Invalid date format. Please use YYYY-MM-DD.", "error"
-                    )
+                    ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
         # Show warning about the operation
         ui.console.print("\n[yellow]Warning:[/yellow] This operation will:")
-        ui.console.print(
-            "• Delete existing portfolio value records from the start date forward"
-        )
-        ui.console.print(
-            "• Recalculate values for each day based on current transaction data"
-        )
+        ui.console.print("• Delete existing portfolio value records from the start date forward")
+        ui.console.print("• Recalculate values for each day based on current transaction data")
         ui.console.print("• This may take several minutes for large date ranges")
 
         if from_date:
@@ -113,10 +99,7 @@ class RecalculatePortfolioValuesCommand(Command):
                     # No date specified - find earliest transaction and use optimized method
                     info = optimizer.get_recalculation_info(portfolio_id)
 
-                    if (
-                        info.get("transaction_info")
-                        and info["transaction_info"]["earliest_transaction"]
-                    ):
+                    if info.get("transaction_info") and info["transaction_info"]["earliest_transaction"]:
                         earliest_date = info["transaction_info"]["earliest_transaction"]
                         if hasattr(earliest_date, "date"):
                             earliest_date = earliest_date.date()
@@ -125,9 +108,7 @@ class RecalculatePortfolioValuesCommand(Command):
                             portfolio_id, earliest_date, force_full_recalc=True
                         )
                     else:
-                        ui.status_message(
-                            "No transactions found for this portfolio", "warning"
-                        )
+                        ui.status_message("No transactions found for this portfolio", "warning")
                         result = False
 
             if result:

@@ -33,9 +33,7 @@ def test_basic_fifo_scenarios():
     print(f"  Average cost: ${summary['average_cost_per_share']:.2f}")
     print(f"  Total cost basis: ${summary['total_cost_basis']:.2f}")
     print(f"  Current value: ${summary['current_market_value']:.2f}")
-    print(
-        f"  Unrealized G/L: ${summary['unrealized_gain_loss']:.2f} ({summary['unrealized_gain_loss_pct']:.2f}%)"
-    )
+    print(f"  Unrealized G/L: ${summary['unrealized_gain_loss']:.2f} ({summary['unrealized_gain_loss_pct']:.2f}%)")
     print()
 
     # Test 2: FIFO sell (should sell oldest first)
@@ -180,9 +178,7 @@ def test_edge_cases():
     try:
         # Try to sell more than we have
         result = calc.process_sale(150, 55.00, date(2024, 2, 1))
-        print(
-            f"  Oversell test: Sold {result['shares_sold']}, Oversold: {result['oversold_shares']}"
-        )
+        print(f"  Oversell test: Sold {result['shares_sold']}, Oversold: {result['oversold_shares']}")
         print(f"  Remaining shares: {result['remaining_shares']}")
     except Exception as e:
         print(f"  Oversell error: {e}")

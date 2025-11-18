@@ -47,9 +47,7 @@ class PortfolioCLI:
         self.transactions_dao = PortfolioTransactionsDAO(pool=self.db_pool)
         self.rsi_calc = rsi_calculations(pool=self.db_pool)
         self.moving_avg = moving_averages(pool=self.db_pool)
-        self.bb_analyzer = BollingerBandAnalyzer(
-            self.ticker_dao
-        )  # Pass ticker_dao instance
+        self.bb_analyzer = BollingerBandAnalyzer(self.ticker_dao)  # Pass ticker_dao instance
         self.fundamental_dao = FundamentalDataDAO(pool=self.db_pool)
         self.macd_analyzer = MACD(pool=self.db_pool)
         self.news_analyzer = NewsSentimentAnalyzer(pool=self.db_pool)
@@ -138,9 +136,7 @@ class PortfolioCLI:
                     print(f"Error adding ticker {symbol}: {str(e)}")
 
             if added_tickers:
-                print(
-                    f"\nSuccessfully added {len(added_tickers)} ticker(s) to portfolio {portfolio_id}"
-                )
+                print(f"\nSuccessfully added {len(added_tickers)} ticker(s) to portfolio {portfolio_id}")
                 print("\nAdded tickers:")
                 for symbol in added_tickers:
                     print(f"- {symbol}")
@@ -161,17 +157,13 @@ class PortfolioCLI:
             removed_tickers = []
             for symbol in ticker_symbols:
                 try:
-                    self.portfolio_dao.remove_tickers_from_portfolio(
-                        portfolio_id, [symbol]
-                    )
+                    self.portfolio_dao.remove_tickers_from_portfolio(portfolio_id, [symbol])
                     removed_tickers.append(symbol)
                 except Exception as e:
                     print(f"Error removing ticker {symbol}: {str(e)}")
 
             if removed_tickers:
-                print(
-                    f"\nSuccessfully removed {len(removed_tickers)} ticker(s) from portfolio {portfolio_id}"
-                )
+                print(f"\nSuccessfully removed {len(removed_tickers)} ticker(s) from portfolio {portfolio_id}")
                 print("\nRemoved tickers:")
                 for symbol in removed_tickers:
                     print(f"- {symbol}")
@@ -193,9 +185,7 @@ class PortfolioCLI:
             if analysis_date:
                 try:
                     if isinstance(analysis_date, str):
-                        analysis_date = datetime.datetime.strptime(
-                            analysis_date, "%Y-%m-%d"
-                        ).date()
+                        analysis_date = datetime.datetime.strptime(analysis_date, "%Y-%m-%d").date()
                     elif isinstance(analysis_date, datetime.datetime):
                         analysis_date = analysis_date.date()
                     # If it's already a date object, use it as-is
@@ -219,9 +209,7 @@ class PortfolioCLI:
             # If no positions are held, notify the user
             if not current_positions and not ticker_symbol:
                 date_str = analysis_date.strftime("%Y-%m-%d")
-                print(
-                    f"Portfolio {portfolio_id} had no held positions to analyze on {date_str}."
-                )
+                print(f"Portfolio {portfolio_id} had no held positions to analyze on {date_str}.")
                 return
 
             # If specific ticker was provided, verify it exists
@@ -234,18 +222,13 @@ class PortfolioCLI:
                 # Check if this ticker was held in the portfolio on the analysis date
                 if ticker_id not in current_positions:
                     date_str = analysis_date.strftime("%Y-%m-%d")
-                    print(
-                        f"Note: {ticker_symbol} was not held in portfolio {portfolio_id} on {date_str}."
-                    )
+                    print(f"Note: {ticker_symbol} was not held in portfolio {portfolio_id} on {date_str}.")
                     # Still analyze it since the user specifically requested it
 
                 tickers = [(ticker_id, ticker_symbol)]
             else:
                 # Only analyze tickers that were held on the analysis date
-                tickers = [
-                    (ticker_id, position["symbol"])
-                    for ticker_id, position in current_positions.items()
-                ]
+                tickers = [(ticker_id, position["symbol"]) for ticker_id, position in current_positions.items()]
 
             if not tickers:
                 print("No tickers to analyze.")
@@ -256,9 +239,7 @@ class PortfolioCLI:
                 print(f"\nTechnical Analysis Results (as of {date_str}):")
             else:
                 print(f"\nPortfolio Analysis Results (as of {date_str}):")
-                print(
-                    "Note: Position data reflects the specified date, but technical indicators show current values"
-                )
+                print("Note: Position data reflects the specified date, but technical indicators show current values")
             print("════════════════════════════════════════════════════════════════")
 
             for ticker_id, symbol in tickers:
@@ -289,9 +270,7 @@ class PortfolioCLI:
                     )
 
                     # Format and display the analysis
-                    formatted_output = self.shared_metrics.format_analysis_output(
-                        analysis, shares_info=shares_info
-                    )
+                    formatted_output = self.shared_metrics.format_analysis_output(analysis, shares_info=shares_info)
                     print(formatted_output)
 
                 except (
@@ -299,19 +278,11 @@ class PortfolioCLI:
                     decimal.DivisionUndefined,
                     decimal.InvalidOperation,
                 ):
-                    print(
-                        f"║ Error analyzing {symbol}: Division error                        ║"
-                    )
-                    print(
-                        "════════════════════════════════════════════════════════════════"
-                    )
+                    print(f"║ Error analyzing {symbol}: Division error                        ║")
+                    print("════════════════════════════════════════════════════════════════")
                 except Exception as ticker_err:
-                    print(
-                        f"║ Error analyzing {symbol}: {str(ticker_err)[:40]}               ║"
-                    )
-                    print(
-                        "════════════════════════════════════════════════════════════════"
-                    )
+                    print(f"║ Error analyzing {symbol}: {str(ticker_err)[:40]}               ║")
+                    print("════════════════════════════════════════════════════════════════")
 
         except Exception as e:
             print(f"Error analyzing portfolio: {str(e)}")
@@ -370,17 +341,10 @@ class PortfolioCLI:
             security_id = self.portfolio_dao.get_security_id(portfolio_id, ticker_id)
             if not security_id and transaction_type in ["buy", "sell", "dividend"]:
                 try:
-                    self.portfolio_dao.add_tickers_to_portfolio(
-                        portfolio_id, [ticker_symbol]
-                    )
-                    security_id = self.portfolio_dao.get_security_id(
-                        portfolio_id, ticker_id
-                    )
+                    self.portfolio_dao.add_tickers_to_portfolio(portfolio_id, [ticker_symbol])
+                    security_id = self.portfolio_dao.get_security_id(portfolio_id, ticker_id)
                 except Exception as e:
-                    print(
-                        "Error adding %s to portfolio %d: %s "
-                        % (ticker_symbol, portfolio_id, str(e))
-                    )
+                    print("Error adding %s to portfolio %d: %s " % (ticker_symbol, portfolio_id, str(e)))
                     return
 
             get_transaction = self.transactions_dao.get_transaction_id(
@@ -388,17 +352,13 @@ class PortfolioCLI:
             )
 
             if get_transaction:
-                print(
-                    "A matching transaction already exists. Duplicate entries are not allowed."
-                )
+                print("A matching transaction already exists. Duplicate entries are not allowed.")
                 return
 
             # Validate transaction type and parameters
             if transaction_type in ["buy", "sell"]:
                 if shares is None or price is None:
-                    print(
-                        f"Error: {transaction_type} transactions require both shares and price parameters."
-                    )
+                    print(f"Error: {transaction_type} transactions require both shares and price parameters.")
                     return
                 amount = None  # Ensure amount is None for buy/sell
 
@@ -455,9 +415,7 @@ class PortfolioCLI:
                 print(f"Cash balance updated: ${new_balance:.2f} (after dividend)")
 
             else:
-                print(
-                    "Error: Invalid transaction type. Must be 'buy', 'sell', 'dividend', or 'cash'."
-                )
+                print("Error: Invalid transaction type. Must be 'buy', 'sell', 'dividend', or 'cash'.")
                 return
 
             # Log transaction to portfolio_transactions table for all non-cash transactions
@@ -503,22 +461,16 @@ class PortfolioCLI:
                     return
 
             # Get transactions
-            transactions = self.transactions_dao.get_transaction_history(
-                portfolio_id, security_id
-            )
+            transactions = self.transactions_dao.get_transaction_history(portfolio_id, security_id)
             if not transactions:
                 print("No transactions found.")
                 return
 
             # Print transactions
             print("\nTransaction History:")
-            print(
-                "--------------------------------------------------------------------------------"
-            )
+            print("--------------------------------------------------------------------------------")
             print("Date         Type       Symbol   Shares    Price      Amount    ")
-            print(
-                "--------------------------------------------------------------------------------"
-            )
+            print("--------------------------------------------------------------------------------")
 
             for t in transactions:
                 date = t["transaction_date"].strftime("%Y-%m-%d")
@@ -568,23 +520,17 @@ class PortfolioCLI:
                 print(f"Error: Portfolio {portfolio_id} does not exist.")
                 return
 
-            print(
-                f"\nRecalculating historical values for portfolio: {portfolio['name']}"
-            )
+            print(f"\nRecalculating historical values for portfolio: {portfolio['name']}")
             if from_date:
                 print(f"Starting from: {from_date}")
             else:
                 print("Starting from earliest transaction date")
 
             # Call the recalculate method
-            result = self.value_calculator.recalculate_historical_values(
-                portfolio_id, from_date
-            )
+            result = self.value_calculator.recalculate_historical_values(portfolio_id, from_date)
 
             if result:
-                print(
-                    "\nPortfolio historical values have been successfully recalculated."
-                )
+                print("\nPortfolio historical values have been successfully recalculated.")
             else:
                 print("\nFailed to recalculate portfolio historical values.")
 
@@ -634,9 +580,7 @@ class PortfolioCLI:
                 print("Performance history generation complete.")
 
             # Get performance metrics
-            metrics = self.value_calculator.calculate_performance_metrics(
-                portfolio_id, start_date, end_date
-            )
+            metrics = self.value_calculator.calculate_performance_metrics(portfolio_id, start_date, end_date)
 
             if metrics["initial_value"] is None:
                 print("No performance data available for the specified period.")
@@ -654,9 +598,7 @@ class PortfolioCLI:
             print(f"Period: {metrics['period_days']} days")
 
             # Get and display performance data
-            df = self.value_calculator.get_portfolio_performance(
-                portfolio_id, start_date, end_date
-            )
+            df = self.value_calculator.get_portfolio_performance(portfolio_id, start_date, end_date)
             if not df.empty:
                 print("\nPortfolio Value History:")
                 print("--------------------------------------------------")
@@ -665,9 +607,7 @@ class PortfolioCLI:
 
             # Generate chart if requested
             if generate_chart:
-                chart_path = self.value_calculator.generate_performance_chart(
-                    portfolio_id, start_date, end_date
-                )
+                chart_path = self.value_calculator.generate_performance_chart(portfolio_id, start_date, end_date)
                 if chart_path:
                     print(f"\nPerformance chart saved to: {chart_path}")
                     # Try to open the chart with the default image viewer if on a desktop system
@@ -723,14 +663,8 @@ class PortfolioCLI:
                 print(f"New Cash Balance: ${new_balance:.2f}")
             elif action == "withdraw":
                 if current_balance < amount:
-                    print(
-                        f"Warning: Insufficient funds. Available: ${current_balance:.2f}, Requested: ${amount:.2f}"
-                    )
-                    proceed = (
-                        input("Do you want to proceed with withdrawal anyway? (y/n): ")
-                        .lower()
-                        .strip()
-                    )
+                    print(f"Warning: Insufficient funds. Available: ${current_balance:.2f}, Requested: ${amount:.2f}")
+                    proceed = input("Do you want to proceed with withdrawal anyway? (y/n): ").lower().strip()
                     if proceed != "y":
                         print("Withdrawal cancelled.")
                         return
@@ -761,23 +695,17 @@ class PortfolioCLI:
                 print(f"Error: Portfolio {portfolio_id} does not exist.")
                 return
 
-            print(
-                f"\nRecalculating historical values for portfolio: {portfolio['name']}"
-            )
+            print(f"\nRecalculating historical values for portfolio: {portfolio['name']}")
             if from_date:
                 print(f"Starting from: {from_date}")
             else:
                 print("Starting from earliest transaction date")
 
             # Call the recalculate method
-            result = self.value_calculator.recalculate_historical_values(
-                portfolio_id, from_date
-            )
+            result = self.value_calculator.recalculate_historical_values(portfolio_id, from_date)
 
             if result:
-                print(
-                    "\nPortfolio historical values have been successfully recalculated."
-                )
+                print("\nPortfolio historical values have been successfully recalculated.")
             else:
                 print("\nFailed to recalculate portfolio historical values.")
 
@@ -806,9 +734,7 @@ class PortfolioCLI:
             # Add tickers
             added_count = 0
             for symbol in ticker_symbols:
-                if self.watch_list_dao.add_ticker_to_watch_list(
-                    watch_list_id, symbol, notes
-                ):
+                if self.watch_list_dao.add_ticker_to_watch_list(watch_list_id, symbol, notes):
                     added_count += 1
 
             return added_count > 0
@@ -828,9 +754,7 @@ class PortfolioCLI:
             # Remove tickers
             removed_count = 0
             for symbol in ticker_symbols:
-                if self.watch_list_dao.remove_ticker_from_watch_list(
-                    watch_list_id, symbol
-                ):
+                if self.watch_list_dao.remove_ticker_from_watch_list(watch_list_id, symbol):
                     removed_count += 1
 
             return removed_count > 0
@@ -848,9 +772,7 @@ class PortfolioCLI:
                 return False
 
             # Update notes
-            return self.watch_list_dao.update_ticker_notes(
-                watch_list_id, ticker_symbol, notes
-            )
+            return self.watch_list_dao.update_ticker_notes(watch_list_id, ticker_symbol, notes)
         except Exception as e:
             print(f"Error updating ticker notes: {str(e)}")
             return False
@@ -882,12 +804,8 @@ class PortfolioCLI:
             # Get tickers in watch list
             if ticker_symbol:
                 # Check if ticker is in watch list
-                if not self.watch_list_dao.is_ticker_in_watch_list(
-                    watch_list_id, ticker_symbol
-                ):
-                    print(
-                        f"Error: {ticker_symbol} is not in watch list {watch_list_id}."
-                    )
+                if not self.watch_list_dao.is_ticker_in_watch_list(watch_list_id, ticker_symbol):
+                    print(f"Error: {ticker_symbol} is not in watch list {watch_list_id}.")
                     return
                 ticker_id = self.ticker_dao.get_ticker_id(ticker_symbol)
                 if not ticker_id:
@@ -896,9 +814,7 @@ class PortfolioCLI:
                 tickers = [(ticker_id, ticker_symbol)]
             else:
                 # Get all tickers in watch list
-                ticker_data = self.watch_list_dao.get_tickers_in_watch_list(
-                    watch_list_id
-                )
+                ticker_data = self.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
                 if not ticker_data:
                     print(f"Watch list {watch_list_id} has no tickers to analyze.")
                     return
@@ -910,9 +826,7 @@ class PortfolioCLI:
             for ticker_id, symbol in tickers:
                 try:
                     print(f"║ {symbol:<56}║")
-                    print(
-                        "║──────────────────────────────────────────────────────────║"
-                    )
+                    print("║──────────────────────────────────────────────────────────║")
 
                     # Use shared analysis metrics for comprehensive analysis
                     self.shared_metrics.get_comprehensive_analysis(ticker_id, symbol)
@@ -930,65 +844,43 @@ def main():
     subparsers = parser.add_subparsers(dest="command", help="Commands")
 
     # Create Portfolio
-    create_portfolio_parser = subparsers.add_parser(
-        "create-portfolio", help="Create a new portfolio"
-    )
+    create_portfolio_parser = subparsers.add_parser("create-portfolio", help="Create a new portfolio")
     create_portfolio_parser.add_argument("name", help="Portfolio name")
     create_portfolio_parser.add_argument("description", help="Portfolio description")
-    create_portfolio_parser.add_argument(
-        "--initial_cash", type=float, default=0.0, help="Initial cash balance"
-    )
+    create_portfolio_parser.add_argument("--initial_cash", type=float, default=0.0, help="Initial cash balance")
 
     # View Portfolio
     view_parser = subparsers.add_parser("view-portfolio", help="View portfolio details")
     view_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
 
     # Cash Management Commands
-    cash_parser = subparsers.add_parser(
-        "manage-cash", help="Manage portfolio cash balance"
-    )
+    cash_parser = subparsers.add_parser("manage-cash", help="Manage portfolio cash balance")
     cash_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
-    cash_parser.add_argument(
-        "action", choices=["view", "deposit", "withdraw"], help="Cash management action"
-    )
-    cash_parser.add_argument(
-        "--amount", type=float, help="Amount to deposit or withdraw"
-    )
+    cash_parser.add_argument("action", choices=["view", "deposit", "withdraw"], help="Cash management action")
+    cash_parser.add_argument("--amount", type=float, help="Amount to deposit or withdraw")
 
     # Add Tickers
     add_parser = subparsers.add_parser("add-tickers", help="Add tickers to portfolio")
     add_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
-    add_parser.add_argument(
-        "ticker_symbols", nargs="+", help="Ticker symbols to add (e.g., AAPL GOOGL)"
-    )
+    add_parser.add_argument("ticker_symbols", nargs="+", help="Ticker symbols to add (e.g., AAPL GOOGL)")
 
     # Remove Tickers
-    remove_parser = subparsers.add_parser(
-        "remove-tickers", help="Remove tickers from portfolio"
-    )
+    remove_parser = subparsers.add_parser("remove-tickers", help="Remove tickers from portfolio")
     remove_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
-    remove_parser.add_argument(
-        "ticker_symbols", nargs="+", help="Ticker symbols to remove"
-    )
+    remove_parser.add_argument("ticker_symbols", nargs="+", help="Ticker symbols to remove")
 
     # Log Transaction
     log_parser = subparsers.add_parser("log-transaction", help="Log a transaction")
     log_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
-    log_parser.add_argument(
-        "type", choices=["buy", "sell", "dividend", "cash"], help="Transaction type"
-    )
+    log_parser.add_argument("type", choices=["buy", "sell", "dividend", "cash"], help="Transaction type")
     log_parser.add_argument("date", help="Transaction date (YYYY-MM-DD)")
     log_parser.add_argument(
         "ticker_symbol",
         nargs="?",
         help="Ticker symbol (not required for cash transactions)",
     )
-    log_parser.add_argument(
-        "--shares", type=float, help="Number of shares (for buy/sell)"
-    )
-    log_parser.add_argument(
-        "--price", type=float, help="Price per share (for buy/sell)"
-    )
+    log_parser.add_argument("--shares", type=float, help="Number of shares (for buy/sell)")
+    log_parser.add_argument("--price", type=float, help="Price per share (for buy/sell)")
     log_parser.add_argument(
         "--amount",
         type=float,
@@ -996,21 +888,15 @@ def main():
     )
 
     # View Transactions
-    trans_parser = subparsers.add_parser(
-        "view-transactions", help="View transaction history"
-    )
+    trans_parser = subparsers.add_parser("view-transactions", help="View transaction history")
     trans_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
     trans_parser.add_argument("--ticker_symbol", help="Filter by ticker symbol")
 
     # Analyze Portfolio
-    analyze_parser = subparsers.add_parser(
-        "analyze-portfolio", help="Analyze portfolio"
-    )
+    analyze_parser = subparsers.add_parser("analyze-portfolio", help="Analyze portfolio")
     analyze_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
     analyze_parser.add_argument("--ticker_symbol", help="Analyze specific ticker")
-    analyze_parser.add_argument(
-        "--date", help="Analysis date in YYYY-MM-DD format (default: today)"
-    )
+    analyze_parser.add_argument("--date", help="Analysis date in YYYY-MM-DD format (default: today)")
     analyze_parser.add_argument(
         "--ma_period",
         type=int,
@@ -1025,14 +911,10 @@ def main():
     )
 
     # Update Data
-    update_parser = subparsers.add_parser(
-        "update-data", help="Update data for all securities in portfolios"
-    )
+    update_parser = subparsers.add_parser("update-data", help="Update data for all securities in portfolios")
 
     # View Portfolio Performance
-    performance_parser = subparsers.add_parser(
-        "view-performance", help="View portfolio performance over time"
-    )
+    performance_parser = subparsers.add_parser("view-performance", help="View portfolio performance over time")
     performance_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
     performance_parser.add_argument(
         "--days",
@@ -1040,63 +922,39 @@ def main():
         default=30,
         help="Number of days of history to generate if none exists",
     )
-    performance_parser.add_argument(
-        "--start_date", help="Start date in YYYY-MM-DD format"
-    )
+    performance_parser.add_argument("--start_date", help="Start date in YYYY-MM-DD format")
     performance_parser.add_argument("--end_date", help="End date in YYYY-MM-DD format")
-    performance_parser.add_argument(
-        "--chart", action="store_true", help="Generate performance chart"
-    )
+    performance_parser.add_argument("--chart", action="store_true", help="Generate performance chart")
 
     # Recalculate Portfolio History
-    recalc_parser = subparsers.add_parser(
-        "recalculate-history", help="Recalculate portfolio historical values"
-    )
+    recalc_parser = subparsers.add_parser("recalculate-history", help="Recalculate portfolio historical values")
     recalc_parser.add_argument("portfolio_id", type=int, help="Portfolio ID")
-    recalc_parser.add_argument(
-        "--from_date", help="Date from which to start recalculation (YYYY-MM-DD format)"
-    )
+    recalc_parser.add_argument("--from_date", help="Date from which to start recalculation (YYYY-MM-DD format)")
 
     # Watch List Commands
 
     # Create Watch List
-    create_wl_parser = subparsers.add_parser(
-        "create-watchlist", help="Create a new watch list"
-    )
+    create_wl_parser = subparsers.add_parser("create-watchlist", help="Create a new watch list")
     create_wl_parser.add_argument("name", help="Watch list name")
     create_wl_parser.add_argument("--description", help="Watch list description")
 
     # View Watch Lists
-    subparsers.add_parser(
-        "view-watchlists", help="View all watch lists"
-    )
+    subparsers.add_parser("view-watchlists", help="View all watch lists")
 
     # View Watch List
-    view_wl_details_parser = subparsers.add_parser(
-        "view-watchlist", help="View watch list details and tickers"
-    )
+    view_wl_details_parser = subparsers.add_parser("view-watchlist", help="View watch list details and tickers")
     view_wl_details_parser.add_argument("watch_list_id", type=int, help="Watch list ID")
 
     # Add Ticker to Watch List
-    add_wl_ticker_parser = subparsers.add_parser(
-        "add-watchlist-ticker", help="Add ticker(s) to watch list"
-    )
+    add_wl_ticker_parser = subparsers.add_parser("add-watchlist-ticker", help="Add ticker(s) to watch list")
     add_wl_ticker_parser.add_argument("watch_list_id", type=int, help="Watch list ID")
-    add_wl_ticker_parser.add_argument(
-        "ticker_symbols", nargs="+", help="Ticker symbols to add"
-    )
+    add_wl_ticker_parser.add_argument("ticker_symbols", nargs="+", help="Ticker symbols to add")
     add_wl_ticker_parser.add_argument("--notes", help="Notes for the ticker")
 
     # Remove Ticker from Watch List
-    remove_wl_ticker_parser = subparsers.add_parser(
-        "remove-watchlist-ticker", help="Remove ticker(s) from watch list"
-    )
-    remove_wl_ticker_parser.add_argument(
-        "watch_list_id", type=int, help="Watch list ID"
-    )
-    remove_wl_ticker_parser.add_argument(
-        "ticker_symbols", nargs="+", help="Ticker symbols to remove"
-    )
+    remove_wl_ticker_parser = subparsers.add_parser("remove-watchlist-ticker", help="Remove ticker(s) from watch list")
+    remove_wl_ticker_parser.add_argument("watch_list_id", type=int, help="Watch list ID")
+    remove_wl_ticker_parser.add_argument("ticker_symbols", nargs="+", help="Ticker symbols to remove")
 
     # Update Watch List Ticker Notes
     update_wl_notes_parser = subparsers.add_parser(
@@ -1107,15 +965,11 @@ def main():
     update_wl_notes_parser.add_argument("notes", help="Notes for the ticker")
 
     # Delete Watch List
-    delete_wl_parser = subparsers.add_parser(
-        "delete-watchlist", help="Delete a watch list"
-    )
+    delete_wl_parser = subparsers.add_parser("delete-watchlist", help="Delete a watch list")
     delete_wl_parser.add_argument("watch_list_id", type=int, help="Watch list ID")
 
     # Analyze Watch List
-    analyze_wl_parser = subparsers.add_parser(
-        "analyze-watchlist", help="Analyze tickers in a watch list"
-    )
+    analyze_wl_parser = subparsers.add_parser("analyze-watchlist", help="Analyze tickers in a watch list")
     analyze_wl_parser.add_argument("watch_list_id", type=int, help="Watch list ID")
     analyze_wl_parser.add_argument("--ticker_symbol", help="Analyze specific ticker")
 
@@ -1147,9 +1001,7 @@ def main():
     elif args.command == "update-data":
         cli.update_data()
     elif args.command == "view-performance":
-        cli.view_portfolio_performance(
-            args.portfolio_id, args.days, args.start_date, args.end_date, args.chart
-        )
+        cli.view_portfolio_performance(args.portfolio_id, args.days, args.start_date, args.end_date, args.chart)
     elif args.command == "recalculate-history":
         cli.recalculate_portfolio_history(args.portfolio_id, args.from_date)
     elif args.command == "manage-cash":

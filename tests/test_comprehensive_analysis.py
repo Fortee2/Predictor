@@ -33,7 +33,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         self.mock_pool.get_connection.return_value = self.mock_connection
         self.mock_pool.get_connection_context.return_value.__enter__.return_value = self.mock_connection
         self.mock_pool.get_connection_context.return_value.__exit__.return_value = None
-        
+
         # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
         self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
 
@@ -55,9 +55,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
 
         # Check that returns are calculated correctly
         self.assertFalse(returns.empty)
-        self.assertEqual(
-            len(returns), 7
-        )  # One less than original data due to pct_change
+        self.assertEqual(len(returns), 7)  # One less than original data due to pct_change
 
         # Verify first return calculation: (10100 - 10000) / 10000 = 0.01
         expected_first_return = 0.01
@@ -110,9 +108,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         portfolio_returns = pd.Series([0.01, -0.005, 0.015, -0.002, 0.012])
         benchmark_returns = pd.Series([0.008, -0.003, 0.012, 0.001, 0.010])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, benchmark_returns)
 
         # Check that benchmark-related metrics are present
         benchmark_keys = [
@@ -181,15 +177,11 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         # For 252 days of 0.1% returns: (1.001)^252 - 1 ≈ 28.8%
         # Annualized should be approximately the same since it's exactly 1 year
         total_return = (1.001**252) - 1
-        self.assertAlmostEqual(
-            metrics_1year["annualized_return_pct"], total_return * 100, places=1
-        )
+        self.assertAlmostEqual(metrics_1year["annualized_return_pct"], total_return * 100, places=1)
 
         # Test with half year of data (126 trading days)
         returns_half_year = pd.Series([0.001] * 126)
-        metrics_half_year = self.analyzer.calculate_performance_metrics(
-            returns_half_year
-        )
+        metrics_half_year = self.analyzer.calculate_performance_metrics(returns_half_year)
 
         # Annualized return should be higher than total return for half year
         self.assertGreater(
@@ -203,9 +195,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         portfolio_returns = pd.Series([0.01, -0.005, 0.015, -0.002])
         zero_variance_benchmark = pd.Series([0.01, 0.01, 0.01, 0.01])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, zero_variance_benchmark
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, zero_variance_benchmark)
 
         self.assertEqual(metrics["beta"], 0)
 
@@ -215,9 +205,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         portfolio_returns = pd.Series([0.02, -0.01, 0.03, -0.015, 0.025])
         benchmark_returns = pd.Series([0.015, -0.008, 0.02, -0.01, 0.018])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, benchmark_returns)
 
         # Up capture should be > 1 (portfolio outperforms in up markets)
         self.assertGreater(metrics["up_capture_ratio"], 1.0)
@@ -235,7 +223,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         mock_cursor = Mock()
         mock_connection = Mock()
         mock_connection.cursor.return_value = mock_cursor
-        
+
         mock_pool = Mock()
         mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__exit__.return_value = None
@@ -251,9 +239,7 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
 
         # Test the method
-        result = analyzer.get_portfolio_value_history(
-            1, date(2023, 1, 1), date(2023, 1, 3)
-        )
+        result = analyzer.get_portfolio_value_history(1, date(2023, 1, 1), date(2023, 1, 3))
 
         # Verify results
         self.assertFalse(result.empty)
@@ -370,9 +356,7 @@ class TestComprehensivePerformanceFormatter(unittest.TestCase):
 
     def test_create_portfolio_summary_table(self):
         """Test portfolio summary table creation."""
-        table = self.formatter.create_portfolio_summary_table(
-            self.sample_metrics, "Test Portfolio"
-        )
+        table = self.formatter.create_portfolio_summary_table(self.sample_metrics, "Test Portfolio")
 
         # Check that table is created
         self.assertIsNotNone(table)
@@ -387,9 +371,7 @@ class TestComprehensivePerformanceFormatter(unittest.TestCase):
 
     def test_create_benchmark_comparison_table(self):
         """Test benchmark comparison table creation."""
-        table = self.formatter.create_benchmark_comparison_table(
-            self.sample_metrics, "Test Portfolio"
-        )
+        table = self.formatter.create_benchmark_comparison_table(self.sample_metrics, "Test Portfolio")
 
         # Check that table is created
         self.assertIsNotNone(table)
@@ -399,16 +381,12 @@ class TestComprehensivePerformanceFormatter(unittest.TestCase):
         self.assertIn("Test Portfolio", str(table.title))
 
         # Check expected columns
-        expected_columns = (
-            6  # Timeframe, Portfolio, S&P 500, Excess Return, Alpha, Beta
-        )
+        expected_columns = 6  # Timeframe, Portfolio, S&P 500, Excess Return, Alpha, Beta
         self.assertEqual(len(table.columns), expected_columns)
 
     def test_create_risk_metrics_table(self):
         """Test risk metrics table creation."""
-        table = self.formatter.create_risk_metrics_table(
-            self.sample_metrics, "Test Portfolio"
-        )
+        table = self.formatter.create_risk_metrics_table(self.sample_metrics, "Test Portfolio")
 
         # Check that table is created
         self.assertIsNotNone(table)
@@ -451,9 +429,7 @@ class TestComprehensivePerformanceFormatter(unittest.TestCase):
             },
         }
 
-        table = self.formatter.create_holdings_performance_table(
-            holdings_metrics, "Test Portfolio"
-        )
+        table = self.formatter.create_holdings_performance_table(holdings_metrics, "Test Portfolio")
 
         # Check that table is created
         self.assertIsNotNone(table)
@@ -477,7 +453,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         mock_pool.get_connection.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
         mock_pool.get_connection_context.return_value.__exit__.return_value = None
-        
+
         # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
         self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
         self.formatter = ComprehensivePerformanceFormatter()
@@ -488,9 +464,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         bull_returns = pd.Series([0.02, 0.015, 0.025, 0.018, 0.022, 0.012, 0.028])
         benchmark_returns = pd.Series([0.015, 0.012, 0.018, 0.014, 0.016, 0.010, 0.020])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            bull_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(bull_returns, benchmark_returns)
 
         # In a bull market, we expect:
         # - Positive total return
@@ -509,13 +483,9 @@ class TestIntegrationScenarios(unittest.TestCase):
         """Test calculations during a bear market scenario."""
         # Create declining returns (bear market)
         bear_returns = pd.Series([-0.03, -0.02, -0.04, -0.01, -0.035, -0.025, -0.015])
-        benchmark_returns = pd.Series(
-            [-0.025, -0.018, -0.035, -0.012, -0.028, -0.020, -0.018]
-        )
+        benchmark_returns = pd.Series([-0.025, -0.018, -0.035, -0.012, -0.028, -0.020, -0.018])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            bear_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(bear_returns, benchmark_returns)
 
         # In a bear market, we expect:
         # - Negative total return
@@ -530,16 +500,10 @@ class TestIntegrationScenarios(unittest.TestCase):
     def test_volatile_market_scenario(self):
         """Test calculations during high volatility scenario."""
         # Create highly volatile returns
-        volatile_returns = pd.Series(
-            [0.05, -0.04, 0.06, -0.03, 0.07, -0.05, 0.04, -0.02]
-        )
-        benchmark_returns = pd.Series(
-            [0.02, -0.015, 0.025, -0.01, 0.03, -0.02, 0.018, -0.008]
-        )
+        volatile_returns = pd.Series([0.05, -0.04, 0.06, -0.03, 0.07, -0.05, 0.04, -0.02])
+        benchmark_returns = pd.Series([0.02, -0.015, 0.025, -0.01, 0.03, -0.02, 0.018, -0.008])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            volatile_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(volatile_returns, benchmark_returns)
 
         # In a volatile market, we expect:
         # - High volatility
@@ -557,9 +521,7 @@ class TestIntegrationScenarios(unittest.TestCase):
         portfolio_returns = pd.Series([0.01, 0.02, -0.01, 0.03, -0.005, 0.015])
         benchmark_returns = pd.Series([-0.02, -0.01, 0.03, -0.025, 0.02, -0.015])
 
-        metrics = self.analyzer.calculate_performance_metrics(
-            portfolio_returns, benchmark_returns
-        )
+        metrics = self.analyzer.calculate_performance_metrics(portfolio_returns, benchmark_returns)
 
         # With low correlation, we expect:
         # - Beta should be calculable (may not be close to 0 with small sample)
@@ -606,9 +568,9 @@ if __name__ == "__main__":
     result = runner.run(test_suite)
 
     # Print summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("TEST SUMMARY")
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")
     print(f"Tests run: {result.testsRun}")
     print(f"Failures: {len(result.failures)}")
     print(f"Errors: {len(result.errors)}")
@@ -619,13 +581,11 @@ if __name__ == "__main__":
     if result.failures:
         print("\nFAILURES:")
         for test, traceback in result.failures:
-            print(
-                f"- {test}: {traceback.split('AssertionError: ')[-1].split('\n')[0]}"
-            )
+            print(f"- {test}: {traceback.split('AssertionError: ')[-1].split('\n')[0]}")
 
     if result.errors:
         print("\nERRORS:")
         for test, traceback in result.errors:
             print(f"- {test}: {traceback.split('\n')[-2]}")
 
-    print(f"{'='*60}")
+    print(f"{'=' * 60}")

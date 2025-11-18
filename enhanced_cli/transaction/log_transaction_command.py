@@ -50,11 +50,7 @@ class LogTransactionCommand(Command):
             ui.status_message(f"Portfolio with ID {portfolio_id} not found.", "error")
             return
 
-        ui.console.print(
-            ui.section_header(
-                f"Log Transaction for Portfolio #{portfolio_id} - {portfolio['name']}"
-            )
-        )
+        ui.console.print(ui.section_header(f"Log Transaction for Portfolio #{portfolio_id} - {portfolio['name']}"))
 
         # Show transaction type options
         options = {
@@ -65,9 +61,7 @@ class LogTransactionCommand(Command):
         }
 
         trans_choice = ui.menu("Transaction Types", options)
-        trans_type = {"1": "buy", "2": "sell", "3": "dividend", "4": "cash"}[
-            trans_choice
-        ]
+        trans_type = {"1": "buy", "2": "sell", "3": "dividend", "4": "cash"}[trans_choice]
 
         # For cash transactions, we don't need a ticker
         ticker_symbol = None
@@ -77,17 +71,13 @@ class LogTransactionCommand(Command):
                 progress.add_task("", total=None)
                 tickers = cli.cli.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
 
-            if not tickers and ui.confirm_action(
-                "[yellow]No tickers in this portfolio. Add one now?[/yellow]"
-            ):
+            if not tickers and ui.confirm_action("[yellow]No tickers in this portfolio. Add one now?[/yellow]"):
                 add_tickers_command = AddTickersCommand()
                 add_tickers_command.execute(cli, portfolio_id=portfolio_id)
 
                 with ui.progress("Reloading tickers...") as progress:
                     progress.add_task("", total=None)
-                    tickers = cli.cli.portfolio_dao.get_tickers_in_portfolio(
-                        portfolio_id
-                    )
+                    tickers = cli.cli.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
 
                 if not tickers:
                     ui.status_message(
@@ -112,9 +102,7 @@ class LogTransactionCommand(Command):
                 datetime.strptime(date_str, "%Y-%m-%d")
                 break
             except ValueError:
-                ui.status_message(
-                    "Invalid date format. Please use YYYY-MM-DD.", "error"
-                )
+                ui.status_message("Invalid date format. Please use YYYY-MM-DD.", "error")
 
         # Different fields based on transaction type
         shares = None
@@ -202,9 +190,7 @@ class LogTransactionCommand(Command):
 
             # Check cash balance after transaction
             cash_balance = cli.cli.portfolio_dao.get_cash_balance(portfolio_id)
-            ui.console.print(
-                f"[bold]Current Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]"
-            )
+            ui.console.print(f"[bold]Current Cash Balance:[/bold] [green]${cash_balance:.2f}[/green]")
 
             # Get current portfolio value after transaction
             try:
@@ -221,9 +207,7 @@ class LogTransactionCommand(Command):
 
                 # Show change if we have before value
                 if portfolio_before and portfolio_before["total_value"] > 0:
-                    value_change = (
-                        portfolio_after["total_value"] - portfolio_before["total_value"]
-                    )
+                    value_change = portfolio_after["total_value"] - portfolio_before["total_value"]
                     change_pct = (value_change / portfolio_before["total_value"]) * 100
 
                     change_color = "green" if value_change >= 0 else "red"
@@ -234,14 +218,10 @@ class LogTransactionCommand(Command):
                     )
 
             except Exception as e:
-                ui.console.print(
-                    f"[yellow]Could not calculate portfolio value change: {e}[/yellow]"
-                )
+                ui.console.print(f"[yellow]Could not calculate portfolio value change: {e}[/yellow]")
 
             # Separate prompt for recalculation
-            if ui.confirm_action(
-                "Would you like to recalculate portfolio history with this new transaction?"
-            ):
+            if ui.confirm_action("Would you like to recalculate portfolio history with this new transaction?"):
                 with ui.progress("Recalculating portfolio history...") as progress:
                     progress.add_task("", total=None)
 
@@ -254,9 +234,7 @@ class LogTransactionCommand(Command):
 
                     try:
                         transaction_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                        success = optimizer.smart_recalculate_from_transaction(
-                            portfolio_id, transaction_date
-                        )
+                        success = optimizer.smart_recalculate_from_transaction(portfolio_id, transaction_date)
 
                         if success:
                             ui.status_message(
@@ -269,11 +247,7 @@ class LogTransactionCommand(Command):
                                 "warning",
                             )
                     except Exception as e:
-                        ui.status_message(
-                            f"Error in optimized recalculation: {e}", "error"
-                        )
+                        ui.status_message(f"Error in optimized recalculation: {e}", "error")
                         # Fall back to original method
                         cli.cli.recalculate_portfolio_history(portfolio_id)
-                        ui.status_message(
-                            "Fell back to standard recalculation method", "warning"
-                        )
+                        ui.status_message("Fell back to standard recalculation method", "warning")
