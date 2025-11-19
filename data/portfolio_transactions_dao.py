@@ -17,25 +17,42 @@ class PortfolioTransactionsDAO:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
         self.pool = pool
-        self.current_connection = None
 
     @contextmanager
     def get_connection(self):
-        """Context manager for database connections."""
+        """
+        Context manager for database connections.
+
+        Properly manages connection lifecycle:
+        - Acquires connection from pool
+        - Yields connection for use
+        - Commits transaction on success
+        - Rolls back on error
+        - Always returns connection to pool
+        """
         connection = None
         try:
-            if self.current_connection is not None and self.current_connection.is_connected():
-                connection = self.current_connection
-                yield connection
-            else:
-                connection = self.pool.get_connection()
-                self.current_connection = connection
-                yield connection
+            connection = self.pool.get_connection()
+            yield connection
+            # Commit transaction if no exceptions occurred
+            if connection.is_connected():
+                connection.commit()
         except mysql.connector.Error as e:
             logger.error("Database connection error: %s", str(e))
+            # Rollback on database errors
+            if connection and connection.is_connected():
+                connection.rollback()
+            raise
+        except Exception as e:
+            logger.error("Unexpected error during database operation: %s", str(e))
+            # Rollback on any other errors
+            if connection and connection.is_connected():
+                connection.rollback()
             raise
         finally:
-            pass
+            # Always return connection to pool
+            if connection and connection.is_connected():
+                connection.close()
 
     def get_transaction_history(self, portfolio_id, security_id=None):
         try:
@@ -43,7 +60,7 @@ class PortfolioTransactionsDAO:
                 cursor = connection.cursor(dictionary=True)
                 if security_id:
                     query = """
-                        SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol
                         FROM portfolio_transactions t
                         JOIN portfolio_securities s ON t.security_id = s.id
                         JOIN tickers tk ON s.ticker_id = tk.id
@@ -53,7 +70,7 @@ class PortfolioTransactionsDAO:
                     cursor.execute(query, (portfolio_id, security_id))
                 else:
                     query = """
-                        SELECT t.*, s.ticker_id, tk.ticker as symbol 
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol
                         FROM portfolio_transactions t
                         JOIN portfolio_securities s ON t.security_id = s.id
                         JOIN tickers tk ON s.ticker_id = tk.id
@@ -92,12 +109,9 @@ class PortfolioTransactionsDAO:
                     amount,
                 )
                 cursor.execute(query, values)
-                connection.commit()
                 cursor.close()
         except mysql.connector.Error as e:
             logger.error("Error inserting transaction: %s", e)
-            if connection:
-                connection.rollback()
 
     def get_transaction_id(
         self,
@@ -113,11 +127,11 @@ class PortfolioTransactionsDAO:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = """
-                    SELECT id 
-                    FROM portfolio_transactions 
-                    WHERE portfolio_id = %s 
-                        AND security_id = %s 
-                        AND transaction_type = %s 
+                    SELECT id
+                    FROM portfolio_transactions
+                    WHERE portfolio_id = %s
+                        AND security_id = %s
+                        AND transaction_type = %s
                         AND transaction_date = %s"""
 
                 values = [portfolio_id, security_id, transaction_type, transaction_date]
@@ -156,12 +170,9 @@ class PortfolioTransactionsDAO:
                 query = "DELETE FROM portfolio_transactions WHERE portfolio_id = %s AND security_id = %s"
                 values = (portfolio_id, security_id)
                 cursor.execute(query, values)
-                connection.commit()
                 cursor.close()
         except mysql.connector.Error as e:
             logger.error("Error deleting transactions: %s", e)
-            if connection:
-                connection.rollback()
 
     def get_current_positions(self, portfolio_id):
         """
@@ -175,8 +186,8 @@ class PortfolioTransactionsDAO:
 
                 # Get all transactions for the portfolio in a single query to improve performance
                 query = """
-                    SELECT 
-                        s.ticker_id, 
+                    SELECT
+                        s.ticker_id,
                         s.id as security_id,
                         tk.ticker as symbol,
                         t.transaction_type,

@@ -25,7 +25,6 @@ class PortfolioDAO(BaseDAO):
                 query = "INSERT INTO portfolio (name, description, date_added, cash_balance) VALUES (%s, %s, NOW(), %s)"
                 values = (name, description, initial_cash)
                 cursor.execute(query, values)
-                connection.commit()
                 portfolio_id = cursor.lastrowid
                 print(f"Created new portfolio with ID {portfolio_id}")
                 return portfolio_id
@@ -130,11 +129,9 @@ class PortfolioDAO(BaseDAO):
                 cursor = connection.cursor()
                 query = "UPDATE portfolio SET cash_balance = %s WHERE id = %s"
                 cursor.execute(query, (new_balance, portfolio_id))
-                connection.commit()
                 return True
         except mysql.connector.Error as e:
             logger.error("Error updating cash balance: %s", e)
-            connection.rollback()
             return False
 
     def recalculate_cash_balance(self, portfolio_id):
