@@ -53,7 +53,16 @@ class PortfolioTransactionsDAO(BaseDAO):
         price=None,
         amount=None,
     ):
+        """
+        Insert a transaction into the database.
+        
+        Rounds price and amount to 2 decimal places to match database DECIMAL(10,2) precision.
+        """
         try:
+            # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
+            rounded_price = round(price, 2) if price is not None else None
+            rounded_amount = round(amount, 2) if amount is not None else None
+            
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
@@ -63,8 +72,8 @@ class PortfolioTransactionsDAO(BaseDAO):
                     transaction_type,
                     transaction_date,
                     shares,
-                    price,
-                    amount,
+                    rounded_price,
+                    rounded_amount,
                 )
                 cursor.execute(query, values)
                 cursor.close()
@@ -81,6 +90,12 @@ class PortfolioTransactionsDAO(BaseDAO):
         price=None,
         amount=None,
     ) -> int | None:
+        """
+        Get the ID of a transaction that matches the given parameters.
+        
+        Handles rounding issues by rounding price and amount to 2 decimal places
+        to match the database DECIMAL(10,2) precision before comparison.
+        """
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
@@ -94,24 +109,28 @@ class PortfolioTransactionsDAO(BaseDAO):
 
                 values = [portfolio_id, security_id, transaction_type, transaction_date]
 
-                # TODO: Rounding issues are prevent the detection of duplicate transactions.
-                # Need to address this properly. For now, we are ignoring shares/price/amount in the lookup.
-                # This may lead to duplicate transactions being entered.
+                # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
+                # This prevents rounding issues when comparing float values with database values
+                if transaction_type in ('buy', 'sell'):
+                    query += " AND shares = %s AND price = %s AND amount IS NULL"
+                    
+                    # Round price to 2 decimal places to match DECIMAL(10,2)
+                    rounded_price = round(price, 2) if price is not None else None
+                    
+                    values.extend([
+                        shares,
+                        rounded_price
+                    ])
 
-                # if transaction_type in ('buy', 'sell'):
-                #     query += " AND shares = %s AND price = %s AND amount IS NULL;"
-
-                #     values.extend([
-                #         shares,
-                #         price
-                #     ])
-
-                # elif transaction_type == 'dividend':
-                #     query += " AND shares IS NULL AND price IS NULL AND amount = %s;"
-
-                #     values.extend([
-                #         amount
-                #     ])
+                elif transaction_type == 'dividend':
+                    query += " AND shares IS NULL AND price IS NULL AND amount = %s"
+                    
+                    # Round amount to 2 decimal places to match DECIMAL(10,2)
+                    rounded_amount = round(amount, 2) if amount is not None else None
+                    
+                    values.extend([
+                        rounded_amount
+                    ])
 
                 cursor.execute(query, tuple(values))
                 row = cursor.fetchone()
