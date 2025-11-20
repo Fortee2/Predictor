@@ -1,0 +1,540 @@
+Please analyze the following investment portfolio and provide recommendations:
+
+PORTFOLIO OVERVIEW:
+Name: Randy-Test
+Total Value: $78,051.10
+Number of Holdings: 12
+Cash Balance: $11,787.82
+
+PORTFOLIO DATA:
+{
+  "metadata": {
+    "generated_at": "2025-08-30T15:03:03.347927",
+    "portfolio_id": 1,
+    "data_version": "1.0"
+  },
+  "portfolio_info": {
+    "name": "Randy-Test",
+    "description": "Test Porfolio",
+    "created_date": "2024-11-28T22:39:05",
+    "active": 1,
+    "last_updated": "2025-08-30T15:03:03.348068"
+  },
+  "financial_summary": {
+    "cash_balance": 11787.82,
+    "total_stock_value": 65190.35,
+    "dividend_value": 1072.93,
+    "total_portfolio_value": 78051.1,
+    "number_of_holdings": 12,
+    "currency": "USD"
+  },
+  "holdings": [
+    {
+      "symbol": "DUK",
+      "company_name": "",
+      "shares": 40.45,
+      "average_cost": 110.59,
+      "current_price": 122.49,
+      "market_value": 4954.7205,
+      "unrealized_gain_loss": 481.35499999999956,
+      "unrealized_gain_loss_percent": 10.760466588299112,
+      "weight_percent": 6.348046976470482
+    },
+    {
+      "symbol": "JNJ",
+      "company_name": "",
+      "shares": 20.0,
+      "average_cost": 167.03,
+      "current_price": 177.17,
+      "market_value": 3543.3999999999996,
+      "unrealized_gain_loss": 202.79999999999973,
+      "unrealized_gain_loss_percent": 6.07076573070705,
+      "weight_percent": 4.539846325625331
+    },
+    {
+      "symbol": "KO",
+      "company_name": "",
+      "shares": 141.99,
+      "average_cost": 67.26,
+      "current_price": 68.99,
+      "market_value": 9795.8901,
+      "unrealized_gain_loss": 245.6426999999985,
+      "unrealized_gain_loss_percent": 2.5721082366934125,
+      "weight_percent": 12.550611186068341
+    },
+    {
+      "symbol": "ORLY",
+      "company_name": "",
+      "shares": 105.0,
+      "average_cost": 92.95,
+      "current_price": 103.68,
+      "market_value": 10886.400000000001,
+      "unrealized_gain_loss": 1126.6500000000015,
+      "unrealized_gain_loss_percent": 11.54384077461002,
+      "weight_percent": 13.947785471379923
+    },
+    {
+      "symbol": "PEP",
+      "company_name": "",
+      "shares": 20.0,
+      "average_cost": 149.34,
+      "current_price": 148.65,
+      "market_value": 2973.0,
+      "unrealized_gain_loss": -13.800000000000182,
+      "unrealized_gain_loss_percent": -0.4620329449578205,
+      "weight_percent": 3.8090430451216655
+    },
+    {
+      "symbol": "WMT",
+      "company_name": "",
+      "shares": 10.11,
+      "average_cost": 70.05,
+      "current_price": 96.98,
+      "market_value": 980.4678,
+      "unrealized_gain_loss": 272.2623000000001,
+      "unrealized_gain_loss_percent": 38.44396859386154,
+      "weight_percent": 1.2561870348320687
+    },
+    {
+      "symbol": "CUBE",
+      "company_name": "",
+      "shares": 30.72,
+      "average_cost": 40.4,
+      "current_price": 40.92,
+      "market_value": 1257.0624,
+      "unrealized_gain_loss": 15.97440000000006,
+      "unrealized_gain_loss_percent": 1.2871287128712918,
+      "weight_percent": 1.610563334007383
+    },
+    {
+      "symbol": "FLBL",
+      "company_name": "",
+      "shares": 1.15,
+      "average_cost": 24.16,
+      "current_price": 24.19,
+      "market_value": 27.8185,
+      "unrealized_gain_loss": 0.03450000000000131,
+      "unrealized_gain_loss_percent": 0.12417218543046829,
+      "weight_percent": 0.03564139386166063
+    },
+    {
+      "symbol": "BRK-B",
+      "company_name": "",
+      "shares": 8.0,
+      "average_cost": 466.49,
+      "current_price": 502.98,
+      "market_value": 4023.84,
+      "unrealized_gain_loss": 291.9200000000001,
+      "unrealized_gain_loss_percent": 7.822246993504686,
+      "weight_percent": 5.155391781595144
+    },
+    {
+      "symbol": "VTI",
+      "company_name": "",
+      "shares": 42.11,
+      "average_cost": 177.33,
+      "current_price": 318.2,
+      "market_value": 13399.402,
+      "unrealized_gain_loss": 5932.035699999999,
+      "unrealized_gain_loss_percent": 79.43946314780351,
+      "weight_percent": 17.167473594648282
+    },
+    {
+      "symbol": "HACK",
+      "company_name": "",
+      "shares": 20.0,
+      "average_cost": 85.98,
+      "current_price": 84.39,
+      "market_value": 1687.8,
+      "unrealized_gain_loss": -31.800000000000182,
+      "unrealized_gain_loss_percent": -1.8492672714584892,
+      "weight_percent": 2.162429482528203
+    },
+    {
+      "symbol": "FXAIX",
+      "company_name": "",
+      "shares": 51.88,
+      "average_cost": 187.26,
+      "current_price": 224.76,
+      "market_value": 11660.5488,
+      "unrealized_gain_loss": 1945.5,
+      "unrealized_gain_loss_percent": 20.025632809996797,
+      "weight_percent": 14.939634143606387
+    }
+  ],
+  "performance_metrics": {
+    "1M": {
+      "total_return_pct": -2.1843,
+      "annualized_return_pct": -18.0255,
+      "volatility_pct": 22.805,
+      "sharpe_ratio": -0.845,
+      "max_drawdown_pct": -7.603,
+      "alpha": -22.0046,
+      "beta": 0.0839,
+      "up_capture_ratio": -0.5885,
+      "down_capture_ratio": -0.4976,
+      "benchmark_return_pct": 2.5629,
+      "excess_return_pct": -4.7471
+    },
+    "3M": {
+      "total_return_pct": -2.5262,
+      "annualized_return_pct": -7.0651,
+      "volatility_pct": 35.3261,
+      "sharpe_ratio": -0.0872,
+      "max_drawdown_pct": -10.9723,
+      "alpha": -28.1708,
+      "beta": 0.6874,
+      "up_capture_ratio": 0.1438,
+      "down_capture_ratio": 0.3601,
+      "benchmark_return_pct": 9.5338,
+      "excess_return_pct": -12.06
+    },
+    "6M": {
+      "total_return_pct": 38.4043,
+      "annualized_return_pct": 58.4272,
+      "volatility_pct": 40.4841,
+      "sharpe_ratio": 1.2815,
+      "max_drawdown_pct": -12.5757,
+      "alpha": 49.9748,
+      "beta": 0.4563,
+      "up_capture_ratio": 0.752,
+      "down_capture_ratio": 0.1463,
+      "benchmark_return_pct": 11.1482,
+      "excess_return_pct": 27.2561
+    },
+    "1Y": {
+      "total_return_pct": 86.4216,
+      "annualized_return_pct": 54.0929,
+      "volatility_pct": 30.1466,
+      "sharpe_ratio": 1.5138,
+      "max_drawdown_pct": -12.5757,
+      "alpha": 48.037,
+      "beta": 0.4909,
+      "up_capture_ratio": 0.872,
+      "down_capture_ratio": 0.2226,
+      "benchmark_return_pct": 15.1098,
+      "excess_return_pct": 71.3118
+    },
+    "2Y": {
+      "total_return_pct": 88.0792,
+      "annualized_return_pct": 54.8561,
+      "volatility_pct": 30.1106,
+      "sharpe_ratio": 1.5317,
+      "max_drawdown_pct": -12.5757,
+      "alpha": null,
+      "beta": null,
+      "up_capture_ratio": null,
+      "down_capture_ratio": null,
+      "benchmark_return_pct": null,
+      "excess_return_pct": null
+    },
+    "5Y": {
+      "total_return_pct": 88.0792,
+      "annualized_return_pct": 54.8561,
+      "volatility_pct": 30.1106,
+      "sharpe_ratio": 1.5317,
+      "max_drawdown_pct": -12.5757,
+      "alpha": null,
+      "beta": null,
+      "up_capture_ratio": null,
+      "down_capture_ratio": null,
+      "benchmark_return_pct": null,
+      "excess_return_pct": null
+    },
+    "MAX": {
+      "total_return_pct": 88.0792,
+      "annualized_return_pct": 54.8561,
+      "volatility_pct": 30.1106,
+      "sharpe_ratio": 1.5317,
+      "max_drawdown_pct": -12.5757,
+      "alpha": null,
+      "beta": null,
+      "up_capture_ratio": null,
+      "down_capture_ratio": null,
+      "benchmark_return_pct": null,
+      "excess_return_pct": null
+    }
+  },
+  "technical_analysis": {
+    "DUK": {
+      "rsi": {
+        "value": 51.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 123.42,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 123.52856,
+        "stddev": 0.9044760079025044
+      }
+    },
+    "JNJ": {
+      "rsi": {
+        "value": 64.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 176.43,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 175.1865,
+        "stddev": 2.806209796337905
+      }
+    },
+    "KO": {
+      "rsi": {
+        "value": 44.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 69.73,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 69.7135,
+        "stddev": 0.7921607691666521
+      }
+    },
+    "ORLY": {
+      "rsi": {
+        "value": 25.0,
+        "date": "2025-08-29",
+        "status": "Oversold"
+      },
+      "moving_average_20": {
+        "value": 102.81,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 102.85050000000001,
+        "stddev": 0.980238829403105
+      }
+    },
+    "PEP": {
+      "rsi": {
+        "value": 58.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 148.64,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 146.929,
+        "stddev": 3.6284691566918634
+      }
+    },
+    "WMT": {
+      "rsi": {
+        "value": 43.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 99.27,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 99.849985,
+        "stddev": 2.8153641081276097
+      }
+    },
+    "CUBE": {
+      "rsi": {
+        "value": 55.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 39.92,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 39.801,
+        "stddev": 0.7019289212795038
+      }
+    },
+    "FLBL": {
+      "rsi": {
+        "value": 50.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 24.16,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 24.152,
+        "stddev": 0.0349962404050138
+      }
+    },
+    "BRK-B": {
+      "rsi": {
+        "value": 71.0,
+        "date": "2025-08-29",
+        "status": "Overbought"
+      },
+      "moving_average_20": {
+        "value": 485.06,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 479.74899999999997,
+        "stddev": 13.225212325431363
+      }
+    },
+    "VTI": {
+      "rsi": {
+        "value": 60.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 316.52,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 315.14099999999996,
+        "stddev": 3.1853247376358538
+      }
+    },
+    "HACK": {
+      "rsi": {
+        "value": 55.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 83.06,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 83.151,
+        "stddev": 1.0644736777049075
+      }
+    },
+    "FXAIX": {
+      "rsi": {
+        "value": 59.0,
+        "date": "2025-08-29",
+        "status": "Neutral"
+      },
+      "moving_average_20": {
+        "value": 224.07,
+        "date": "2025-08-29"
+      },
+      "bollinger_bands": {
+        "mean": 223.14450000000002,
+        "stddev": 2.088894129479133
+      }
+    }
+  },
+  "risk_analysis": {
+    "concentration_risk": {
+      "largest_position_percent": 17.167473594648282,
+      "top_3_positions_percent": 46.05489320963459,
+      "number_of_holdings": 12
+    },
+    "diversification_score": 60.0,
+    "risk_level": "Medium"
+  },
+  "market_context": {
+    "DUK": {
+      "status": "Very Positive",
+      "average_sentiment": 0.5305674720489585,
+      "article_count": 10
+    },
+    "JNJ": {
+      "status": "Positive",
+      "average_sentiment": 0.19330748540060733,
+      "article_count": 10
+    },
+    "KO": {
+      "status": "Neutral",
+      "average_sentiment": -0.09361527948362819,
+      "article_count": 10
+    },
+    "ORLY": {
+      "status": "Positive",
+      "average_sentiment": 0.153580206731338,
+      "article_count": 10
+    },
+    "PEP": {
+      "status": "Very Positive",
+      "average_sentiment": 0.5461060598730664,
+      "article_count": 10
+    },
+    "WMT": {
+      "status": "Positive",
+      "average_sentiment": 0.23923158638924014,
+      "article_count": 10
+    },
+    "CUBE": {
+      "status": "Very Positive",
+      "average_sentiment": 0.5009805256473334,
+      "article_count": 10
+    },
+    "FLBL": {
+      "status": "No recent news",
+      "average_sentiment": 0,
+      "article_count": 0
+    },
+    "BRK-B": {
+      "status": "Positive",
+      "average_sentiment": 0.11319481419055426,
+      "article_count": 10
+    },
+    "VTI": {
+      "status": "Very Positive",
+      "average_sentiment": 0.5899288713878813,
+      "article_count": 10
+    },
+    "HACK": {
+      "status": "Neutral",
+      "average_sentiment": 0.03522671814858747,
+      "article_count": 5
+    },
+    "FXAIX": {
+      "status": "No recent news",
+      "average_sentiment": 0,
+      "article_count": 0
+    }
+  }
+}
+
+ANALYSIS REQUESTED:
+1. Portfolio Composition Analysis
+   - Evaluate asset allocation and diversification
+   - Identify concentration risks
+   - Assess sector/geographic exposure
+
+2. Performance Assessment
+   - Analyze returns across different timeframes
+   - Compare against benchmarks (S&P 500)
+   - Evaluate risk-adjusted returns (Sharpe ratio, etc.)
+
+3. Risk Analysis
+   - Identify key risk factors
+   - Assess portfolio volatility
+   - Evaluate maximum drawdown scenarios
+
+4. Technical Analysis Summary
+   - Review RSI indicators for holdings
+   - Analyze moving average trends
+   - Assess Bollinger Bands signals
+
+5. Recommendations
+   - Suggest portfolio rebalancing if needed
+   - Identify potential buying/selling opportunities
+   - Recommend risk management strategies
+   - Suggest diversification improvements
+
+Please provide specific, actionable recommendations based on the data provided.

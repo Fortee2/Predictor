@@ -3,56 +3,14 @@ from contextlib import contextmanager
 
 import mysql.connector
 
+from data.base_dao import BaseDAO
+
 from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
 
-class PortfolioTransactionsDAO:
-    def __init__(self, pool: DatabaseConnectionPool):
-        """
-        Initialize DAO with a shared database connection pool.
-
-        Args:
-            pool: DatabaseConnectionPool instance shared across all DAOs
-        """
-        self.pool = pool
-
-    @contextmanager
-    def get_connection(self):
-        """
-        Context manager for database connections.
-
-        Properly manages connection lifecycle:
-        - Acquires connection from pool
-        - Yields connection for use
-        - Commits transaction on success
-        - Rolls back on error
-        - Always returns connection to pool
-        """
-        connection = None
-        try:
-            connection = self.pool.get_connection()
-            yield connection
-            # Commit transaction if no exceptions occurred
-            if connection.is_connected():
-                connection.commit()
-        except mysql.connector.Error as e:
-            logger.error("Database connection error: %s", str(e))
-            # Rollback on database errors
-            if connection and connection.is_connected():
-                connection.rollback()
-            raise
-        except Exception as e:
-            logger.error("Unexpected error during database operation: %s", str(e))
-            # Rollback on any other errors
-            if connection and connection.is_connected():
-                connection.rollback()
-            raise
-        finally:
-            # Always return connection to pool
-            if connection and connection.is_connected():
-                connection.close()
+class PortfolioTransactionsDAO(BaseDAO):
 
     def get_transaction_history(self, portfolio_id, security_id=None):
         try:
