@@ -1,0 +1,478 @@
+Connection pool 'predictor_pool' initialized with 5 connections
+Loading FinBERT model...
+FinBERT model loaded
+Loading FinBERT model...
+FinBERT model loaded
+Adding initial delay of 8 seconds...
+
+Comprehensive Watch List Analysis: Possibles
+════════════════════════════════════════════════════════════════
+║ ABT                                                     ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-16): 54.00 - Neutral                                      ║
+║ 20-day MA (2025-09-16): 132.11                                             ║
+║ MA Trend: ↘️ DOWN (WEAK)                                  ║
+║   Rate of Change: -0.03%                                       ║
+║ Price Position: Above MA (0.49% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 132.03                                                 ║
+║   StdDev: 0.91                                               ║
+║ MACD (2025-09-16):                                ║
+║   MACD Line: 0.44                                            ║
+║   Signal Line: 0.46                                          ║
+║   Histogram: -0.02                                            ║
+║ Current MACD Signal (2025-09-16): SELL (Weak)                     ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 16.66                                            ║
+║   Market Cap: $231,063,464,288.00                        ║
+║   Dividend Yield: 1.80%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.28                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 15                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 7,524.0                               ║
+║   Total Puts Volume: 2,202.0                                ║
+║   Put/Call Ratio: 0.29                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 516.02%                                   ║
+║     Puts: 0.00% - 480.47%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ BDN                                                     ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-16): 50.00 - Neutral                                      ║
+║ 20-day MA (2025-09-16): 4.37                                             ║
+║ MA Trend: ↗️ UP (WEAK)                                  ║
+║   Rate of Change: 0.23%                                       ║
+║ Price Position: Above MA (4.43% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 4.27                                                 ║
+║   StdDev: 0.18                                               ║
+║ MACD (2025-09-16):                                ║
+║   MACD Line: 0.11                                            ║
+║   Signal Line: 0.08                                          ║
+║   Histogram: 0.03                                            ║
+║ Current MACD Signal (2025-09-16): BUY (Weak)                     ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   Market Cap: $780,483,239.00                            ║
+║   Dividend Yield: 13.10%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.21                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 4                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 83.0                                 ║
+║   Total Puts Volume: 76.0                                  ║
+║   Put/Call Ratio: 0.92                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 810.94%                                   ║
+║     Puts: 0.00% - 681.25%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ DG                                                      ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 36.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 109.51                                             ║
+║ MA Trend: ➡️ FLAT (WEAK)                                  ║
+║   Rate of Change: 0.00%                                       ║
+║ Price Position: Below MA (-6.74% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 109.98                                                 ║
+║   StdDev: 2.97                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: -1.62                                            ║
+║   Signal Line: -0.87                                          ║
+║   Histogram: -0.75                                            ║
+║ Current MACD Signal (2025-09-12): SELL (Strong)                   ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 19.33                                            ║
+║   Market Cap: $22,979,066,736.00                         ║
+║   Dividend Yield: 2.26%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.30                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 14                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 4,928.0                               ║
+║   Total Puts Volume: 3,067.0                                ║
+║   Put/Call Ratio: 0.62                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 1196.48%                                   ║
+║     Puts: 0.00% - 485.94%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ FITB                                                    ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 61.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 45.13                                             ║
+║ MA Trend: ↗️ UP (WEAK)                                  ║
+║   Rate of Change: 0.16%                                       ║
+║ Price Position: Above MA (3.17% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 44.77                                                 ║
+║   StdDev: 1.23                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: 0.80                                            ║
+║   Signal Line: 0.86                                          ║
+║   Histogram: -0.06                                            ║
+║ Current MACD Signal (2025-09-12): SELL (Weak)                     ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 14.19                                            ║
+║   Market Cap: $30,315,441,216.00                         ║
+║   Dividend Yield: 3.51%                                        ║
+║ News Sentiment: Very Negative                                  ║
+║   Average Score: -0.56                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 9                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 1,270.0                               ║
+║   Total Puts Volume: 4,067.0                                ║
+║   Put/Call Ratio: 3.20                                          ║
+║   Volume Sentiment: Bearish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 525.78%                                   ║
+║     Puts: 12.50% - 462.11%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ GOOGL                                                   ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 85.00 - Overbought                                   ║
+║ 20-day MA (2025-09-12): 220.95                                             ║
+║ MA Trend: ↗️ UP (MODERATE)                                  ║
+║   Rate of Change: 0.59%                                       ║
+║ Price Position: Above MA (14.27% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 218.26                                                 ║
+║   StdDev: 15.86                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: 11.88                                            ║
+║   Signal Line: 9.84                                          ║
+║   Histogram: 2.04                                            ║
+║ Current MACD Signal (2025-09-12): BUY (Strong)                   ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 25.64                                            ║
+║   Market Cap: $2,915,389,755,476.00                      ║
+║   Dividend Yield: 0.35%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.32                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 21                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 204,246.0                             ║
+║   Total Puts Volume: 122,080.0                              ║
+║   Put/Call Ratio: 0.60                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 1029.69%                                   ║
+║     Puts: 0.00% - 748.44%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ HD                                                      ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 68.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 409.85                                             ║
+║ MA Trend: ↗️ UP (WEAK)                                  ║
+║   Rate of Change: 0.43%                                       ║
+║ Price Position: Above MA (4.76% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 408.10                                                 ║
+║   StdDev: 8.80                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: 9.30                                            ║
+║   Signal Line: 8.86                                          ║
+║   Histogram: 0.44                                            ║
+║ Current MACD Signal (2025-09-12): BUY (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 28.73                                            ║
+║   Market Cap: $420,740,136,842.00                        ║
+║   Dividend Yield: 2.18%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.48                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 17                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 12,288.0                              ║
+║   Total Puts Volume: 7,809.0                                ║
+║   Put/Call Ratio: 0.64                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 427.64%                                   ║
+║     Puts: 0.00% - 639.69%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ Notes: Claude Recommendation                              ║
+════════════════════════════════════════════════════════════════
+║ KDP                                                     ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 26.00 - Oversold                                     ║
+║ 20-day MA (2025-09-12): 28.68                                             ║
+║ MA Trend: ↘️ DOWN (MODERATE)                                  ║
+║   Rate of Change: -0.53%                                       ║
+║ Price Position: Below MA (-8.72% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 30.58                                                 ║
+║   StdDev: 3.11                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: -1.65                                            ║
+║   Signal Line: -1.36                                          ║
+║   Histogram: -0.29                                            ║
+║ Current MACD Signal (2025-09-12): SELL (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 24.10                                            ║
+║   Market Cap: $36,990,318,835.00                         ║
+║   Dividend Yield: 3.38%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.25                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 10                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 21,165.0                              ║
+║   Total Puts Volume: 2,342.0                                ║
+║   Put/Call Ratio: 0.11                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 12.50% - 442.58%                                   ║
+║     Puts: 0.00% - 248.05%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ LOW                                                     ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 69.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 263.22                                             ║
+║ MA Trend: ➡️ FLAT (WEAK)                                  ║
+║   Rate of Change: 0.00%                                       ║
+║ Price Position: Above MA (5.60% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 261.70                                                 ║
+║   StdDev: 6.76                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: 8.10                                            ║
+║   Signal Line: 8.02                                          ║
+║   Histogram: 0.08                                            ║
+║ Current MACD Signal (2025-09-12): BUY (Weak)                     ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 22.32                                            ║
+║   Market Cap: $152,449,058,743.00                        ║
+║   Dividend Yield: 1.77%                                        ║
+║ News Sentiment: Very Positive                                  ║
+║   Average Score: 0.67                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 14                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 4,335.0                               ║
+║   Total Puts Volume: 5,669.0                                ║
+║   Put/Call Ratio: 1.31                                          ║
+║   Volume Sentiment: Bearish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 382.42%                                   ║
+║     Puts: 0.00% - 640.42%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ MDLZ                                                    ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-16): 51.00 - Neutral                                      ║
+║ 20-day MA (2025-09-16): 62.05                                             ║
+║ MA Trend: ➡️ FLAT (WEAK)                                  ║
+║   Rate of Change: 0.00%                                       ║
+║ Price Position: Above MA (1.42% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 62.08                                                 ║
+║   StdDev: 0.67                                               ║
+║ MACD (2025-09-16):                                ║
+║   MACD Line: -0.49                                            ║
+║   Signal Line: -0.74                                          ║
+║   Histogram: 0.25                                            ║
+║ Current MACD Signal (2025-09-16): BUY (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 23.01                                            ║
+║   Market Cap: $81,285,935,590.00                         ║
+║   Dividend Yield: 3.25%                                        ║
+║ News Sentiment: Neutral                                        ║
+║   Average Score: 0.04                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 13                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 1,951.0                               ║
+║   Total Puts Volume: 4,010.0                                ║
+║   Put/Call Ratio: 2.06                                          ║
+║   Volume Sentiment: Bearish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 797.17%                                   ║
+║     Puts: 0.00% - 505.18%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ MSFT                                                    ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-16): 52.00 - Neutral                                      ║
+║ 20-day MA (2025-09-16): 504.85                                             ║
+║ MA Trend: ↘️ DOWN (WEAK)                                  ║
+║   Rate of Change: -0.12%                                       ║
+║ Price Position: Below MA (-0.01% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 505.06                                                 ║
+║   StdDev: 4.85                                               ║
+║ MACD (2025-09-16):                                ║
+║   MACD Line: -0.92                                            ║
+║   Signal Line: -1.81                                          ║
+║   Histogram: 0.89                                            ║
+║ Current MACD Signal (2025-09-16): BUY (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 37.32                                            ║
+║   Market Cap: $3,789,281,352,744.00                      ║
+║   Dividend Yield: 0.64%                                        ║
+║ News Sentiment: Very Positive                                  ║
+║   Average Score: 0.53                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 21                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 199,394.0                             ║
+║   Total Puts Volume: 73,538.0                               ║
+║   Put/Call Ratio: 0.37                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 431.06%                                   ║
+║     Puts: 0.00% - 656.84%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ O                                                       ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 65.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 58.94                                             ║
+║ MA Trend: ↗️ UP (WEAK)                                  ║
+║   Rate of Change: 0.05%                                       ║
+║ Price Position: Above MA (3.39% from MA)                         ║
+║ Bollinger Bands:                                             ║
+║   Mean: 58.87                                                 ║
+║   StdDev: 0.79                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: 0.56                                            ║
+║   Signal Line: 0.40                                          ║
+║   Histogram: 0.16                                            ║
+║ Current MACD Signal (2025-09-12): BUY (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 58.65                                            ║
+║   Market Cap: $55,233,224,354.00                         ║
+║   Dividend Yield: 5.31%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.30                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 9                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 4,384.0                               ║
+║   Total Puts Volume: 2,721.0                                ║
+║   Put/Call Ratio: 0.62                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 490.23%                                   ║
+║     Puts: 0.00% - 558.20%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ PFE                                                     ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-16): 43.00 - Neutral                                      ║
+║ 20-day MA (2025-09-16): 24.80                                             ║
+║ MA Trend: ↘️ DOWN (WEAK)                                  ║
+║   Rate of Change: -0.12%                                       ║
+║ Price Position: Below MA (-4.44% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 24.82                                                 ║
+║   StdDev: 0.54                                               ║
+║ MACD (2025-09-16):                                ║
+║   MACD Line: -0.15                                            ║
+║   Signal Line: -0.01                                          ║
+║   Histogram: -0.14                                            ║
+║ Current MACD Signal (2025-09-16): SELL (Strong)                   ║
+║ MACD Momentum: Weakening                                      ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 12.65                                            ║
+║   Market Cap: $137,268,932,721.00                        ║
+║   Dividend Yield: 7.18%                                        ║
+║ News Sentiment: Positive                                       ║
+║   Average Score: 0.33                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 16                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 71,881.0                              ║
+║   Total Puts Volume: 38,907.0                               ║
+║   Put/Call Ratio: 0.54                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 758.20%                                   ║
+║     Puts: 0.00% - 262.50%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════
+║ TMUS                                                    ║
+║──────────────────────────────────────────────────────────║
+║ RSI (2025-09-12): 41.00 - Neutral                                      ║
+║ 20-day MA (2025-09-12): 249.91                                             ║
+║ MA Trend: ↘️ DOWN (WEAK)                                  ║
+║   Rate of Change: -0.20%                                       ║
+║ Price Position: Below MA (-4.32% from MA)                        ║
+║ Bollinger Bands:                                             ║
+║   Mean: 250.83                                                 ║
+║   StdDev: 5.88                                               ║
+║ MACD (2025-09-12):                                ║
+║   MACD Line: -0.69                                            ║
+║   Signal Line: 1.31                                          ║
+║   Histogram: -2.00                                            ║
+║ Current MACD Signal (2025-09-12): SELL (Strong)                   ║
+║ MACD Momentum: Strengthening                                  ║
+║ Fundamental Data:                                            ║
+║   P/E Ratio: 22.83                                            ║
+║   Market Cap: $272,036,531,509.00                        ║
+║   Dividend Yield: 1.46%                                        ║
+║ News Sentiment: Neutral                                        ║
+║   Average Score: 0.02                                         ║
+║   Articles Analyzed: 10                                       ║
+════════════════════════════════════════════════════════════════
+║ Options Data:                                                  ║
+║   Available Expirations: 15                                     ║
+║   Nearest Expiry: 2025-09-19                                   ║
+║   Total Calls Volume: 5,166.0                               ║
+║   Total Puts Volume: 3,090.0                                ║
+║   Put/Call Ratio: 0.60                                          ║
+║   Volume Sentiment: Bullish                                   ║
+║   Implied Volatility Range:                                  ║
+║     Calls: 0.00% - 378.13%                                   ║
+║     Puts: 0.00% - 387.89%                                    ║
+║   Market Expectation: High Volatility                           ║
+════════════════════════════════════════════════════════════════

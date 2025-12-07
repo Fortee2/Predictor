@@ -56,28 +56,6 @@ This is a well-structured portfolio management system with good architectural pa
 
 ### ⚠️ Areas for Improvement
 
-1. **BaseDAO Connection Management Pattern**
-   ```python
-   # Current implementation in base_dao.py has issues:
-   @contextmanager
-   def get_connection(self) -> Iterator[PooledMySQLConnection]:
-       connection = None
-       try:
-           if self.current_connection is not None and self.current_connection.is_connected():
-               connection = self.current_connection
-               yield connection
-           else:
-               connection = self.pool.get_connection()
-               self.current_connection = connection
-               yield connection
-       except mysql.connector.Error as e:
-           logger.error("Database connection error: %s", str(e))
-           raise
-       finally:
-           pass  # ⚠️ Connection never returned to pool!
-   ```
-
-   **Issue:** Connections are never closed/returned to the pool in the `finally` block, leading to connection exhaustion.
 
 2. **Inconsistent DAO Patterns**
    - Some DAOs inherit from `BaseDAO`, others don't

@@ -3,56 +3,14 @@ from contextlib import contextmanager
 
 import mysql.connector
 
+from data.base_dao import BaseDAO
+
 from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
 
-class PortfolioTransactionsDAO:
-    def __init__(self, pool: DatabaseConnectionPool):
-        """
-        Initialize DAO with a shared database connection pool.
-
-        Args:
-            pool: DatabaseConnectionPool instance shared across all DAOs
-        """
-        self.pool = pool
-
-    @contextmanager
-    def get_connection(self):
-        """
-        Context manager for database connections.
-
-        Properly manages connection lifecycle:
-        - Acquires connection from pool
-        - Yields connection for use
-        - Commits transaction on success
-        - Rolls back on error
-        - Always returns connection to pool
-        """
-        connection = None
-        try:
-            connection = self.pool.get_connection()
-            yield connection
-            # Commit transaction if no exceptions occurred
-            if connection.is_connected():
-                connection.commit()
-        except mysql.connector.Error as e:
-            logger.error("Database connection error: %s", str(e))
-            # Rollback on database errors
-            if connection and connection.is_connected():
-                connection.rollback()
-            raise
-        except Exception as e:
-            logger.error("Unexpected error during database operation: %s", str(e))
-            # Rollback on any other errors
-            if connection and connection.is_connected():
-                connection.rollback()
-            raise
-        finally:
-            # Always return connection to pool
-            if connection and connection.is_connected():
-                connection.close()
+class PortfolioTransactionsDAO(BaseDAO):
 
     def get_transaction_history(self, portfolio_id, security_id=None):
         try:
@@ -95,7 +53,16 @@ class PortfolioTransactionsDAO:
         price=None,
         amount=None,
     ):
+        """
+        Insert a transaction into the database.
+        
+        Rounds price and amount to 2 decimal places to match database DECIMAL(10,2) precision.
+        """
         try:
+            # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
+            rounded_price = round(price, 2) if price is not None else None
+            rounded_amount = round(amount, 2) if amount is not None else None
+            
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
@@ -105,8 +72,8 @@ class PortfolioTransactionsDAO:
                     transaction_type,
                     transaction_date,
                     shares,
-                    price,
-                    amount,
+                    rounded_price,
+                    rounded_amount,
                 )
                 cursor.execute(query, values)
                 cursor.close()
@@ -123,6 +90,12 @@ class PortfolioTransactionsDAO:
         price=None,
         amount=None,
     ) -> int | None:
+        """
+        Get the ID of a transaction that matches the given parameters.
+        
+        Handles rounding issues by rounding price and amount to 2 decimal places
+        to match the database DECIMAL(10,2) precision before comparison.
+        """
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
@@ -136,24 +109,28 @@ class PortfolioTransactionsDAO:
 
                 values = [portfolio_id, security_id, transaction_type, transaction_date]
 
-                # TODO: Rounding issues are prevent the detection of duplicate transactions.
-                # Need to address this properly. For now, we are ignoring shares/price/amount in the lookup.
-                # This may lead to duplicate transactions being entered.
+                # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
+                # This prevents rounding issues when comparing float values with database values
+                if transaction_type in ('buy', 'sell'):
+                    query += " AND shares = %s AND price = %s AND amount IS NULL"
+                    
+                    # Round price to 2 decimal places to match DECIMAL(10,2)
+                    rounded_price = round(price, 2) if price is not None else None
+                    
+                    values.extend([
+                        shares,
+                        rounded_price
+                    ])
 
-                # if transaction_type in ('buy', 'sell'):
-                #     query += " AND shares = %s AND price = %s AND amount IS NULL;"
-
-                #     values.extend([
-                #         shares,
-                #         price
-                #     ])
-
-                # elif transaction_type == 'dividend':
-                #     query += " AND shares IS NULL AND price IS NULL AND amount = %s;"
-
-                #     values.extend([
-                #         amount
-                #     ])
+                elif transaction_type == 'dividend':
+                    query += " AND shares IS NULL AND price IS NULL AND amount = %s"
+                    
+                    # Round amount to 2 decimal places to match DECIMAL(10,2)
+                    rounded_amount = round(amount, 2) if amount is not None else None
+                    
+                    values.extend([
+                        rounded_amount
+                    ])
 
                 cursor.execute(query, tuple(values))
                 row = cursor.fetchone()
