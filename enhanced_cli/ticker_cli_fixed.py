@@ -6,16 +6,19 @@ from dotenv import load_dotenv
 
 from data.data_retrieval_consolidated import DataRetrieval
 from data.ticker_dao import TickerDao
+from data.utility import DatabaseConnectionPool
 
 
 class TickerCLI:
     def __init__(self):
         load_dotenv()
-
-        # Initialize DAOs
+        
+        # Initialize the database connection pool
+        self.db_pool = DatabaseConnectionPool()
+        
+        # Initialize DAOs with the pool
         self.ticker_dao = TickerDao(pool=self.db_pool)
         self.data_retrieval = DataRetrieval(pool=self.db_pool)
-        self.ticker_dao.open_connection()
 
     def add_ticker(self, symbol, name):
         """Add a new ticker to the database"""
@@ -117,25 +120,31 @@ def main():
     # Delist Ticker
     delist_parser = subparsers.add_parser("delist", help="Mark ticker as inactive")
     delist_parser.add_argument("symbol", help="Ticker symbol")
+
     # Update Data
     update_data_parser = subparsers.add_parser("update-data", help="Update ticker data using yfinance")
     update_data_parser.add_argument("symbol", help="Ticker symbol")
 
     args = parser.parse_args()
-    cli = TickerCLI()
 
-    if args.command == "add":
-        cli.add_ticker(args.symbol, args.name)
-    elif args.command == "update":
-        cli.update_ticker(args.symbol, args.name, args.industry, args.sector)
-    elif args.command == "delist":
-        cli.delist_ticker(args.symbol)
-    elif args.command == "list":
-        cli.list_tickers()
-    elif args.command == "update-data":
-        cli.update_ticker_data(args.symbol)
-    else:
-        parser.print_help()
+    try:
+        cli = TickerCLI()
+
+        if args.command == "add":
+            cli.add_ticker(args.symbol, args.name)
+        elif args.command == "update":
+            cli.update_ticker(args.symbol, args.name, args.industry, args.sector)
+        elif args.command == "delist":
+            cli.delist_ticker(args.symbol)
+        elif args.command == "list":
+            cli.list_tickers()
+        elif args.command == "update-data":
+            cli.update_ticker_data(args.symbol)
+        else:
+            parser.print_help()
+    except Exception as e:
+        print(f"Error initializing CLI: {str(e)}")
+        print("Please check your database configuration and environment variables.")
 
 
 if __name__ == "__main__":

@@ -41,7 +41,7 @@ class DataRetrieval(BaseDAO):
 
         # Enhanced configurations for rate limiting
         self.requests_per_batch = 1  # Process only one ticker at a time
-        self.batch_pause_time = 300  # 5-minute pause between tickers
+        self.batch_pause_time = 150  #pause between tickers
         self.error_pause_time = 600  # 10-minute pause after errors
         self.max_retries = 3  # Number of times to retry a failed request
         self.jitter_max = 60  # Larger random jitter to avoid pattern detection

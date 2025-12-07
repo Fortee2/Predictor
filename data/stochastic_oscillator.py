@@ -27,27 +27,9 @@ class StochasticOscillator(BaseDAO):
     Stochastic Oscillator implementation following DRY principles.
     Reuses existing database patterns, connection management, and analysis structure.
     """
-
     def __init__(self, pool: DatabaseConnectionPool):
         super().__init__(pool)
-
-    @contextmanager
-    def get_connection(self):
-        """Context manager for database connections - reusing existing pattern."""
-        connection = None
-        try:
-            if self.current_connection is not None and self.current_connection.is_connected():
-                connection = self.current_connection
-                yield connection
-            else:
-                connection = self.pool.get_connection()
-                self.current_connection = connection
-                yield connection
-        except mysql.connector.Error as e:
-            logger.error("Database connection error: %s", str(e))
-            raise
-        finally:
-            pass
+        self.current_connection = None
 
     def calculate_stochastic(self, ticker_id, k_period=14, d_period=3):
         """

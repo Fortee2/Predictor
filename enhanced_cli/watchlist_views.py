@@ -27,7 +27,7 @@ class ListWatchListsCommand(Command):
         """
         with ui.progress("Loading watch lists...") as progress:
             progress.add_task("", total=None)
-            watch_lists = cli.cli.watch_list_dao.get_watch_list()
+            watch_lists = cli.watch_list_dao.get_watch_list()
 
         if not watch_lists:
             ui.status_message("No watch lists found.", "warning")
@@ -48,7 +48,7 @@ class ListWatchListsCommand(Command):
         # Prepare table rows
         rows = []
         for wl in watch_lists:
-            ticker_count = len(cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
+            ticker_count = len(cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
 
             rows.append(
                 [
@@ -104,7 +104,7 @@ class CreateWatchListCommand(Command):
         ):
             with ui.progress("Creating watch list...") as progress:
                 progress.add_task("", total=None)
-                watch_list_id = cli.cli.create_watch_list(data["name"], data["description"])
+                watch_list_id = cli.create_watch_list(data["name"], data["description"])
 
             if watch_list_id:
                 ui.status_message(
@@ -140,7 +140,7 @@ class ViewWatchListCommand(Command):
             # Get all watch lists
             with ui.progress("Loading watch lists...") as progress:
                 progress.add_task("", total=None)
-                watch_lists = cli.cli.watch_list_dao.get_watch_list()
+                watch_lists = cli.watch_list_dao.get_watch_list()
 
             if not watch_lists:
                 ui.status_message("No watch lists found.", "warning")
@@ -168,7 +168,7 @@ class ViewWatchListCommand(Command):
         # Get watch list details
         with ui.progress("Loading watch list details...") as progress:
             progress.add_task("", total=None)
-            watch_list = cli.cli.watch_list_dao.get_watch_list(watch_list_id)
+            watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
 
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
@@ -185,7 +185,7 @@ class ViewWatchListCommand(Command):
         # Get tickers in watch list
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if tickers:
             # Prepare ticker table columns
@@ -269,7 +269,7 @@ class AddTickersToWatchListCommand(Command):
                 return
 
         # Get watch list details for header
-        watch_list = cli.cli.watch_list_dao.get_watch_list(watch_list_id)
+        watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
             return
@@ -289,7 +289,7 @@ class AddTickersToWatchListCommand(Command):
             with ui.progress("Adding tickers...") as progress:
                 progress.add_task("", total=None)
                 for symbol in ticker_symbols:
-                    cli.cli.add_watch_list_ticker(watch_list_id, [symbol], notes)
+                    cli.add_watch_list_ticker(watch_list_id, [symbol], notes)
 
             ui.status_message("Tickers added successfully", "success")
 
@@ -323,14 +323,14 @@ class RemoveTickersFromWatchListCommand(Command):
                 return
 
         # Get watch list details
-        watch_list = cli.cli.watch_list_dao.get_watch_list(watch_list_id)
+        watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
             return
 
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if not tickers:
             ui.status_message("This watch list has no tickers to remove.", "warning")
@@ -354,7 +354,7 @@ class RemoveTickersFromWatchListCommand(Command):
         if ui.confirm_action(f"Remove {len(valid_tickers)} ticker(s) from watch list #{watch_list_id}?"):
             with ui.progress("Removing tickers...") as progress:
                 progress.add_task("", total=None)
-                cli.cli.remove_watch_list_ticker(watch_list_id, valid_tickers)
+                cli.remove_watch_list_ticker(watch_list_id, valid_tickers)
 
             ui.status_message("Tickers removed successfully", "success")
 
@@ -390,7 +390,7 @@ class UpdateTickerNotesCommand(Command):
         # Get watch list tickers
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if not tickers:
             ui.status_message("This watch list has no tickers.", "warning")
@@ -421,7 +421,7 @@ class UpdateTickerNotesCommand(Command):
         if ui.confirm_action(f"Update notes for {ticker_symbol}?"):
             with ui.progress("Updating notes...") as progress:
                 progress.add_task("", total=None)
-                cli.cli.update_watch_list_ticker_notes(watch_list_id, ticker_symbol, notes)
+                cli.update_watch_list_ticker_notes(watch_list_id, ticker_symbol, notes)
 
             ui.status_message("Notes updated successfully", "success")
 
@@ -447,7 +447,7 @@ class DeleteWatchListCommand(Command):
             # First list watch lists for selection
             with ui.progress("Loading watch lists...") as progress:
                 progress.add_task("", total=None)
-                watch_lists = cli.cli.watch_list_dao.get_watch_list()
+                watch_lists = cli.watch_list_dao.get_watch_list()
 
             if not watch_lists:
                 ui.status_message("No watch lists found.", "warning")
@@ -462,7 +462,7 @@ class DeleteWatchListCommand(Command):
 
             rows = []
             for wl in watch_lists:
-                ticker_count = len(cli.cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
+                ticker_count = len(cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
                 rows.append([str(wl["id"]), wl["name"], str(ticker_count)])
 
             table = ui.data_table("Your Watch Lists", columns, rows)
@@ -477,7 +477,7 @@ class DeleteWatchListCommand(Command):
         # Get watch list details for confirmation
         with ui.progress("Loading watch list details...") as progress:
             progress.add_task("", total=None)
-            watch_list = cli.cli.watch_list_dao.get_watch_list(watch_list_id)
+            watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
 
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
@@ -491,7 +491,7 @@ class DeleteWatchListCommand(Command):
         ):
             with ui.progress("Deleting watch list...") as progress:
                 progress.add_task("", total=None)
-                cli.cli.delete_watch_list(watch_list_id)
+                cli.delete_watch_list(watch_list_id)
 
             ui.status_message("Watch list deleted successfully", "success")
 
@@ -527,7 +527,7 @@ class AnalyzeWatchListCommand(Command):
                 return
 
         # Get watch list details
-        watch_list = cli.cli.watch_list_dao.get_watch_list(watch_list_id)
+        watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
             return
@@ -535,7 +535,7 @@ class AnalyzeWatchListCommand(Command):
         # Get tickers in watch list
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if not tickers:
             ui.status_message("This watch list has no tickers to analyze.", "warning")
@@ -565,7 +565,7 @@ class AnalyzeWatchListCommand(Command):
             progress.add_task("", total=None)
 
             # Use the CLI's analyze_watch_list method
-            cli.cli.analyze_watch_list(watch_list_id, ticker_symbol)
+
 
         # Analysis results are printed directly by the CLI analyze_watch_list method
         # After analysis is complete, wait for user input to continue

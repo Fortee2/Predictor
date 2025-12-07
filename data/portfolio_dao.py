@@ -62,6 +62,20 @@ class PortfolioDAO(BaseDAO):
             logger.error("Error retrieving cash balance: %s", e)
             return 0.0
 
+    def get_portfolio_list(self):
+
+        portfolios = []
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute("SELECT * FROM portfolio ORDER BY name")
+                portfolios = cursor.fetchall()
+
+        except mysql.connector.Error as e:
+            logger.error("Error retrieving cash balance: %s", e)
+
+        return portfolios
+
     def get_historical_cash_balance(self, portfolio_id, as_of_date):
         """
         Get the cash balance for a portfolio as of a specific date.

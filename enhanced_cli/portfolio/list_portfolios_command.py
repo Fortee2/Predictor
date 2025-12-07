@@ -22,15 +22,7 @@ class ListPortfoliosCommand(Command):
             progress.add_task("", total=None)
 
             # Fetch portfolios
-            portfolios = []
-            try:
-                cursor = cli.cli.portfolio_dao.current_connection.cursor(dictionary=True)
-                cursor.execute("SELECT * FROM portfolio ORDER BY name")
-                portfolios = cursor.fetchall()
-                cursor.close()
-            except Exception as e:
-                ui.status_message(f"Error loading portfolios: {str(e)}", "error")
-                return
+            portfolios = cli.cli.portfolio_dao.get_portfolio_list()
 
         if not portfolios:
             ui.status_message("No portfolios found.", "warning")

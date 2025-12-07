@@ -94,7 +94,7 @@ class OptimizedPortfolioRecalculator(BaseDAO):
                     WHERE portfolio_id = %s AND calculation_date >= %s
                 """
                 cursor.execute(query, (portfolio_id, start_date))
-                self.current_connection.commit()
+                connection.commit()
                 deleted_rows = cursor.rowcount
 
                 if deleted_rows > 0:
@@ -152,17 +152,15 @@ class OptimizedPortfolioRecalculator(BaseDAO):
 
         except mysql.connector.Error as db_error:
             print(f"💥 Database error during recalculation: {db_error}")
-            if self.current_connection:
-                self.current_connection.rollback()
+            if connection:
+                connection.rollback()
             return False
         except Exception as e:
             print(f"💥 Error during optimized recalculation: {e}")
-            if self.current_connection:
-                self.current_connection.rollback()
+            if connection:
+                connection.rollback()
             return False
-        finally:
-            if cursor:
-                cursor.close()
+
 
     def _calculate_efficiency_gain(self, transaction_date: date, actual_start_date: date, was_forced: bool) -> int:
         """
@@ -202,8 +200,6 @@ class OptimizedPortfolioRecalculator(BaseDAO):
 
             except Exception:
                 pass
-            finally:
-                cursor.close()
 
         return 0
 
