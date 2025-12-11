@@ -761,6 +761,21 @@ class LLMPortfolioAnalyzer:
             # Add context to the query
             enhanced_query = f"""
             You are a professional financial advisor analyzing a portfolio. 
+            The user is following a 70/30 Core Strategy.  Core holdings make up 70% of the portfolio and 30% of the portfolio is for swing positions.
+            For Core positions these are the rules:
+                - Purpose: Long-term wealth building, 3-5+ year holds
+                - Positions: VTI, FSPSX, VEA, JNJ, BND, KO 1-2 quality dividend stocks
+                - Entry: Fundamental strength + reasonable valuation
+                - Exit: Only on fundamental breakdown or major trend reversal
+                - Technical analysis: Use for sizing (add on dips), NOT for selling
+                
+            For Swing Positions these are the rules:
+                - Purpose: Tactical opportunities, weeks to 6 months
+                - Positions: 3-6 positions at any time
+                - Entry: Technical setup (oversold RSI, MACD buy, support bounce)
+                - Exit: Technical signals (overbought, MACD sell, resistance)
+                - Stop-losses: Always use, 5-8% max loss
+                
             Please provide detailed, actionable insights based on the portfolio data.
             Consider technical indicators, fundamental metrics, sentiment analysis, and recent transactions.
             Be specific with numbers, dates, and recommendations.

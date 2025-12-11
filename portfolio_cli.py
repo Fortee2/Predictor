@@ -3,6 +3,8 @@ import datetime
 import decimal
 import os
 
+import pandas as pd
+
 from data.bollinger_bands import BollingerBandAnalyzer
 from data.config import Config
 from data.data_retrieval_consolidated import DataRetrieval
@@ -321,7 +323,7 @@ class PortfolioCLI:
                 description = f"Cash {cash_action}"
 
                 # Log to cash history and update the balance in one operation
-                new_balance = self.portfolio_dao.log_cash_transaction(
+                self.portfolio_dao.log_cash_transaction(
                     portfolio_id, amount, cash_action, description, date
                 )
 
@@ -390,7 +392,7 @@ class PortfolioCLI:
                     # Log the cash deposit from the sale
                     new_balance = self.portfolio_dao.log_cash_transaction(
                         portfolio_id,
-                        total_cost,  # Positive amount for sell
+                        total_cost,  # Positive amount for sale
                         "sell",
                         description,
                         date,
@@ -511,7 +513,7 @@ class PortfolioCLI:
         Args:
             portfolio_id (int): The portfolio ID
             from_date (str, optional): Date in YYYY-MM-DD format to start recalculation from.
-                                      If not provided, will use earliest transaction date.
+                                      If not provided, will use the earliest transaction date.
         """
         try:
             # Verify portfolio exists
@@ -676,42 +678,6 @@ class PortfolioCLI:
         except Exception as e:
             print(f"Error managing cash: {str(e)}")
 
-    def recalculating_portfolio_history(self, portfolio_id, from_date=None):
-        """
-        Recalculate historical values for a portfolio.
-
-        This method will delete all existing historical values from the specified date
-        and recalculate them based on current transactions.
-
-        Args:
-            portfolio_id (int): The portfolio ID
-            from_date (str, optional): Date in YYYY-MM-DD format to start recalculation from.
-                                       If not provided, will use earliest transaction date.
-        """
-        try:
-            # Verify portfolio exists
-            portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
-            if not portfolio:
-                print(f"Error: Portfolio {portfolio_id} does not exist.")
-                return
-
-            print(f"\nRecalculating historical values for portfolio: {portfolio['name']}")
-            if from_date:
-                print(f"Starting from: {from_date}")
-            else:
-                print("Starting from earliest transaction date")
-
-            # Call the recalculate method
-            result = self.value_calculator.recalculate_historical_values(portfolio_id, from_date)
-
-            if result:
-                print("\nPortfolio historical values have been successfully recalculated.")
-            else:
-                print("\nFailed to recalculate portfolio historical values.")
-
-        except Exception as e:
-            print(f"Error recalculating portfolio history: {str(e)}")
-
 def main():
     parser = argparse.ArgumentParser(description="Portfolio Management CLI")
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -782,9 +748,6 @@ def main():
         default=5,
         help="Number of days to look back for trend analysis (default: 5)",
     )
-
-    # Update Data
-    update_parser = subparsers.add_parser("update-data", help="Update data for all securities in portfolios")
 
     # View Portfolio Performance
     performance_parser = subparsers.add_parser("view-performance", help="View portfolio performance over time")
