@@ -108,6 +108,7 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             "• Risk assessment\n"
             "• Technical analysis interpretation\n"
             "• Investment suggestions\n\n"
+            "[cyan]💡 Tip: Type 'refresh' to reload fresh portfolio data[/cyan]\n"
             "[yellow]Type 'exit' to return to main menu[/yellow]",
             title="Welcome to AI Assistant",
             border_style="green",
@@ -118,6 +119,9 @@ def ai_chat_interface(console: Console, portfolio_id: int):
     if not analyzer:
         console.print("[red]Error: Could not connect to AI assistant. Please check your configuration.[/red]")
         return
+
+    # Track if this is the first query (always refresh on first query)
+    first_query = True
 
     try:
         while True:
@@ -130,10 +134,33 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             if not user_question.strip():
                 continue
 
+            # Check for refresh command
+            if user_question.lower() in ["refresh", "reload", "update"]:
+                console.print("[cyan]♻️  Refreshing portfolio data...[/cyan]")
+                with console.status("[bold green]Reloading fresh data...[/bold green]"):
+                    try:
+                        # Force rebuild the index
+                        analyzer.query_portfolio(portfolio_id, "Portfolio overview", force_refresh=True)
+                        console.print("[green]✅ Portfolio data refreshed successfully![/green]")
+                        first_query = False
+                    except Exception as e:
+                        console.print(f"[red]Error refreshing data: {str(e)}[/red]")
+                continue
+
             # Show thinking indicator
-            with console.status("[bold green]🤖 Analyzing your portfolio...[/bold green]"):
+            status_msg = (
+                "[bold green]🤖 Loading fresh portfolio data and analyzing...[/bold green]"
+                if first_query
+                else "[bold green]🤖 Analyzing your portfolio...[/bold green]"
+            )
+
+            with console.status(status_msg):
                 try:
-                    response = analyzer.query_portfolio(portfolio_id, user_question)
+                    # Always force refresh on first query to ensure fresh data
+                    response = analyzer.query_portfolio(
+                        portfolio_id, user_question, force_refresh=first_query
+                    )
+                    first_query = False
                 except Exception as e:
                     response = f"I encountered an error while analyzing your portfolio: {str(e)}"
 

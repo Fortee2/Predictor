@@ -475,20 +475,68 @@ class LLMPortfolioAnalyzer:
             # Use the transaction history method that exists
             all_transactions = self.transactions_dao.get_transaction_history(portfolio_id)
 
+            self.logger.info(
+                "Retrieved %s total transactions for portfolio %s", len(all_transactions), portfolio_id
+            )
+
             # Filter to last 30 days and add ticker symbols
             filtered_transactions = []
+            skipped_count = 0
+
             for trans in all_transactions:
                 if "transaction_date" in trans and trans["transaction_date"]:
                     trans_date = trans["transaction_date"]
-                    if isinstance(trans_date, str):
-                        trans_date = datetime.strptime(trans_date, "%Y-%m-%d").date()
-                    elif hasattr(trans_date, "date"):
-                        trans_date = trans_date.date()
+                    parsed_date = None
 
-                    if trans_date >= start_date.date():
-                        filtered_transactions.append(trans)
+                    try:
+                        if isinstance(trans_date, str):
+                            # Try multiple date formats
+                            for date_format in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%Y/%m/%d"]:
+                                try:
+                                    parsed_date = datetime.strptime(trans_date, date_format).date()
+                                    break
+                                except ValueError:
+                                    continue
+
+                            if not parsed_date:
+                                self.logger.warning(
+                                    "Could not parse transaction date string: %s for transaction: %s",
+                                    trans_date,
+                                    trans.get("id", "unknown"),
+                                )
+                                skipped_count += 1
+                                continue
+
+                        elif hasattr(trans_date, "date"):
+                            parsed_date = trans_date.date()
+                        elif hasattr(trans_date, "year"):  # Already a date object
+                            parsed_date = trans_date
+                        else:
+                            self.logger.warning(
+                                "Unknown transaction_date type: %s for transaction: %s",
+                                type(trans_date),
+                                trans.get("id", "unknown"),
+                            )
+                            skipped_count += 1
+                            continue
+
+                        if parsed_date and parsed_date >= start_date.date():
+                            filtered_transactions.append(trans)
+
+                    except Exception as e:
+                        self.logger.error(
+                            "Error parsing transaction date %s: %s", trans_date, e
+                        )
+                        skipped_count += 1
+                        continue
 
             all_transactions = filtered_transactions
+
+            self.logger.info(
+                "Filtered to %s transactions in last 30 days (skipped %s due to date parsing issues)",
+                len(all_transactions),
+                skipped_count,
+            )
 
             if not all_transactions:
                 return "No recent transactions in the last 30 days."
@@ -734,18 +782,24 @@ class LLMPortfolioAnalyzer:
             self.logger.error("Error building portfolio index: %s", e)
             return None
 
-    def query_portfolio(self, portfolio_id: int, query: str) -> str:
+    def query_portfolio(self, portfolio_id: int, query: str, force_refresh: bool = False) -> str:
         """
         Query a portfolio using natural language.
 
         Args:
             portfolio_id: The portfolio ID to query
             query: Natural language query
+            force_refresh: If True, rebuild the index with fresh data (default: False)
 
         Returns:
             AI-generated response
         """
         try:
+            # Clear cached index if force_refresh is requested
+            if force_refresh and portfolio_id in self.vector_indices:
+                del self.vector_indices[portfolio_id]
+                self.logger.info("Cleared cached index for portfolio %s (force_refresh=True)", portfolio_id)
+
             # Get or build index
             if portfolio_id not in self.vector_indices:
                 index = self.build_portfolio_index(portfolio_id)
@@ -755,8 +809,8 @@ class LLMPortfolioAnalyzer:
             if not index:
                 return "Sorry, I couldn't analyze your portfolio data at the moment."
 
-            # Create query engine
-            query_engine = index.as_query_engine(similarity_top_k=5, response_mode="tree_summarize")
+            # Create query engine with increased similarity_top_k for better retrieval
+            query_engine = index.as_query_engine(similarity_top_k=8, response_mode="tree_summarize")
 
             # Add context to the query
             enhanced_query = f"""
