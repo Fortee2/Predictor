@@ -6,13 +6,14 @@ It creates vector indices of portfolio data and enables natural language queries
 """
 
 import logging
-from datetime import datetime, timedelta
-from typing import Dict, List
+from datetime import datetime, timedelta, date
+from decimal import Decimal
+from typing import Dict, List, Optional
 
 import boto3
-import chromadb
 
 from .bollinger_bands import BollingerBandAnalyzer
+from .llm_tool_definitions import get_tool_config
 from .news_sentiment_analyzer import NewsSentimentAnalyzer
 from .trend_analyzer import TrendAnalyzer
 from .utility import DatabaseConnectionPool
@@ -20,13 +21,6 @@ from .utility import DatabaseConnectionPool
 # Default Bedrock configuration
 DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_LLM_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
-DEFAULT_EMBED_MODEL = "amazon.titan-embed-text-v2:0"
-
-from llama_index.core import Document, Settings, VectorStoreIndex
-from llama_index.core.node_parser import SentenceSplitter
-from llama_index.embeddings.bedrock import BedrockEmbedding
-from llama_index.llms.bedrock_converse import BedrockConverse
-from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from .fundamental_data_dao import FundamentalDataDAO
 from .macd import MACD
@@ -49,20 +43,18 @@ class LLMPortfolioAnalyzer:
         pool: DatabaseConnectionPool,
         aws_region: str = DEFAULT_AWS_REGION,
         model_name: str = DEFAULT_LLM_MODEL,
-        embed_model: str = DEFAULT_EMBED_MODEL,
     ):
         """
         Initialize the LLM Portfolio Analyzer.
 
         Args:
             pool: Database connection pool
+            aws_region: AWS region for Bedrock
             model_name: Name of the Bedrock model to use
-            embed_model: Name of the Bedrock embedding model to use
         """
         self.db_pool = pool
         self.aws_region = aws_region
         self.model_name = model_name
-        self.embed_model_name = embed_model
 
         # Initialize DAOs
         self.portfolio_dao = PortfolioDAO(pool=self.db_pool)
@@ -81,773 +73,427 @@ class LLMPortfolioAnalyzer:
         self.options_calc = OptionsData(pool=self.db_pool)
         self.trend_analyzer = TrendAnalyzer(pool=self.db_pool)
 
-        # LLM and embedding configuration
-        self.llm = None
-        self.embed_model = None
-        self.vector_indices = {}  # Store indices for different portfolios
-        self.chroma_client = None
+        # Initialize Bedrock client
+        self.bedrock_client = boto3.client(
+            service_name="bedrock-runtime",
+            region_name=self.aws_region
+        )
+
+        # Conversation history
+        self.conversation_history = []
 
         # Logger
         self.logger = logging.getLogger(__name__)
 
-        self._setup_llm()
-        self._setup_vector_store()
+    def _serialize_result(self, obj):
+        """Recursively serialize result objects to JSON-compatible format."""
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        elif isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, dict):
+            return {k: self._serialize_result(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._serialize_result(item) for item in obj]
+        elif hasattr(obj, '__dict__'):
+            return self._serialize_result(obj.__dict__)
+        return obj
 
-    def _setup_llm(self):
-        """Set up the LLM and embedding models using AWS Bedrock."""
-        try:
-            # Initialize AWS Bedrock client
-            bedrock_client = boto3.client(service_name="bedrock-runtime", region_name=self.aws_region)
-
-            # Initialize Bedrock Converse LLM
-            self.llm = BedrockConverse(
-                model=self.model_name,
-                client=bedrock_client,
-                temperature=0.1,  # Lower temperature for more consistent financial analysis
-                max_tokens=4096,
-            )
-
-            # Initialize Bedrock embedding model
-            self.embed_model = BedrockEmbedding(model_name=self.embed_model_name, client=bedrock_client)
-
-            # Configure llama-index settings
-            Settings.llm = self.llm
-            Settings.embed_model = self.embed_model
-            Settings.node_parser = SentenceSplitter(chunk_size=1024, chunk_overlap=20)
-
-            self.logger.info("LLM setup completed with Bedrock model: %s", self.model_name)
-            self.logger.info("Embedding model: %s", self.embed_model_name)
-
-        except Exception as e:
-            self.logger.error("Error setting up Bedrock LLM: %s", e)
-            raise
-
-    def _setup_vector_store(self):
-        """Set up ChromaDB vector store."""
-        try:
-            # Initialize ChromaDB client
-            self.chroma_client = chromadb.PersistentClient(path="./chroma_db")
-            self.logger.info("ChromaDB vector store initialized")
-
-        except Exception as e:
-            self.logger.error("Error setting up vector store: %s", e)
-            raise
-
-    def create_portfolio_documents(self, portfolio_id: int) -> List[Document]:
+    def _format_tool_result(self, tool_use_id: str, tool_result: Dict) -> Dict:
         """
-        Create LlamaIndex documents from portfolio data.
+        Format tool execution results for Bedrock Converse API.
 
         Args:
-            portfolio_id: The portfolio ID to create documents for
+            tool_use_id: The ID from the tool use request
+            tool_result: Dictionary containing tool execution results
 
         Returns:
-            List of LlamaIndex Document objects
+            Formatted tool result message
         """
-        documents = []
+        # Check if there was an error
+        if "error" in tool_result:
+            return {
+                "toolUseId": tool_use_id,
+                "content": [{"json": tool_result}],
+                "status": "error"
+            }
 
-        try:
-            # Portfolio overview document
-            portfolio_info = self.portfolio_dao.read_portfolio(portfolio_id)
-            if portfolio_info:
-                overview_text = self._create_portfolio_overview_text(portfolio_info, portfolio_id)
-                documents.append(
-                    Document(
-                        text=overview_text,
-                        metadata={
-                            "document_type": "portfolio_overview",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
+        # Convert any non-JSON-serializable types
+        serialized_result = self._serialize_result(tool_result)
 
-            # Holdings and positions document
-            holdings_text = self._create_holdings_text(portfolio_id)
-            if holdings_text:
-                documents.append(
-                    Document(
-                        text=holdings_text,
-                        metadata={
-                            "document_type": "holdings",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
+        return {
+            "toolUseId": tool_use_id,
+            "content": [{"json": serialized_result}]
+        }
 
-            # Technical analysis document
-            technical_text = self._create_technical_analysis_text(portfolio_id)
-            if technical_text:
-                documents.append(
-                    Document(
-                        text=technical_text,
-                        metadata={
-                            "document_type": "technical_analysis",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
-
-            # Fundamental analysis document
-            fundamental_text = self._create_fundamental_analysis_text(portfolio_id)
-            if fundamental_text:
-                documents.append(
-                    Document(
-                        text=fundamental_text,
-                        metadata={
-                            "document_type": "fundamental_analysis",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
-
-            # Recent transactions document
-            transactions_text = self._create_transactions_text(portfolio_id)
-            if transactions_text:
-                documents.append(
-                    Document(
-                        text=transactions_text,
-                        metadata={
-                            "document_type": "recent_transactions",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
-
-            # Watchlist analysis document
-            watchlist_text = self._create_watchlist_analysis_text()
-            if watchlist_text:
-                documents.append(
-                    Document(
-                        text=watchlist_text,
-                        metadata={
-                            "document_type": "watchlist_analysis",
-                            "portfolio_id": portfolio_id,
-                            "last_updated": datetime.now().isoformat(),
-                        },
-                    )
-                )
-
-            self.logger.info("Created %s documents for portfolio %s", len(documents), portfolio_id)
-            return documents
-
-        except Exception as e:
-            self.logger.error("Error creating portfolio documents: %s", e)
-            return []
-
-    def _create_portfolio_overview_text(self, portfolio_info: Dict, portfolio_id: int) -> str:
-        """Create portfolio overview text."""
-        try:
-            cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
-
-            # Get only tickers with active positions
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-            active_tickers = [position["symbol"] for position in positions.values()]
-
-            text = f"""
-            Portfolio Overview: {portfolio_info["name"]}
-            Description: {portfolio_info.get("description", "No description available")}
-            Creation Date: {portfolio_info.get("date_added", "Unknown")}
-            Current Cash Balance: ${cash_balance:.2f}
-            Number of Active Holdings: {len(active_tickers)}
-            Active Holdings: {", ".join(active_tickers) if active_tickers else "No active positions"}
-            Status: {"Active" if portfolio_info.get("active", True) else "Inactive"}
-            
-            This portfolio contains {len(active_tickers)} active stock positions with a cash balance of ${cash_balance:.2f}.
-            """
-            return text.strip()
-
-        except Exception as e:
-            self.logger.error("Error creating portfolio overview text: %s", e)
-            return ""
-
-    def _create_holdings_text(self, portfolio_id: int) -> str:
-        """Create holdings and positions text."""
-        try:
-            tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
-            if not tickers:
-                return ""
-
-            holdings_info = []
-            total_portfolio_value = 0
-
-            # Get current positions using the existing method
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-
-            for ticker_id, position in positions.items():
-                ticker_symbol = position["symbol"]
-                shares = position["shares"]
-                avg_price = position["avg_price"]
-
-                # Get current price from ticker data
-                ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
-                if ticker_data and ticker_data.get("last_price", 0) > 0:
-                    current_price = ticker_data["last_price"]
-                    current_value = shares * current_price
-                    total_portfolio_value += current_value
-
-                    unrealized_gain_loss = (current_price - avg_price) * shares
-                    gain_loss_pct = ((current_price - avg_price) / avg_price * 100) if avg_price > 0 else 0
-
-                    holdings_info.append(
-                        {
-                            "ticker": ticker_symbol,
-                            "shares": shares,
-                            "avg_cost": avg_price,
-                            "current_price": current_price,
-                            "current_value": current_value,
-                            "unrealized_gain_loss": unrealized_gain_loss,
-                            "gain_loss_pct": gain_loss_pct,
-                        }
-                    )
-
-            # Create text summary
-            text_parts = ["Current Portfolio Holdings:\n"]
-
-            for holding in holdings_info:
-                gain_loss_indicator = (
-                    "📈"
-                    if holding["unrealized_gain_loss"] > 0
-                    else "📉"
-                    if holding["unrealized_gain_loss"] < 0
-                    else "➡️"
-                )
-                text_parts.append(
-                    f"""
-                {holding["ticker"]}: 
-                - Shares Owned: {holding["shares"]:.2f}
-                - Average Cost Basis: ${holding["avg_cost"]:.2f}
-                - Current Price: ${holding["current_price"]:.2f}  
-                - Current Value: ${holding["current_value"]:.2f}
-                - Unrealized Gain/Loss: ${holding["unrealized_gain_loss"]:.2f} ({holding["gain_loss_pct"]:.1f}%) {gain_loss_indicator}
-                """
-                )
-
-            text_parts.append(f"\nTotal Portfolio Value: ${total_portfolio_value:.2f}")
-
-            return "\n".join(text_parts)
-
-        except Exception as e:
-            self.logger.error("Error creating holdings text: %s", e)
-            return ""
-
-    def _create_technical_analysis_text(self, portfolio_id: int) -> str:
+    def _execute_tool(self, tool_name: str, tool_input: Dict) -> Dict:
         """
-        Create comprehensive technical analysis summary text for securities with active positions.
-
-        Includes: RSI, Moving Averages (SMA/EMA), Bollinger Bands, MACD, Stochastic Oscillator
+        Execute a tool call and return results.
 
         Args:
-            portfolio_id: The portfolio ID to analyze
+            tool_name: Name of the tool to execute
+            tool_input: Dictionary of input parameters
 
         Returns:
-            str: Formatted text containing all available technical indicators
-                 for each security with active positions, or empty string if no positions exist
+            Dictionary containing tool results or error information
         """
         try:
-            # Get only tickers with active positions
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-            if not positions:
-                return ""
+            # Portfolio Query Tools
+            if tool_name == "get_portfolio_list":
+                result = self.portfolio_dao.get_portfolio_list()
+                return {"portfolios": result}
 
-            analysis_parts = ["Technical Analysis Summary (All Indicators):\n"]
+            elif tool_name == "get_portfolio_details":
+                portfolio_id = tool_input["portfolio_id"]
+                portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
+                if portfolio:
+                    cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
+                    positions = self.transactions_dao.get_current_positions(portfolio_id)
+                    return {
+                        "portfolio": portfolio,
+                        "cash_balance": cash_balance,
+                        "num_positions": len(positions)
+                    }
+                return {"error": f"Portfolio {portfolio_id} not found"}
 
-            # Iterate through active positions only
-            for ticker_id, position in positions.items():
-                ticker = position["symbol"]
-                ticker_analysis = []
-
-                # Get current price first for context
-                current_price = 0
-                try:
+            elif tool_name == "get_current_positions":
+                portfolio_id = tool_input["portfolio_id"]
+                positions = self.transactions_dao.get_current_positions(portfolio_id)
+                # Enhance with current prices
+                enhanced_positions = {}
+                for ticker_id, position in positions.items():
                     ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
-                    current_price = ticker_data.get("last_price", 0) if ticker_data else 0
-                    if current_price > 0:
-                        ticker_analysis.append(f"Current Price: ${current_price:.2f}")
-                except:
-                    pass
+                    if ticker_data:
+                        position["current_price"] = ticker_data.get("last_price", 0)
+                        position["current_value"] = position["shares"] * position["current_price"]
+                    enhanced_positions[ticker_id] = position
+                return {"positions": enhanced_positions}
 
+            elif tool_name == "get_cash_balance":
+                portfolio_id = tool_input["portfolio_id"]
+                cash_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
+                return {"cash_balance": cash_balance}
+
+            elif tool_name == "get_transaction_history":
+                portfolio_id = tool_input["portfolio_id"]
+                limit = tool_input.get("limit", 50)
+                transactions = self.transactions_dao.get_transaction_history(portfolio_id)
+                return {"transactions": transactions[:limit]}
+
+            # Technical Analysis Tools
+            elif tool_name == "calculate_rsi":
+                ticker_id = tool_input["ticker_id"]
+                self.rsi_calc.calculateRSI(ticker_id)
+                rsi_data = self.rsi_calc.retrievePrices(1, ticker_id)
+                if not rsi_data.empty:
+                    latest = rsi_data.iloc[-1]
+                    rsi_value = float(latest["rsi"])
+                    return {
+                        "rsi_value": rsi_value,
+                        "date": str(rsi_data.index[-1]),
+                        "status": "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
+                    }
+                return {"error": "No RSI data available"}
+
+            elif tool_name == "calculate_macd":
+                ticker_id = tool_input["ticker_id"]
+                macd_result = self.macd_calc.calculate_macd(ticker_id)
+                if macd_result:
+                    signals = self.macd_calc.get_macd_signals(ticker_id)
+                    return {
+                        "macd": macd_result,
+                        "signals": signals
+                    }
+                return {"error": "No MACD data available"}
+
+            elif tool_name == "get_comprehensive_analysis":
+                ticker_id = tool_input["ticker_id"]
+                symbol = tool_input.get("symbol")
+
+                from .shared_analysis_metrics import SharedAnalysisMetrics
                 metrics = SharedAnalysisMetrics(
-                    self.rsi_calc,
-                    self.ma_calc,
-                    self.bb_calc,
-                    self.macd_calc,
-                    self.fundamental_dao,
-                    self.news_analyzer,
-                    self.options_calc,
-                    self.trend_analyzer,
-                    stochastic_analyzer=self.stoch_calc,
+                    self.rsi_calc, self.ma_calc, self.bb_calc, self.macd_calc,
+                    self.fundamental_dao, self.news_analyzer, self.options_calc,
+                    self.trend_analyzer, self.stoch_calc
                 )
 
                 analysis = metrics.get_comprehensive_analysis(
                     ticker_id=ticker_id,
-                    symbol=ticker,
-                    position_data=position,
+                    symbol=symbol
+                )
+                return analysis
+
+            elif tool_name == "get_ticker_data":
+                ticker_id = tool_input["ticker_id"]
+                ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
+                return {"ticker_data": ticker_data} if ticker_data else {"error": "Ticker data not found"}
+
+            elif tool_name == "get_ticker_id_by_symbol":
+                symbol = tool_input["symbol"]
+                ticker_id = self.ticker_dao.get_ticker_id(symbol)
+                return {"ticker_id": ticker_id} if ticker_id else {"error": f"Ticker {symbol} not found"}
+
+            # News & Fundamental Tools
+            elif tool_name == "get_news_sentiment":
+                ticker_id = tool_input["ticker_id"]
+                symbol = tool_input["symbol"]
+                result = self.news_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+                return result if result else {"error": "No news data available"}
+
+            elif tool_name == "get_fundamental_data":
+                ticker_id = tool_input["ticker_id"]
+                fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
+                return {"fundamental_data": fund_data} if fund_data else {"error": "No fundamental data available"}
+
+            # Write Operation Tools
+            elif tool_name == "log_transaction":
+                portfolio_id = tool_input["portfolio_id"]
+                ticker_symbol = tool_input["ticker_symbol"]
+                transaction_type = tool_input["transaction_type"]
+                shares = tool_input["shares"]
+                price = tool_input["price"]
+                transaction_date = tool_input.get("transaction_date")
+
+                success = self.portfolio_dao.log_transaction(
+                    portfolio_id=portfolio_id,
+                    ticker_symbol=ticker_symbol,
+                    transaction_type=transaction_type,
+                    shares=shares,
+                    price=price,
+                    transaction_date=transaction_date
+                )
+                return {"success": success}
+
+            elif tool_name == "add_cash":
+                portfolio_id = tool_input["portfolio_id"]
+                amount = tool_input["amount"]
+                success = self.portfolio_dao.add_cash(portfolio_id, amount)
+                new_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
+                return {"success": success, "new_balance": new_balance}
+
+            elif tool_name == "withdraw_cash":
+                portfolio_id = tool_input["portfolio_id"]
+                amount = tool_input["amount"]
+                success = self.portfolio_dao.withdraw_cash(portfolio_id, amount)
+                new_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
+                return {"success": success, "new_balance": new_balance}
+
+            # Watchlist Tools
+            elif tool_name == "get_watchlists":
+                watchlists = self.watchlist_dao.get_watch_list()
+                return {"watchlists": watchlists}
+
+            elif tool_name == "get_watchlist_tickers":
+                watchlist_id = tool_input["watchlist_id"]
+                tickers = self.watchlist_dao.get_tickers_in_watch_list(watchlist_id)
+                return {"tickers": tickers}
+
+            else:
+                return {"error": f"Unknown tool: {tool_name}"}
+
+        except Exception as e:
+            self.logger.error(f"Error executing tool {tool_name}: {e}")
+            return {"error": str(e), "tool": tool_name}
+
+    def _get_system_prompt(self, portfolio_id: Optional[int] = None) -> List[Dict]:
+        """
+        Get system prompt configuration for the LLM.
+
+        Returns:
+            System prompt configuration
+        """
+        base_prompt = """You are a professional financial advisor and portfolio analyst.
+You have access to comprehensive portfolio data, technical analysis tools, fundamental metrics,
+and news sentiment analysis.
+
+IMPORTANT INSTRUCTIONS:
+1. Always use the available tools to get accurate, up-to-date information
+2. Provide specific, actionable insights backed by data
+3. When analyzing portfolios, consider the 70/30 Core Strategy:
+   - Core positions (70%): Long-term holds (VTI, FSPSX, VEA, JNJ, BND, KO, quality dividend stocks)
+     - Entry: Fundamental strength + reasonable valuation
+     - Exit: Only on fundamental breakdown or major trend reversal
+     - Technical analysis: Use for sizing (add on dips), NOT for selling
+
+   - Swing positions (30%): Tactical opportunities (weeks to 6 months)
+     - 3-6 positions at any time
+     - Entry: Technical setup (oversold RSI, MACD buy, support bounce)
+     - Exit: Technical signals (overbought, MACD sell, resistance)
+     - Stop-losses: Always use, 5-8% max loss
+
+4. When recommending trades, always consider:
+   - Current cash balance
+   - Position sizing
+   - Risk management
+   - Technical and fundamental signals
+
+5. Format numbers clearly (use $ for dollars, % for percentages)
+6. Explain your reasoning and cite specific data points
+7. If you need more information, use additional tools
+8. Handle errors gracefully and explain any data limitations
+
+Available tool categories:
+- Portfolio queries: Get portfolios, positions, balances, transactions
+- Technical analysis: RSI, MACD, Moving Averages, Bollinger Bands, Stochastic, Trends
+- Fundamental data: P/E ratios, market cap, dividend yields, growth metrics
+- News sentiment: Recent news analysis with sentiment scores
+- Write operations: Log transactions, manage cash, add/remove tickers
+- Watchlists: Manage and analyze watchlist securities
+"""
+
+        return [{"text": base_prompt}]
+
+    def _extract_text_from_message(self, message: Dict) -> str:
+        """Extract text content from assistant message."""
+        text_parts = []
+        for content_block in message.get("content", []):
+            if "text" in content_block:
+                text_parts.append(content_block["text"])
+        return "\n".join(text_parts)
+
+    def chat(
+        self,
+        user_message: str,
+        portfolio_id: Optional[int] = None,
+        max_turns: int = 10
+    ) -> str:
+        """
+        Chat with the LLM using tool calling for portfolio analysis.
+
+        Args:
+            user_message: The user's question or request
+            portfolio_id: Optional portfolio ID for context
+            max_turns: Maximum number of conversation turns (prevents infinite loops)
+
+        Returns:
+            The assistant's final response as a string
+        """
+        try:
+            # Add portfolio context to user message if provided
+            if portfolio_id is not None:
+                portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
+                if portfolio:
+                    context = f"\nContext: Analyzing portfolio '{portfolio['name']}' (ID: {portfolio_id})"
+                    user_message = user_message + context
+
+            # Add user message to history
+            self.conversation_history.append({
+                "role": "user",
+                "content": [{"text": user_message}]
+            })
+
+            # Get tool configuration
+            tool_config = get_tool_config()
+
+            # Conversation loop
+            turn_count = 0
+            while turn_count < max_turns:
+                turn_count += 1
+
+                # Call Bedrock Converse API
+                response = self.bedrock_client.converse(
+                    modelId=self.model_name,
+                    messages=self.conversation_history,
+                    toolConfig=tool_config,
+                    system=self._get_system_prompt(portfolio_id),
+                    inferenceConfig={
+                        "temperature": 0.1,
+                        "maxTokens": 4096
+                    }
                 )
 
-                # Format and display the analysis
-                formatted_output = metrics.format_analysis_output(analysis, shares_info=position["shares"])
+                # Extract response content
+                output_message = response["output"]["message"]
+                stop_reason = response["stopReason"]
 
-                # Add ticker analysis to main report if we have any indicators
-                analysis_parts.append(f"\n{ticker}:")
-                analysis_parts.append(f"  - {formatted_output}")
+                # Add assistant response to history
+                self.conversation_history.append(output_message)
 
-            tech_analysis = "\n".join(analysis_parts)
-            print(tech_analysis)
-            return tech_analysis
+                # Check if we're done
+                if stop_reason == "end_turn":
+                    # Extract final text response
+                    return self._extract_text_from_message(output_message)
 
-        except Exception as e:
-            self.logger.error("Error creating technical analysis text: %s", e)
-            return ""
+                # Handle tool use
+                elif stop_reason == "tool_use":
+                    # Execute all requested tools
+                    tool_results = []
 
-    def _create_fundamental_analysis_text(self, portfolio_id: int) -> str:
-        """
-        Create fundamental analysis summary text for securities with active positions only.
+                    for content_block in output_message["content"]:
+                        if "toolUse" in content_block:
+                            tool_use = content_block["toolUse"]
+                            tool_name = tool_use["name"]
+                            tool_input = tool_use["input"]
+                            tool_use_id = tool_use["toolUseId"]
 
-        Args:
-            portfolio_id: The portfolio ID to analyze
+                            self.logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
 
-        Returns:
-            str: Formatted text containing fundamental metrics (P/E ratio, market cap,
-                 dividend yield, growth metrics) for each security with active positions,
-                 or empty string if no positions exist
-        """
-        try:
-            # Get only tickers with active positions
-            positions = self.transactions_dao.get_current_positions(portfolio_id)
-            if not positions:
-                return ""
+                            # Execute tool
+                            result = self._execute_tool(tool_name, tool_input)
 
-            analysis_parts = ["Fundamental Analysis Summary:\n"]
+                            # Format result
+                            formatted_result = self._format_tool_result(tool_use_id, result)
+                            tool_results.append({"toolResult": formatted_result})
 
-            # Iterate through active positions only
-            for ticker_id, position in positions.items():
-                ticker = position["symbol"]
-                try:
-                    fund_data = self.fundamental_dao.get_latest_fundamental_data(ticker_id)
-                    if fund_data:
-                        ticker_info = []
+                    # Add tool results to conversation
+                    self.conversation_history.append({
+                        "role": "user",
+                        "content": tool_results
+                    })
 
-                        # Valuation metrics
-                        if fund_data.get("pe_ratio"):
-                            ticker_info.append(f"P/E Ratio: {fund_data['pe_ratio']:.2f}")
-                        if fund_data.get("market_cap") is not None:
-                            try:
-                                market_cap_b = float(fund_data["market_cap"]) / 1e9
-                                ticker_info.append(f"Market Cap: ${market_cap_b:.1f}B")
-                            except (TypeError, ValueError):
-                                pass
-                        if fund_data.get("dividend_yield"):
-                            ticker_info.append(f"Dividend Yield: {fund_data['dividend_yield']:.2f}%")
-
-                        # Growth metrics
-                        if fund_data.get("eps_growth"):
-                            ticker_info.append(f"EPS Growth: {fund_data['eps_growth']:.1f}%")
-                        if fund_data.get("revenue_growth"):
-                            ticker_info.append(f"Revenue Growth: {fund_data['revenue_growth']:.1f}%")
-
-                        if ticker_info:
-                            analysis_parts.append(f"\n{ticker}:")
-                            for info in ticker_info:
-                                analysis_parts.append(f"  - {info}")
-
-                except Exception:
+                    # Continue conversation loop
                     continue
 
-            return "\n".join(analysis_parts)
+                else:
+                    # Unexpected stop reason
+                    self.logger.warning(f"Unexpected stop reason: {stop_reason}")
+                    return "I encountered an unexpected situation. Please try again."
+
+            # Max turns reached
+            return "I apologize, but I couldn't complete your request within the maximum number of steps. Please try breaking your question into smaller parts."
 
         except Exception as e:
-            self.logger.error("Error creating fundamental analysis text: %s", e)
-            return ""
+            self.logger.error(f"Error in chat: {e}")
+            return f"I encountered an error: {str(e)}"
 
-    def _create_transactions_text(self, portfolio_id: int) -> str:
-        """Create recent transactions summary text."""
-        try:
-            # Get transactions from last 30 days
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=30)
+    def reset_conversation(self):
+        """Clear conversation history to start fresh."""
+        self.conversation_history = []
+        self.logger.info("Conversation history cleared")
 
-            all_transactions = []
+    def get_conversation_history(self) -> List[Dict]:
+        """Get the current conversation history."""
+        return self.conversation_history.copy()
 
-            # Use the transaction history method that exists
-            all_transactions = self.transactions_dao.get_transaction_history(portfolio_id)
-
-            self.logger.info(
-                "Retrieved %s total transactions for portfolio %s", len(all_transactions), portfolio_id
-            )
-
-            # Filter to last 30 days and add ticker symbols
-            filtered_transactions = []
-            skipped_count = 0
-
-            for trans in all_transactions:
-                if "transaction_date" in trans and trans["transaction_date"]:
-                    trans_date = trans["transaction_date"]
-                    parsed_date = None
-
-                    try:
-                        if isinstance(trans_date, str):
-                            # Try multiple date formats
-                            for date_format in ["%Y-%m-%d", "%Y-%m-%d %H:%M:%S", "%m/%d/%Y", "%Y/%m/%d"]:
-                                try:
-                                    parsed_date = datetime.strptime(trans_date, date_format).date()
-                                    break
-                                except ValueError:
-                                    continue
-
-                            if not parsed_date:
-                                self.logger.warning(
-                                    "Could not parse transaction date string: %s for transaction: %s",
-                                    trans_date,
-                                    trans.get("id", "unknown"),
-                                )
-                                skipped_count += 1
-                                continue
-
-                        elif hasattr(trans_date, "date"):
-                            parsed_date = trans_date.date()
-                        elif hasattr(trans_date, "year"):  # Already a date object
-                            parsed_date = trans_date
-                        else:
-                            self.logger.warning(
-                                "Unknown transaction_date type: %s for transaction: %s",
-                                type(trans_date),
-                                trans.get("id", "unknown"),
-                            )
-                            skipped_count += 1
-                            continue
-
-                        if parsed_date and parsed_date >= start_date.date():
-                            filtered_transactions.append(trans)
-
-                    except Exception as e:
-                        self.logger.error(
-                            "Error parsing transaction date %s: %s", trans_date, e
-                        )
-                        skipped_count += 1
-                        continue
-
-            all_transactions = filtered_transactions
-
-            self.logger.info(
-                "Filtered to %s transactions in last 30 days (skipped %s due to date parsing issues)",
-                len(all_transactions),
-                skipped_count,
-            )
-
-            if not all_transactions:
-                return "No recent transactions in the last 30 days."
-
-            # Sort by date, most recent first
-            all_transactions.sort(key=lambda x: x.get("transaction_date", ""), reverse=True)
-
-            text_parts = ["Recent Transactions (Last 30 Days):\n"]
-
-            for trans in all_transactions[:10]:  # Limit to 10 most recent
-                date = trans.get("transaction_date", "Unknown")
-                trans_type = trans.get("transaction_type", "unknown").title()
-                ticker = trans.get("ticker", "Unknown")
-
-                if trans_type in ["Buy", "Sell"]:
-                    shares = trans.get("shares", 0)
-                    price = trans.get("price", 0)
-                    total = shares * price
-                    text_parts.append(
-                        f"  • {date}: {trans_type} {shares} shares of {ticker} @ ${price:.2f} (Total: ${total:.2f})"
-                    )
-                elif trans_type == "Dividend":
-                    amount = trans.get("amount", 0)
-                    text_parts.append(f"  • {date}: Dividend from {ticker}: ${amount:.2f}")
-
-            return "\n".join(text_parts)
-
-        except Exception as e:
-            self.logger.error("Error creating transactions text: %s", e)
-            return ""
-
-    def _create_watchlist_analysis_text(self) -> str:
-        """
-        Create comprehensive watchlist analysis text with technical indicators.
-
-        This provides analysis of securities on watchlists as potential candidates
-        for adding to the portfolio.
-
-        Returns:
-            str: Formatted text containing technical and fundamental analysis
-                 for each watchlist security, or empty string if no watchlists exist
-        """
-        try:
-            # Get all watchlists
-            watchlists = self.watchlist_dao.get_watch_list()
-            if not watchlists:
-                return ""
-
-            analysis_parts = ["Watchlist Securities Analysis (Potential Portfolio Additions):\n"]
-            analysis_parts.append("=" * 80)
-
-            # Track which tickers we've already analyzed to avoid duplicates
-            analyzed_tickers = set()
-
-            for watchlist in watchlists:
-                watchlist_id = watchlist["id"]
-                watchlist_name = watchlist["name"]
-                watchlist_desc = watchlist.get("description", "")
-
-                # Get tickers in this watchlist
-                tickers_in_watchlist = self.watchlist_dao.get_tickers_in_watch_list(watchlist_id)
-
-                if not tickers_in_watchlist:
-                    continue
-
-                analysis_parts.append(f"\n📋 Watchlist: {watchlist_name}")
-                if watchlist_desc:
-                    analysis_parts.append(f"Description: {watchlist_desc}")
-                analysis_parts.append("-" * 80)
-
-                # Analyze each ticker in the watchlist
-                for ticker_info in tickers_in_watchlist:
-                    ticker_id = ticker_info["ticker_id"]
-                    ticker_symbol = ticker_info["symbol"]
-                    ticker_name = ticker_info.get("name", ticker_symbol)
-                    notes = ticker_info.get("notes", "")
-
-                    # Skip if we've already analyzed this ticker
-                    if ticker_symbol in analyzed_tickers:
-                        continue
-
-                    analyzed_tickers.add(ticker_symbol)
-
-                    analysis_parts.append(f"\n{ticker_symbol} ({ticker_name}):")
-                    if notes:
-                        analysis_parts.append(f"  Notes: {notes}")
-
-                    # Initialize shared metrics analyzer
-                    metrics = SharedAnalysisMetrics(
-                        self.rsi_calc,
-                        self.ma_calc,
-                        self.bb_calc,
-                        self.macd_calc,
-                        self.fundamental_dao,
-                        self.news_analyzer,
-                        self.options_calc,
-                        self.trend_analyzer,
-                        stochastic_analyzer=self.stoch_calc,
-                    )
-
-                    # Get comprehensive analysis
-                    analysis = metrics.get_comprehensive_analysis(
-                        ticker_id=ticker_id,
-                        symbol=ticker_symbol,
-                        include_options=True,
-                        include_stochastic=True,
-                    )
-
-                    # Extract key metrics for summary
-                    ticker_summary = []
-
-                    # Current price
-                    try:
-                        ticker_data = self.ticker_dao.get_ticker_data(ticker_id)
-                        if ticker_data and ticker_data.get("last_price"):
-                            current_price = ticker_data["last_price"]
-                            ticker_summary.append(f"  Current Price: ${current_price:.2f}")
-                    except:
-                        pass
-
-                    # RSI
-                    if analysis.get("rsi", {}).get("success"):
-                        rsi = analysis["rsi"]
-                        ticker_summary.append(f"  RSI: {rsi['value']:.2f} ({rsi['status']})")
-
-                    # Moving Average trend
-                    if analysis.get("moving_average", {}).get("success"):
-                        ma = analysis["moving_average"]
-                        if ma.get("trend", {}).get("direction"):
-                            trend_dir = ma["trend"]["direction"]
-                            trend_str = ma["trend"]["strength"]
-                            ticker_summary.append(f"  Trend: {trend_dir} ({trend_str})")
-
-                    # MACD signal
-                    if analysis.get("macd", {}).get("success"):
-                        macd = analysis["macd"]
-                        ticker_summary.append(f"  MACD Signal: {macd['current_signal']} ({macd['signal_strength']})")
-
-                    # Fundamental metrics
-                    if analysis.get("fundamental", {}).get("success"):
-                        fund = analysis["fundamental"]["data"]
-                        fund_items = []
-                        if fund.get("pe_ratio"):
-                            fund_items.append(f"P/E: {fund['pe_ratio']:.2f}")
-                        if fund.get("market_cap") is not None:
-                            try:
-                                market_cap_b = float(fund["market_cap"]) / 1e9
-                                fund_items.append(f"Market Cap: ${market_cap_b:.1f}B")
-                            except (TypeError, ValueError):
-                                pass
-                        if fund.get("dividend_yield"):
-                            fund_items.append(f"Div Yield: {fund['dividend_yield']:.2f}%")
-                        if fund_items:
-                            ticker_summary.append(f"  Fundamentals: {', '.join(fund_items)}")
-
-                    # News sentiment
-                    if analysis.get("news_sentiment", {}).get("success"):
-                        news = analysis["news_sentiment"]
-                        ticker_summary.append(
-                            f"  News Sentiment: {news['status']} (Avg: {news['average_sentiment']:.2f})"
-                        )
-
-                    # Stochastic
-                    if analysis.get("stochastic", {}).get("success"):
-                        stoch = analysis["stochastic"]
-                        ticker_summary.append(f"  Stochastic: {stoch['signal']} ({stoch['signal_strength']})")
-
-                    # Options sentiment
-                    if analysis.get("options", {}).get("success") and "put_call_ratio" in analysis["options"]:
-                        options = analysis["options"]
-                        ticker_summary.append(
-                            f"  Options P/C Ratio: {options['put_call_ratio']:.2f} ({options['volume_sentiment']})"
-                        )
-
-                    # Add summary to analysis
-                    if ticker_summary:
-                        analysis_parts.extend(ticker_summary)
-                    else:
-                        analysis_parts.append("  Analysis data not available")
-
-                    analysis_parts.append("")  # Empty line for spacing
-
-            if len(analyzed_tickers) == 0:
-                return ""
-
-            analysis_parts.append("=" * 80)
-            analysis_parts.append(f"\nTotal watchlist securities analyzed: {len(analyzed_tickers)}")
-            analysis_parts.append("\nThese securities are being monitored as potential additions to the portfolio.")
-            analysis_parts.append(
-                "Consider their technical signals, fundamental metrics, and overall market conditions when making investment decisions."
-            )
-
-            return "\n".join(analysis_parts)
-
-        except Exception as e:
-            self.logger.error("Error creating watchlist analysis text: %s", e)
-            return ""
-
-    def build_portfolio_index(self, portfolio_id: int) -> VectorStoreIndex:
-        """
-        Build or update the vector index for a portfolio.
-
-        Args:
-            portfolio_id: The portfolio ID to build index for
-
-        Returns:
-            VectorStoreIndex for the portfolio
-        """
-        try:
-            # Create collection name
-            collection_name = f"portfolio_{portfolio_id}"
-
-            # Get or create ChromaDB collection
-            try:
-                collection = self.chroma_client.get_collection(collection_name)
-                # Delete existing collection to refresh data
-                self.chroma_client.delete_collection(collection_name)
-            except:
-                pass  # Collection doesn't exist, which is fine
-
-            collection = self.chroma_client.create_collection(collection_name)
-
-            # Create vector store
-            vector_store = ChromaVectorStore(chroma_collection=collection)
-
-            # Create documents
-            documents = self.create_portfolio_documents(portfolio_id)
-
-            if not documents:
-                self.logger.warning("No documents created for portfolio %s", portfolio_id)
-                return None
-
-            # Build index
-            index = VectorStoreIndex.from_documents(documents, vector_store=vector_store)
-
-            # Cache the index
-            self.vector_indices[portfolio_id] = index
-
-            self.logger.info("Built vector index for portfolio %s with %s documents", portfolio_id, len(documents))
-            return index
-
-        except Exception as e:
-            self.logger.error("Error building portfolio index: %s", e)
-            return None
+    def set_conversation_history(self, history: List[Dict]):
+        """Set conversation history (useful for continuing previous conversations)."""
+        self.conversation_history = history
+        self.logger.info(f"Conversation history set with {len(history)} messages")
 
     def query_portfolio(self, portfolio_id: int, query: str, force_refresh: bool = False) -> str:
         """
+        DEPRECATED: Use chat() method instead.
+
         Query a portfolio using natural language.
+        This method now redirects to the new chat() interface.
 
         Args:
             portfolio_id: The portfolio ID to query
             query: Natural language query
-            force_refresh: If True, rebuild the index with fresh data (default: False)
+            force_refresh: If True, clears conversation history (equivalent to fresh chat)
 
         Returns:
             AI-generated response
         """
-        try:
-            # Clear cached index if force_refresh is requested
-            if force_refresh and portfolio_id in self.vector_indices:
-                del self.vector_indices[portfolio_id]
-                self.logger.info("Cleared cached index for portfolio %s (force_refresh=True)", portfolio_id)
-
-            # Get or build index
-            if portfolio_id not in self.vector_indices:
-                index = self.build_portfolio_index(portfolio_id)
-            else:
-                index = self.vector_indices[portfolio_id]
-
-            if not index:
-                return "Sorry, I couldn't analyze your portfolio data at the moment."
-
-            # Create query engine with increased similarity_top_k for better retrieval
-            query_engine = index.as_query_engine(similarity_top_k=8, response_mode="tree_summarize")
-
-            # Add context to the query
-            enhanced_query = f"""
-            You are a professional financial advisor analyzing a portfolio. 
-            The user is following a 70/30 Core Strategy.  Core holdings make up 70% of the portfolio and 30% of the portfolio is for swing positions.
-            For Core positions these are the rules:
-                - Purpose: Long-term wealth building, 3-5+ year holds
-                - Positions: VTI, FSPSX, VEA, JNJ, BND, KO 1-2 quality dividend stocks
-                - Entry: Fundamental strength + reasonable valuation
-                - Exit: Only on fundamental breakdown or major trend reversal
-                - Technical analysis: Use for sizing (add on dips), NOT for selling
-                
-            For Swing Positions these are the rules:
-                - Purpose: Tactical opportunities, weeks to 6 months
-                - Positions: 3-6 positions at any time
-                - Entry: Technical setup (oversold RSI, MACD buy, support bounce)
-                - Exit: Technical signals (overbought, MACD sell, resistance)
-                - Stop-losses: Always use, 5-8% max loss
-                
-            Please provide detailed, actionable insights based on the portfolio data.
-            Consider technical indicators, fundamental metrics, sentiment analysis, and recent transactions.
-            Be specific with numbers, dates, and recommendations.
-            
-            User Question: {query}
-            """
-
-            # Execute query
-            response = query_engine.query(enhanced_query)
-
-            return str(response)
-
-        except Exception as e:
-            self.logger.error("Error querying portfolio: %s", e)
-            return f"Sorry, I encountered an error while analyzing your portfolio: {str(e)}"
+        self.logger.warning("query_portfolio() is deprecated. Use chat() instead.")
+        if force_refresh:
+            self.reset_conversation()
+        return self.chat(query, portfolio_id=portfolio_id)
 
     def get_weekly_recommendations(self, portfolio_id: int) -> str:
         """
+        DEPRECATED: Use chat() with a specific prompt instead.
+
         Generate weekly recommendations for a portfolio.
 
         Args:
@@ -856,29 +502,29 @@ class LLMPortfolioAnalyzer:
         Returns:
             AI-generated weekly recommendations
         """
-        # Clear cached index to force rebuild with fresh data
-        if portfolio_id in self.vector_indices:
-            del self.vector_indices[portfolio_id]
-            self.logger.info("Cleared cached index for portfolio %s", portfolio_id)
+        self.logger.warning("get_weekly_recommendations() is deprecated. Use chat() instead.")
 
         weekly_prompt = """
-        Based on the portfolio data, technical indicators, news sentiment, and recent market activity, 
+        Based on the portfolio data, technical indicators, news sentiment, and recent market activity,
         please provide specific recommendations for the upcoming week. Include:
-        
+
         1. Stocks to watch closely and why
-        2. Any technical signals that suggest buying or selling opportunities  
+        2. Any technical signals that suggest buying or selling opportunities
         3. Risk factors to monitor
         4. Potential market events or earnings that could affect holdings
         5. Portfolio rebalancing suggestions if any
         6. Specific price levels or indicators to watch
-        
+
         Be actionable and specific with your recommendations.
         """
 
-        return self.query_portfolio(portfolio_id, weekly_prompt)
+        self.reset_conversation()
+        return self.chat(weekly_prompt, portfolio_id=portfolio_id)
 
     def analyze_portfolio_performance(self, portfolio_id: int) -> str:
         """
+        DEPRECATED: Use chat() with a specific prompt instead.
+
         Analyze portfolio performance comprehensively.
 
         Args:
@@ -887,14 +533,11 @@ class LLMPortfolioAnalyzer:
         Returns:
             AI-generated performance analysis
         """
-        # Clear cached index to force rebuild with fresh data
-        if portfolio_id in self.vector_indices:
-            del self.vector_indices[portfolio_id]
-            self.logger.info("Cleared cached index for portfolio %s", portfolio_id)
+        self.logger.warning("analyze_portfolio_performance() is deprecated. Use chat() instead.")
 
         analysis_prompt = """
         Provide a comprehensive analysis of this portfolio's current performance including:
-        
+
         1. Overall performance assessment with specific numbers
         2. Best and worst performing positions
         3. Risk assessment and diversification analysis
@@ -903,8 +546,9 @@ class LLMPortfolioAnalyzer:
         6. News sentiment impact on holdings
         7. Recent transaction activity analysis
         8. Specific recommendations for improvement
-        
+
         Use all available data to provide a thorough evaluation.
         """
 
-        return self.query_portfolio(portfolio_id, analysis_prompt)
+        self.reset_conversation()
+        return self.chat(analysis_prompt, portfolio_id=portfolio_id)
