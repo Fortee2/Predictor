@@ -1,11 +1,8 @@
 import logging
-from contextlib import contextmanager
 
 import mysql.connector
-
+import datetime
 from data.base_dao import BaseDAO
-
-from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
@@ -18,23 +15,24 @@ class PortfolioTransactionsDAO(BaseDAO):
                 cursor = connection.cursor(dictionary=True)
                 if security_id:
                     query = """
-                        SELECT t.*, s.ticker_id, tk.ticker as symbol
-                        FROM portfolio_transactions t
-                        JOIN portfolio_securities s ON t.security_id = s.id
-                        JOIN tickers tk ON s.ticker_id = tk.id
-                        WHERE t.portfolio_id = %s AND t.security_id = %s
-                        ORDER BY t.transaction_date ASC, t.id ASC
-                    """
+                            SELECT t.*, s.ticker_id, tk.ticker as symbol
+                            FROM portfolio_transactions t
+                                     JOIN portfolio_securities s ON t.security_id = s.id
+                                     JOIN tickers tk ON s.ticker_id = tk.id
+                            WHERE t.portfolio_id = %s
+                              AND t.security_id = %s
+                            ORDER BY t.transaction_date ASC, t.id ASC \
+                            """
                     cursor.execute(query, (portfolio_id, security_id))
                 else:
                     query = """
-                        SELECT t.*, s.ticker_id, tk.ticker as symbol
-                        FROM portfolio_transactions t
-                        JOIN portfolio_securities s ON t.security_id = s.id
-                        JOIN tickers tk ON s.ticker_id = tk.id
-                        WHERE t.portfolio_id = %s
-                        ORDER BY t.transaction_date ASC, t.id ASC
-                    """
+                            SELECT t.*, s.ticker_id, tk.ticker as symbol
+                            FROM portfolio_transactions t
+                                     JOIN portfolio_securities s ON t.security_id = s.id
+                                     JOIN tickers tk ON s.ticker_id = tk.id
+                            WHERE t.portfolio_id = %s
+                            ORDER BY t.transaction_date ASC, t.id ASC \
+                            """
                     cursor.execute(query, (portfolio_id,))
                 result = cursor.fetchall()
                 cursor.close()
@@ -43,15 +41,48 @@ class PortfolioTransactionsDAO(BaseDAO):
             logger.error("Error retrieving transaction history: %s", e)
             return []
 
+    """Get transaction history for a portfolio including buys, sells, and dividends
+        for a date range.  If start and end date are not provided then default to the last 
+        365 days."""
+    def get_transaction_history_by_date(self, portfolio_id: int, start_date: datetime.date =None, end_date: datetime.date =None):
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+
+                if not start_date:
+                    start_date = datetime.date.today()-datetime.timedelta(days=365)
+
+                if not end_date:
+                    end_date = datetime.date.today()
+
+                query = """
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol
+                        FROM portfolio_transactions t
+                                 JOIN portfolio_securities s ON t.security_id = s.id
+                                 JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s \
+                          AND t.transaction_date BETWEEN %s AND %s \
+                        ORDER BY t.transaction_date ASC, t.id ASC \
+                        """
+                cursor.execute(query, (portfolio_id, start_date, end_date))
+
+                result = cursor.fetchall()
+                cursor.close()
+                return result
+
+        except mysql.connector.Error as e:
+            logger.error("Error retrieving transaction history: %s", e)
+        return []
+
     def insert_transaction(
-        self,
-        portfolio_id,
-        security_id,
-        transaction_type,
-        transaction_date,
-        shares=None,
-        price=None,
-        amount=None,
+            self,
+            portfolio_id,
+            security_id,
+            transaction_type,
+            transaction_date,
+            shares=None,
+            price=None,
+            amount=None,
     ):
         """
         Insert a transaction into the database.
@@ -62,7 +93,7 @@ class PortfolioTransactionsDAO(BaseDAO):
             # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
             rounded_price = round(price, 2) if price is not None else None
             rounded_amount = round(amount, 2) if amount is not None else None
-            
+
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
@@ -81,14 +112,14 @@ class PortfolioTransactionsDAO(BaseDAO):
             logger.error("Error inserting transaction: %s", e)
 
     def get_transaction_id(
-        self,
-        portfolio_id,
-        security_id,
-        transaction_type,
-        transaction_date,
-        shares=None,
-        price=None,
-        amount=None,
+            self,
+            portfolio_id,
+            security_id,
+            transaction_type,
+            transaction_date,
+            shares=None,
+            price=None,
+            amount=None,
     ) -> int | None:
         """
         Get the ID of a transaction that matches the given parameters.
@@ -100,12 +131,12 @@ class PortfolioTransactionsDAO(BaseDAO):
             with self.get_connection() as connection:
                 cursor = connection.cursor()
                 query = """
-                    SELECT id
-                    FROM portfolio_transactions
-                    WHERE portfolio_id = %s
-                        AND security_id = %s
-                        AND transaction_type = %s
-                        AND transaction_date = %s"""
+                        SELECT id
+                        FROM portfolio_transactions
+                        WHERE portfolio_id = %s
+                          AND security_id = %s
+                          AND transaction_type = %s
+                          AND transaction_date = %s"""
 
                 values = [portfolio_id, security_id, transaction_type, transaction_date]
 
@@ -113,10 +144,10 @@ class PortfolioTransactionsDAO(BaseDAO):
                 # This prevents rounding issues when comparing float values with database values
                 if transaction_type in ('buy', 'sell'):
                     query += " AND shares = %s AND price = %s AND amount IS NULL"
-                    
+
                     # Round price to 2 decimal places to match DECIMAL(10,2)
                     rounded_price = round(price, 2) if price is not None else None
-                    
+
                     values.extend([
                         shares,
                         rounded_price
@@ -124,10 +155,10 @@ class PortfolioTransactionsDAO(BaseDAO):
 
                 elif transaction_type == 'dividend':
                     query += " AND shares IS NULL AND price IS NULL AND amount = %s"
-                    
+
                     # Round amount to 2 decimal places to match DECIMAL(10,2)
                     rounded_amount = round(amount, 2) if amount is not None else None
-                    
+
                     values.extend([
                         rounded_amount
                     ])
@@ -163,21 +194,20 @@ class PortfolioTransactionsDAO(BaseDAO):
 
                 # Get all transactions for the portfolio in a single query to improve performance
                 query = """
-                    SELECT
-                        s.ticker_id,
-                        s.id as security_id,
-                        tk.ticker as symbol,
-                        t.transaction_type,
-                        t.transaction_date,
-                        t.shares,
-                        t.price,
-                        t.amount
-                    FROM portfolio_transactions t
-                    JOIN portfolio_securities s ON t.security_id = s.id
-                    JOIN tickers tk ON s.ticker_id = tk.id
-                    WHERE t.portfolio_id = %s
-                    ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC
-                """
+                        SELECT s.ticker_id,
+                               s.id      as security_id,
+                               tk.ticker as symbol,
+                               t.transaction_type,
+                               t.transaction_date,
+                               t.shares,
+                               t.price,
+                               t.amount
+                        FROM portfolio_transactions t
+                                 JOIN portfolio_securities s ON t.security_id = s.id
+                                 JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s
+                        ORDER BY s.ticker_id, t.transaction_date ASC, t.id ASC \
+                        """
                 cursor.execute(query, (portfolio_id,))
                 all_transactions = cursor.fetchall()
                 cursor.close()

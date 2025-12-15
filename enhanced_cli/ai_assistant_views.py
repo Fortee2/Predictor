@@ -10,7 +10,7 @@ from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 
 from data.config import Config
-from data.llm_integration import LLMPortfolioAnalyzer
+from data.llm_portfolio_analyzer import LLMPortfolioAnalyzer
 from data.utility import DatabaseConnectionPool
 
 
@@ -86,7 +86,6 @@ def create_llm_analyzer():
             pool=db_pool,
             aws_region=model_config["aws_region"],
             model_name=model_config["model"],
-            embed_model=model_config["embed_model"],
         )
 
         return analyzer

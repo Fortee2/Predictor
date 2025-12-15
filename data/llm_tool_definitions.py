@@ -81,8 +81,8 @@ def get_tool_config():
             },
             {
                 "toolSpec": {
-                    "name": "get_transaction_history",
-                    "description": "Get transaction history for a portfolio including buys, sells, and dividends.",
+                    "name": "get_transaction_history_by_date",
+                    "description": "Get transaction history for a portfolio including buys, sells, and dividends for a date range.",
                     "inputSchema": {
                         "json": {
                             "type": "object",
@@ -91,9 +91,15 @@ def get_tool_config():
                                     "type": "integer",
                                     "description": "The portfolio ID"
                                 },
-                                "limit": {
-                                    "type": "integer",
-                                    "description": "Maximum number of transactions to return (default 50)"
+                                "start_date": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "The date to start retrieving transactions for in YYYY-MM-DD format. If not provided defaults to today minus 365 days."
+                                },
+                                "end_date": {
+                                    "type": "string",
+                                    "format": "date",
+                                    "description": "The date to end retrieving transactions for in YYYY-MM-DD format. If not provided defaults to today."
                                 }
                             },
                             "required": ["portfolio_id"]
