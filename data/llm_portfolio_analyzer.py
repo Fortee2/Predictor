@@ -180,6 +180,20 @@ class LLMPortfolioAnalyzer:
                 transactions = self.transactions_dao.get_transaction_history(portfolio_id)
                 return {"transactions": transactions[:limit]}
 
+            elif tool_name == "get_transaction_history_by_date":
+                portfolio_id = tool_input["portfolio_id"]
+                start_date_str = tool_input.get("start_date")
+                end_date_str = tool_input.get("end_date")
+
+                # Convert string dates to date objects if provided
+                start_date = datetime.strptime(start_date_str, "%Y-%m-%d").date() if start_date_str else None
+                end_date = datetime.strptime(end_date_str, "%Y-%m-%d").date() if end_date_str else None
+
+                transactions = self.transactions_dao.get_transaction_history_by_date(
+                    portfolio_id, start_date, end_date
+                )
+                return {"transactions": transactions}
+
             # Technical Analysis Tools
             elif tool_name == "calculate_rsi":
                 ticker_id = tool_input["ticker_id"]
