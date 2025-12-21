@@ -326,6 +326,80 @@ def get_tool_config():
                     }
                 }
             },
+            # AI Recommendation Tools
+            {
+                "toolSpec": {
+                    "name": "save_recommendation",
+                    "description": "Save an AI trading recommendation to the database for tracking. Use this when you want to make a formal recommendation that should be tracked and linked to future trades. The recommendation will be marked as PENDING and can be followed up later.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "portfolio_id": {
+                                    "type": "integer",
+                                    "description": "The portfolio ID this recommendation is for"
+                                },
+                                "ticker_symbol": {
+                                    "type": "string",
+                                    "description": "The stock ticker symbol (e.g., AAPL, TSLA)"
+                                },
+                                "recommendation_type": {
+                                    "type": "string",
+                                    "description": "Type of recommendation",
+                                    "enum": ["BUY", "SELL", "HOLD", "REDUCE", "INCREASE"]
+                                },
+                                "recommended_quantity": {
+                                    "type": "number",
+                                    "description": "Suggested number of shares (optional)"
+                                },
+                                "recommended_price": {
+                                    "type": "number",
+                                    "description": "Suggested target price (optional)"
+                                },
+                                "confidence_score": {
+                                    "type": "number",
+                                    "description": "Your confidence in this recommendation from 0-100 (e.g., 85 means 85% confident)"
+                                },
+                                "reasoning": {
+                                    "type": "string",
+                                    "description": "Detailed explanation of why you're making this recommendation, including technical analysis, fundamental factors, and market conditions"
+                                },
+                                "technical_indicators": {
+                                    "type": "object",
+                                    "description": "Key technical indicator values at time of recommendation (e.g., {'RSI': 28.5, 'MACD': 1.25, 'MA_20': 175.30})"
+                                },
+                                "sentiment_score": {
+                                    "type": "number",
+                                    "description": "News sentiment score if analyzed (typically -1 to 1)"
+                                },
+                                "expires_days": {
+                                    "type": "integer",
+                                    "description": "Number of days until this recommendation expires (default 7 days)"
+                                }
+                            },
+                            "required": ["portfolio_id", "ticker_symbol", "recommendation_type", "reasoning"]
+                        }
+                    }
+                }
+            },
+            {
+                "toolSpec": {
+                    "name": "get_active_recommendations",
+                    "description": "Get all active (pending) recommendations for a portfolio that haven't been followed or expired yet.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "portfolio_id": {
+                                    "type": "integer",
+                                    "description": "The portfolio ID"
+                                }
+                            },
+                            "required": ["portfolio_id"]
+                        }
+                    }
+                }
+            },
             # Watchlist Tools
             {
                 "toolSpec": {

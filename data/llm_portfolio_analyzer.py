@@ -22,6 +22,7 @@ from .utility import DatabaseConnectionPool
 DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_LLM_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
+from .ai_recommendations_dao import AIRecommendationsDAO
 from .fundamental_data_dao import FundamentalDataDAO
 from .macd import MACD
 from .moving_averages import moving_averages
@@ -63,6 +64,7 @@ class LLMPortfolioAnalyzer:
         self.watchlist_dao = WatchListDAO(pool=self.db_pool)
         self.news_analyzer = NewsSentimentAnalyzer(pool=self.db_pool)
         self.fundamental_dao = FundamentalDataDAO(pool=self.db_pool)
+        self.recommendations_dao = AIRecommendationsDAO(pool=self.db_pool)
 
         # Initialize technical analysis tools
         self.rsi_calc = rsi_calculations(pool=self.db_pool)
@@ -291,6 +293,59 @@ class LLMPortfolioAnalyzer:
                 success = self.portfolio_dao.withdraw_cash(portfolio_id, amount)
                 new_balance = self.portfolio_dao.get_cash_balance(portfolio_id)
                 return {"success": success, "new_balance": new_balance}
+
+            # AI Recommendation Tools
+            elif tool_name == "save_recommendation":
+                portfolio_id = tool_input["portfolio_id"]
+                ticker_symbol = tool_input["ticker_symbol"]
+                recommendation_type = tool_input["recommendation_type"]
+                recommended_quantity = tool_input.get("recommended_quantity")
+                recommended_price = tool_input.get("recommended_price")
+                confidence_score = tool_input.get("confidence_score")
+                reasoning = tool_input["reasoning"]
+                technical_indicators = tool_input.get("technical_indicators")
+                sentiment_score = tool_input.get("sentiment_score")
+                expires_days = tool_input.get("expires_days", 7)
+
+                # Calculate expiration date
+                expires_date = datetime.now() + timedelta(days=expires_days)
+
+                rec_id = self.recommendations_dao.save_recommendation(
+                    portfolio_id=portfolio_id,
+                    ticker_symbol=ticker_symbol,
+                    recommendation_type=recommendation_type,
+                    recommended_quantity=recommended_quantity,
+                    recommended_price=recommended_price,
+                    confidence_score=confidence_score,
+                    reasoning=reasoning,
+                    technical_indicators=technical_indicators,
+                    sentiment_score=sentiment_score,
+                    expires_date=expires_date
+                )
+
+                if rec_id:
+                    return {
+                        "success": True,
+                        "recommendation_id": rec_id,
+                        "message": f"Recommendation saved successfully with ID {rec_id}. It will expire in {expires_days} days."
+                    }
+                else:
+                    return {
+                        "success": False,
+                        "error": "Failed to save recommendation. Check that the ticker symbol exists in the database."
+                    }
+
+            elif tool_name == "get_active_recommendations":
+                portfolio_id = tool_input["portfolio_id"]
+                recommendations = self.recommendations_dao.get_active_recommendations(portfolio_id)
+
+                # Expire old recommendations while we're at it
+                self.recommendations_dao.expire_old_recommendations(portfolio_id)
+
+                return {
+                    "active_recommendations": recommendations,
+                    "count": len(recommendations)
+                }
 
             # Watchlist Tools
             elif tool_name == "get_watchlists":
