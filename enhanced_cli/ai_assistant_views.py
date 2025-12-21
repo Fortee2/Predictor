@@ -348,8 +348,7 @@ def display_ai_setup_help(console: Console):
     aws configure
     # Enter your AWS Access Key ID
     # Enter your AWS Secret Access Key
-    # Enter your default region (e.g., us-east-1)
-    ```
+    # Enter your default region (e.g., us-east-1)Are 
 
     ### Option 2: Environment Variables
     Create a `.env` file in the project root:

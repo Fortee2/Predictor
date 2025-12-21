@@ -50,6 +50,7 @@ class EnhancedCLI:
 
         # Now we can safely import the real implementations
         from enhanced_cli.ai_assistant_views import register_ai_assistant_commands
+        from enhanced_cli.ai_recommendations_views import register_ai_recommendations_commands
         from enhanced_cli.analysis_views import register_analysis_commands as real_register_analysis_commands
         from enhanced_cli.cash_management_views import (
             register_cash_management_commands as real_register_cash_management_commands,
@@ -75,6 +76,7 @@ class EnhancedCLI:
         register_comprehensive_analysis_commands(self.command_registry)
         register_llm_export_commands(self.command_registry)
         register_ai_assistant_commands(self.command_registry)
+        register_ai_recommendations_commands(self.command_registry)
 
     def display_header(self):
         """Display application header."""

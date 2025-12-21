@@ -298,6 +298,10 @@ class PortfolioCLI:
         shares=None,
         price=None,
         amount=None,
+        trade_rationale_type=None,
+        ai_recommendation_id=None,
+        user_notes=None,
+        override_reason=None,
     ):
         try:
             # Validate portfolio
@@ -433,6 +437,10 @@ class PortfolioCLI:
                 shares=shares,
                 price=price,
                 amount=amount,
+                trade_rationale_type=trade_rationale_type,
+                ai_recommendation_id=ai_recommendation_id,
+                user_notes=user_notes,
+                override_reason=override_reason,
             )
 
             # Print confirmation

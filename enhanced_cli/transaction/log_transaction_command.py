@@ -152,6 +152,99 @@ class LogTransactionCommand(Command):
             action_label = "Deposit" if amount > 0 else "Withdrawal"
             ui.console.print(f"{action_label} Amount: ${abs(amount):.2f}")
 
+        # Prompt for trade rationale (only for buy/sell transactions, not cash or dividend)
+        trade_rationale_type = None
+        ai_recommendation_id = None
+        user_notes = None
+        override_reason = None
+
+        if trans_type in ["buy", "sell"]:
+            ui.console.print("\n[bold cyan]Trade Rationale[/bold cyan]")
+
+            # Ask if this was based on an AI recommendation
+            is_ai_rec = ui.confirm_action("Was this trade based on an AI recommendation?")
+
+            if is_ai_rec:
+                # Import here to avoid circular dependency
+                from data.ai_recommendations_dao import AIRecommendationsDAO
+                from data.config import Config
+                from data.utility import DatabaseConnectionPool
+
+                try:
+                    config = Config()
+                    db_config = config.get_database_config()
+                    db_pool = DatabaseConnectionPool(
+                        user=db_config["user"],
+                        password=db_config["password"],
+                        host=db_config["host"],
+                        database=db_config["database"],
+                    )
+                    rec_dao = AIRecommendationsDAO(db_pool)
+
+                    # Get active recommendations for this portfolio
+                    active_recs = rec_dao.get_active_recommendations(portfolio_id)
+
+                    if active_recs:
+                        ui.console.print("\n[bold]Active Recommendations:[/bold]")
+                        for rec in active_recs:
+                            ui.console.print(f"  [{rec['id']}] {rec['ticker_symbol']} - {rec['recommendation_type']}")
+
+                        rec_id_str = Prompt.ask(
+                            "[cyan]Enter recommendation ID (or leave blank)[/cyan]",
+                            default=""
+                        )
+
+                        if rec_id_str.strip():
+                            ai_recommendation_id = int(rec_id_str)
+                            trade_rationale_type = "AI_RECOMMENDATION"
+                        else:
+                            trade_rationale_type = "AI_RECOMMENDATION"
+                    else:
+                        ui.console.print("[yellow]No active recommendations found, but marking as AI-based.[/yellow]")
+                        trade_rationale_type = "AI_RECOMMENDATION"
+
+                except Exception as e:
+                    ui.console.print(f"[yellow]Could not load recommendations: {e}[/yellow]")
+                    trade_rationale_type = "AI_RECOMMENDATION"
+            else:
+                # Ask for rationale type
+                rationale_choice = Prompt.ask(
+                    "[cyan]What is the rationale for this trade?[/cyan]",
+                    choices=["MANUAL_DECISION", "STOP_LOSS", "PROFIT_TARGET", "REBALANCE", "OTHER"],
+                    default="MANUAL_DECISION"
+                )
+                trade_rationale_type = rationale_choice
+
+                # Ask for optional notes
+                notes = Prompt.ask("[cyan]Notes about this trade (optional)[/cyan]", default="")
+                if notes.strip():
+                    user_notes = notes
+
+                # If there were AI recommendations that were ignored, ask about it
+                try:
+                    from data.ai_recommendations_dao import AIRecommendationsDAO
+                    from data.config import Config
+                    from data.utility import DatabaseConnectionPool
+
+                    config = Config()
+                    db_config = config.get_database_config()
+                    db_pool = DatabaseConnectionPool(
+                        user=db_config["user"],
+                        password=db_config["password"],
+                        host=db_config["host"],
+                        database=db_config["database"],
+                    )
+                    rec_dao = AIRecommendationsDAO(db_pool)
+                    active_recs = rec_dao.get_active_recommendations(portfolio_id)
+
+                    if active_recs:
+                        if ui.confirm_action("[cyan]Did you override an AI recommendation?[/cyan]"):
+                            override_notes = Prompt.ask("[cyan]Why did you override the recommendation?[/cyan]")
+                            if override_notes.strip():
+                                override_reason = override_notes
+                except Exception:
+                    pass  # Silently ignore if we can't check for recommendations
+
         if ui.confirm_action("Log this transaction?"):
             # Get portfolio value before transaction for comparison
             try:
@@ -180,6 +273,10 @@ class LogTransactionCommand(Command):
                     shares,
                     price,
                     amount,
+                    trade_rationale_type=trade_rationale_type,
+                    ai_recommendation_id=ai_recommendation_id,
+                    user_notes=user_notes,
+                    override_reason=override_reason,
                 )
 
             # Only show the confirmation after the status context is completed

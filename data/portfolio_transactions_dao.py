@@ -83,11 +83,31 @@ class PortfolioTransactionsDAO(BaseDAO):
             shares=None,
             price=None,
             amount=None,
+            trade_rationale_type=None,
+            ai_recommendation_id=None,
+            user_notes=None,
+            override_reason=None,
     ):
         """
         Insert a transaction into the database.
-        
+
         Rounds price and amount to 2 decimal places to match database DECIMAL(10,2) precision.
+
+        Args:
+            portfolio_id: The portfolio ID
+            security_id: The security ID
+            transaction_type: Type of transaction (buy, sell, dividend)
+            transaction_date: Date of transaction
+            shares: Number of shares (for buy/sell)
+            price: Price per share (for buy/sell)
+            amount: Amount (for dividend)
+            trade_rationale_type: Why the trade was made (AI_RECOMMENDATION, MANUAL_DECISION, STOP_LOSS, etc.)
+            ai_recommendation_id: Link to AI recommendation if applicable
+            user_notes: User's explanation for the trade
+            override_reason: Explanation if ignoring AI recommendation
+
+        Returns:
+            int: The ID of the inserted transaction, or None on error
         """
         try:
             # Round price and amount to 2 decimal places to match database DECIMAL(10,2) precision
@@ -96,7 +116,12 @@ class PortfolioTransactionsDAO(BaseDAO):
 
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                query = "INSERT INTO portfolio_transactions (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount) VALUES (%s, %s, %s, %s, %s, %s, %s)"
+                query = """
+                    INSERT INTO portfolio_transactions
+                    (portfolio_id, security_id, transaction_type, transaction_date, shares, price, amount,
+                     trade_rationale_type, ai_recommendation_id, user_notes, override_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
                 values = (
                     portfolio_id,
                     security_id,
@@ -105,11 +130,18 @@ class PortfolioTransactionsDAO(BaseDAO):
                     shares,
                     rounded_price,
                     rounded_amount,
+                    trade_rationale_type,
+                    ai_recommendation_id,
+                    user_notes,
+                    override_reason,
                 )
                 cursor.execute(query, values)
+                transaction_id = cursor.lastrowid
                 cursor.close()
+                return transaction_id
         except mysql.connector.Error as e:
             logger.error("Error inserting transaction: %s", e)
+            return None
 
     def get_transaction_id(
             self,
@@ -301,3 +333,189 @@ class PortfolioTransactionsDAO(BaseDAO):
         except Exception as e:
             logger.error("Error storing position data for {ticker_id}: %s", e)
             return positions_dict
+
+    def update_transaction_rationale(
+            self,
+            transaction_id,
+            trade_rationale_type=None,
+            ai_recommendation_id=None,
+            user_notes=None,
+            override_reason=None
+    ):
+        """
+        Update the rationale information for an existing transaction.
+
+        Args:
+            transaction_id: The transaction ID to update
+            trade_rationale_type: Type of rationale (AI_RECOMMENDATION, MANUAL_DECISION, etc.)
+            ai_recommendation_id: Link to AI recommendation if applicable
+            user_notes: User's explanation for the trade
+            override_reason: Explanation if ignoring AI recommendation
+
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+
+                # Build dynamic update query based on provided parameters
+                updates = []
+                values = []
+
+                if trade_rationale_type is not None:
+                    updates.append("trade_rationale_type = %s")
+                    values.append(trade_rationale_type)
+
+                if ai_recommendation_id is not None:
+                    updates.append("ai_recommendation_id = %s")
+                    values.append(ai_recommendation_id)
+
+                if user_notes is not None:
+                    updates.append("user_notes = %s")
+                    values.append(user_notes)
+
+                if override_reason is not None:
+                    updates.append("override_reason = %s")
+                    values.append(override_reason)
+
+                if not updates:
+                    logger.warning("No rationale fields provided for update")
+                    return False
+
+                values.append(transaction_id)
+                query = f"UPDATE portfolio_transactions SET {', '.join(updates)} WHERE id = %s"
+
+                cursor.execute(query, tuple(values))
+                cursor.close()
+                return True
+
+        except mysql.connector.Error as e:
+            logger.error("Error updating transaction rationale: %s", e)
+            return False
+
+    def get_transactions_with_rationale(self, portfolio_id, security_id=None):
+        """
+        Get transaction history including rationale information.
+
+        Args:
+            portfolio_id: The portfolio ID
+            security_id: Optional security ID to filter by specific security
+
+        Returns:
+            List of transaction dictionaries including rationale fields
+        """
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+
+                if security_id:
+                    query = """
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol,
+                               t.trade_rationale_type, t.ai_recommendation_id,
+                               t.user_notes, t.override_reason
+                        FROM portfolio_transactions t
+                        JOIN portfolio_securities s ON t.security_id = s.id
+                        JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s
+                        AND t.security_id = %s
+                        ORDER BY t.transaction_date DESC, t.id DESC
+                    """
+                    cursor.execute(query, (portfolio_id, security_id))
+                else:
+                    query = """
+                        SELECT t.*, s.ticker_id, tk.ticker as symbol,
+                               t.trade_rationale_type, t.ai_recommendation_id,
+                               t.user_notes, t.override_reason
+                        FROM portfolio_transactions t
+                        JOIN portfolio_securities s ON t.security_id = s.id
+                        JOIN tickers tk ON s.ticker_id = tk.id
+                        WHERE t.portfolio_id = %s
+                        ORDER BY t.transaction_date DESC, t.id DESC
+                    """
+                    cursor.execute(query, (portfolio_id,))
+
+                result = cursor.fetchall()
+                cursor.close()
+                return result
+
+        except mysql.connector.Error as e:
+            logger.error("Error retrieving transactions with rationale: %s", e)
+            return []
+
+    def get_transactions_by_recommendation(self, ai_recommendation_id):
+        """
+        Get all transactions linked to a specific AI recommendation.
+
+        Args:
+            ai_recommendation_id: The AI recommendation ID
+
+        Returns:
+            List of transaction dictionaries
+        """
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                query = """
+                    SELECT t.*, s.ticker_id, tk.ticker as symbol,
+                           t.trade_rationale_type, t.user_notes, t.override_reason
+                    FROM portfolio_transactions t
+                    JOIN portfolio_securities s ON t.security_id = s.id
+                    JOIN tickers tk ON s.ticker_id = tk.id
+                    WHERE t.ai_recommendation_id = %s
+                    ORDER BY t.transaction_date DESC
+                """
+                cursor.execute(query, (ai_recommendation_id,))
+                result = cursor.fetchall()
+                cursor.close()
+                return result
+
+        except mysql.connector.Error as e:
+            logger.error("Error retrieving transactions by recommendation: %s", e)
+            return []
+
+    def get_rationale_statistics(self, portfolio_id):
+        """
+        Get statistics about trade rationales for a portfolio.
+
+        Args:
+            portfolio_id: The portfolio ID
+
+        Returns:
+            Dict containing rationale statistics
+        """
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                query = """
+                    SELECT
+                        trade_rationale_type,
+                        COUNT(*) as count,
+                        SUM(CASE WHEN transaction_type = 'buy' THEN shares ELSE 0 END) as total_buy_shares,
+                        SUM(CASE WHEN transaction_type = 'sell' THEN shares ELSE 0 END) as total_sell_shares
+                    FROM portfolio_transactions
+                    WHERE portfolio_id = %s
+                    AND trade_rationale_type IS NOT NULL
+                    GROUP BY trade_rationale_type
+                """
+                cursor.execute(query, (portfolio_id,))
+                results = cursor.fetchall()
+                cursor.close()
+
+                # Convert to more useful format
+                stats = {'total': 0, 'by_type': {}}
+                for row in results:
+                    rationale_type = row['trade_rationale_type']
+                    count = row['count']
+                    stats['total'] += count
+                    stats['by_type'][rationale_type] = {
+                        'count': count,
+                        'buy_shares': float(row['total_buy_shares'] or 0),
+                        'sell_shares': float(row['total_sell_shares'] or 0)
+                    }
+
+                return stats
+
+        except mysql.connector.Error as e:
+            logger.error("Error retrieving rationale statistics: %s", e)
+            return {'total': 0, 'by_type': {}}
