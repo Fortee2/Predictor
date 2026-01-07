@@ -424,7 +424,8 @@ Available tool categories:
         self,
         user_message: str,
         portfolio_id: Optional[int] = None,
-        max_turns: int = 10
+        max_turns: int = 10,
+        reset_context: bool = True
     ) -> str:
         """
         Chat with the LLM using tool calling for portfolio analysis.
@@ -433,11 +434,18 @@ Available tool categories:
             user_message: The user's question or request
             portfolio_id: Optional portfolio ID for context
             max_turns: Maximum number of conversation turns (prevents infinite loops)
+            reset_context: If True, clears conversation history before this request.
+                          This ensures consistent, context-free analysis for each query.
+                          Set to False only when explicitly continuing a conversation.
 
         Returns:
             The assistant's final response as a string
         """
         try:
+            # Clear history for consistent, context-free analysis
+            if reset_context:
+                self.reset_conversation()
+            
             # Add portfolio context to user message if provided
             if portfolio_id is not None:
                 portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
@@ -466,7 +474,8 @@ Available tool categories:
                     toolConfig=tool_config,
                     system=self._get_system_prompt(portfolio_id),
                     inferenceConfig={
-                        "temperature": 0.1,
+                        "temperature": 0.0,  # Maximum determinism for consistent results
+                        "topP": 1.0,         # Use all probability mass
                         "maxTokens": 4096
                     }
                 )

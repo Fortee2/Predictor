@@ -15,11 +15,29 @@ from data.utility import DatabaseConnectionPool
 
 
 def register_ai_assistant_commands(command_registry):
-    """Register AI assistant commands with the command registry."""
+    """
+    Register AI assistant commands with the command registry.
+    
+    The primary interface is the AI Portfolio Assistant (ai_chat), which provides
+    a continuous advisory session where you can ask for any type of analysis,
+    recommendations, or risk assessment within a natural conversation.
+    """
 
     @command_registry.register("ai_chat", "AI Portfolio Assistant", "analysis")
     def ai_chat_command(cli_instance, portfolio_id=None):
-        """Interactive chat with AI assistant."""
+        """
+        Interactive AI Portfolio Assistant - your continuous advisory session.
+        
+        Ask for:
+        - Weekly recommendations
+        - Portfolio analysis
+        - Risk assessment
+        - Technical analysis
+        - Investment suggestions
+        - Follow-up questions
+        
+        The AI maintains context throughout your session.
+        """
         if not portfolio_id:
             portfolio_id = cli_instance.selected_portfolio
 
@@ -29,33 +47,9 @@ def register_ai_assistant_commands(command_registry):
 
         ai_chat_interface(cli_instance.console, portfolio_id)
 
-    @command_registry.register("weekly_recommendations", "Weekly Portfolio Recommendations", "analysis")
-    def weekly_recommendations_command(cli_instance, portfolio_id=None):
-        """Get weekly recommendations for portfolio."""
-        if not portfolio_id:
-            portfolio_id = cli_instance.selected_portfolio
-
-        if not portfolio_id:
-            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
-            return
-
-        get_weekly_recommendations(cli_instance.console, portfolio_id)
-
-    @command_registry.register("portfolio_analysis", "Comprehensive Portfolio Analysis", "analysis")
-    def portfolio_analysis_command(cli_instance, portfolio_id=None):
-        """Get comprehensive portfolio analysis."""
-        if not portfolio_id:
-            portfolio_id = cli_instance.selected_portfolio
-
-        if not portfolio_id:
-            cli_instance.console.print("[red]Please select a portfolio first.[/red]")
-            return
-
-        analyze_portfolio_performance(cli_instance.console, portfolio_id)
-
     @command_registry.register("ai_risk_assessment", "AI Risk Assessment", "analysis")
     def risk_assessment_command(cli_instance, portfolio_id=None):
-        """Get AI-powered risk assessment."""
+        """Get AI-powered risk assessment (standalone report)."""
         if not portfolio_id:
             portfolio_id = cli_instance.selected_portfolio
 
@@ -96,20 +90,37 @@ def create_llm_analyzer():
 
 
 def ai_chat_interface(console: Console, portfolio_id: int):
-    """Interactive chat interface with the AI assistant."""
+    """
+    Interactive chat interface with the AI assistant.
+    
+    This maintains conversation context throughout the session, allowing the AI to:
+    - Remember previous recommendations and track their outcomes
+    - Understand why certain actions were suggested
+    - Track which suggestions were followed and which weren't
+    - Provide context-aware follow-up advice
+    """
 
     console.print(
         Panel(
-            "[bold green]🤖 AI Portfolio Assistant[/bold green]\n\n"
-            "Ask me anything about your portfolio! I can help with:\n"
-            "• Portfolio performance analysis\n"
-            "• Weekly recommendations\n"
-            "• Risk assessment\n"
-            "• Technical analysis interpretation\n"
-            "• Investment suggestions\n\n"
-            "[cyan]💡 Tip: Type 'refresh' to reload fresh portfolio data[/cyan]\n"
-            "[yellow]Type 'exit' to return to main menu[/yellow]",
-            title="Welcome to AI Assistant",
+            "[bold green]🤖 AI Portfolio Assistant - Your Personal Advisor[/bold green]\n\n"
+            "Welcome to your continuous portfolio advisory session!\n\n"
+            "[bold cyan]Ask me anything:[/bold cyan]\n"
+            "• 📈 Weekly recommendations - \"What should I buy this week?\"\n"
+            "• 📊 Portfolio analysis - \"How is my portfolio performing?\"\n"
+            "• ⚠️  Risk assessment - \"What are my portfolio risks?\"\n"
+            "• 🎯 Technical analysis - \"Show me RSI for AAPL\"\n"
+            "• 💡 Investment ideas - \"Which stocks look good?\"\n"
+            "• 🤔 Follow-up questions - \"Why did you recommend that?\"\n\n"
+            "[bold]I maintain full context:[/bold]\n"
+            "• Track recommendations and their outcomes\n"
+            "• Remember why actions were suggested\n"
+            "• Monitor which suggestions you follow\n"
+            "• Provide consistent, context-aware advice\n\n"
+            "[cyan]Commands:[/cyan]\n"
+            "  • 'clear' - Start a fresh session\n"
+            "  • 'history' - See conversation summary\n"
+            "[yellow]  • 'exit' - End session[/yellow]",
+            title="AI Portfolio Advisory Session",
             border_style="green",
         )
     )
@@ -119,8 +130,12 @@ def ai_chat_interface(console: Console, portfolio_id: int):
         console.print("[red]Error: Could not connect to AI assistant. Please check your configuration.[/red]")
         return
 
-    # Track if this is the first query (always refresh on first query)
+    # Start with fresh context for this advisory session
+    analyzer.reset_conversation()
+    
+    # Track session state
     first_query = True
+    query_count = 0
 
     try:
         while True:
@@ -128,36 +143,48 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             user_question = Prompt.ask("\n[bold blue]Ask your question[/bold blue]", default="")
 
             if user_question.lower() in ["exit", "quit", "q"]:
+                # Show session summary before exiting
+                history = analyzer.get_conversation_history()
+                console.print(f"\n[cyan]Advisory session ended. Total exchanges: {len(history) // 2}[/cyan]")
                 break
 
             if not user_question.strip():
                 continue
 
-            # Check for refresh command
-            if user_question.lower() in ["refresh", "reload", "update"]:
-                console.print("[cyan]♻️  Refreshing portfolio data...[/cyan]")
-                with console.status("[bold green]Reloading fresh data...[/bold green]"):
-                    try:
-                        # Force rebuild the index
-                        analyzer.query_portfolio(portfolio_id, "Portfolio overview", force_refresh=True)
-                        console.print("[green]✅ Portfolio data refreshed successfully![/green]")
-                        first_query = False
-                    except Exception as e:
-                        console.print(f"[red]Error refreshing data: {str(e)}[/red]")
+            # Handle special commands
+            if user_question.lower() in ["clear", "reset", "new"]:
+                if Confirm.ask("[yellow]Start a new advisory session? This will clear conversation history.[/yellow]"):
+                    analyzer.reset_conversation()
+                    first_query = True
+                    query_count = 0
+                    console.print("[green]✅ Started fresh advisory session. Previous context cleared.[/green]")
+                continue
+            
+            if user_question.lower() in ["history", "context", "summary"]:
+                history = analyzer.get_conversation_history()
+                console.print(f"\n[cyan]Current advisory session:[/cyan]")
+                console.print(f"  • Total exchanges: {len(history) // 2}")
+                console.print(f"  • Conversation history: {len(history)} messages")
+                console.print(f"  • Session maintains full context of all recommendations and discussions")
                 continue
 
+            # Increment query counter
+            query_count += 1
+
             # Show thinking indicator
-            status_msg = (
-                "[bold green]🤖 Loading fresh portfolio data and analyzing...[/bold green]"
-                if first_query
-                else "[bold green]🤖 Analyzing your portfolio...[/bold green]"
-            )
+            if first_query:
+                status_msg = "[bold green]🤖 Starting advisory session and analyzing your portfolio...[/bold green]"
+            else:
+                status_msg = f"[bold green]🤖 Continuing advisory session (query {query_count})...[/bold green]"
 
             with console.status(status_msg):
                 try:
-                    # Always force refresh on first query to ensure fresh data
-                    response = analyzer.query_portfolio(
-                        portfolio_id, user_question, force_refresh=first_query
+                    # Use chat() directly with reset_context=False to maintain conversation
+                    # Only reset on first query to start fresh session
+                    response = analyzer.chat(
+                        user_question,
+                        portfolio_id=portfolio_id,
+                        reset_context=first_query  # True on first query, False after
                     )
                     first_query = False
                 except Exception as e:
@@ -166,12 +193,17 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             # Display response
             console.print("\n" + "=" * 80)
             console.print(
-                Panel(Markdown(response), title="🤖 AI Assistant Response", border_style="blue", padding=(1, 2))
+                Panel(
+                    Markdown(response), 
+                    title=f"🤖 AI Assistant Response (Query {query_count})", 
+                    border_style="blue", 
+                    padding=(1, 2)
+                )
             )
             console.print("=" * 80 + "\n")
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Chat session ended.[/yellow]")
+        console.print("\n[yellow]Advisory session interrupted. Context preserved if you return.[/yellow]")
 
 
 def get_weekly_recommendations(console: Console, portfolio_id: int):
