@@ -1,7 +1,12 @@
 import csv
 import datetime
+import sys
+import os
 
-from portfolio_cli import PortfolioCLI  # Assuming portfolio_cli.py is in the same directory
+# Add parent directory to path to allow imports from parent module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from portfolio_cli import PortfolioCLI
 
 
 def import_transactions_from_csv(portfolio_id, csv_filepath):
@@ -82,6 +87,7 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
 
                     date_str = row[col_map["Run Date"]].strip()
                     symbol = row[col_map["Symbol"]].strip() if "Symbol" in col_map and row[col_map["Symbol"]] else None
+
                     quantity_str = row[col_map["Quantity"]].strip()
                     price_str = row[col_map["Price ($)"]].strip()
                     amount_str = row[col_map["Amount ($)"]].strip()
@@ -172,17 +178,6 @@ def import_transactions_from_csv(portfolio_id, csv_filepath):
         print(f"Error: CSV file not found at {csv_filepath}")
     except Exception as e:
         print(f"An error occurred: {e}")
-    finally:
-        cli.portfolio_dao.close_connection()
-        cli.transactions_dao.close_connection()
-        cli.ticker_dao.close_connection()
-        cli.rsi_calc.close_connection()
-        cli.moving_avg.close_connection()
-        cli.fundamental_dao.close_connection()
-        cli.value_calculator.close_connection()
-        cli.macd_analyzer.close_connection()
-        cli.trend_analyzer.close_connection()
-        cli.watch_list_dao.close_connection()
 
         print("\n--- Transaction Import Summary ---")
         print(f"Total rows processed from CSV (excluding header and blank rows): {total_transactions}")
@@ -196,7 +191,7 @@ if __name__ == "__main__":
     target_portfolio_id = 1
 
     # IMPORTANT: Replace with the actual path to your Accounts_History.csv file
-    csv_file_path = "Accounts_History_2024.csv"
+    csv_file_path = "Accounts_History_2021.csv"
 
     print(f"Starting import of transactions from '{csv_file_path}' into Portfolio ID: {target_portfolio_id}")
     import_transactions_from_csv(target_portfolio_id, csv_file_path)
@@ -204,3 +199,4 @@ if __name__ == "__main__":
     print(
         "Consider running 'python portfolio_cli.py recalculate-history <portfolio_id>' after import to update historical values."
     )
+

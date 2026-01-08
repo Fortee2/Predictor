@@ -4,6 +4,10 @@ Useful for correcting discrepancies or initializing history for existing portfol
 """
 
 import sys
+import os
+
+# Add parent directory to path to allow imports from data module
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from data.config import Config
 from data.portfolio_dao import PortfolioDAO
