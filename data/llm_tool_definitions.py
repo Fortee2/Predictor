@@ -400,7 +400,7 @@ def get_tool_config():
                     }
                 }
             },
-            # Watchlist Tools
+            # Watch list Tools
             {
                 "toolSpec": {
                     "name": "get_watchlists",

@@ -12,7 +12,8 @@ from rich.prompt import Prompt
 
 from data.comprehensive_performance_formatter import ComprehensivePerformanceFormatter
 from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from data.utility import DatabaseConnectionPool
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 
@@ -208,8 +209,9 @@ class ComprehensiveAnalysisCommand(Command):
 class ViewSavedMetricsCommand(Command):
     """Command to view previously saved comprehensive metrics."""
 
-    def __init__(self):
+    def __init__(self, pool: DatabaseConnectionPool):
         super().__init__("View Saved Metrics", "View previously calculated comprehensive metrics")
+        self.pool = pool
 
     @error_handler("viewing saved metrics")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -260,9 +262,8 @@ class ViewSavedMetricsCommand(Command):
             progress.add_task("", total=None)
 
             try:
-                analyzer = MultiTimeframeAnalyzer()
+                analyzer = MultiTimeframeAnalyzer(self.pool)
                 portfolio_metrics = analyzer.get_portfolio_metrics(portfolio_id, analysis_date)
-                analyzer.close_connection()
 
                 if not portfolio_metrics:
                     ui.status_message(f"No saved metrics found for {analysis_date}", "warning")
@@ -301,8 +302,9 @@ class ViewSavedMetricsCommand(Command):
 class UpdateBenchmarkDataCommand(Command):
     """Command to update benchmark data (S&P 500)."""
 
-    def __init__(self):
+    def __init__(self, pool: DatabaseConnectionPool):
         super().__init__("Update Benchmark Data", "Update S&P 500 and other benchmark data")
+        self.pool = pool
 
     @error_handler("updating benchmark data")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -321,13 +323,11 @@ class UpdateBenchmarkDataCommand(Command):
             task = progress.add_task("Updating S&P 500 data...", total=100)
 
             try:
-                analyzer = MultiTimeframeAnalyzer()
+                analyzer = MultiTimeframeAnalyzer(self.pool)
                 progress.update(task, advance=50)
 
                 analyzer.update_sp500_data()
                 progress.update(task, advance=50)
-
-                analyzer.close_connection()
 
                 ui.status_message("Benchmark data updated successfully", "success")
 
@@ -337,7 +337,7 @@ class UpdateBenchmarkDataCommand(Command):
         ui.wait_for_user()
 
 
-def register_comprehensive_analysis_commands(registry: CommandRegistry) -> None:
+def register_comprehensive_analysis_commands(registry: CommandRegistry, pool: DatabaseConnectionPool) -> None:
     """
     Register comprehensive analysis commands with the command registry.
 
@@ -345,5 +345,5 @@ def register_comprehensive_analysis_commands(registry: CommandRegistry) -> None:
         registry: The command registry to register commands with
     """
     registry.register("comprehensive_analysis", ComprehensiveAnalysisCommand(), "analysis")
-    registry.register("view_saved_metrics", ViewSavedMetricsCommand(), "analysis")
-    registry.register("update_benchmark_data", UpdateBenchmarkDataCommand(), "analysis")
+    registry.register("view_saved_metrics", ViewSavedMetricsCommand(pool), "analysis")
+    registry.register("update_benchmark_data", UpdateBenchmarkDataCommand(pool), "analysis")

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from rich.prompt import Prompt
 
 from data.utility import DatabaseConnectionPool
-from enhanced_cli.command import Command, error_handler
+from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 
 

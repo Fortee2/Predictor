@@ -1,6 +1,6 @@
 """Command to create a new portfolio."""
 
-from enhanced_cli.command import Command, error_handler
+from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 
 

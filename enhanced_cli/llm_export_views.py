@@ -6,7 +6,6 @@ in structured JSON format for analysis and recommendations.
 """
 
 import json
-import os
 import sys
 from datetime import date, datetime
 from decimal import Decimal
@@ -21,7 +20,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from data.utility import DatabaseConnectionPool
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 

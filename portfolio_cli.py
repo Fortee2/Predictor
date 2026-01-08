@@ -110,7 +110,7 @@ class PortfolioCLI:
                 print("\nTickers in Portfolio:")
                 print("--------------------------------------------------")
                 for symbol in tickers:
-                    print(f"Symbol: {symbol}")
+                    print(f"Symbol: {symbol[0]} - Core Holding: {symbol[1]}")
             else:
                 print("\nNo tickers in portfolio.")
 

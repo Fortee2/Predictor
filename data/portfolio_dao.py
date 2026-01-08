@@ -91,29 +91,15 @@ class PortfolioDAO(BaseDAO):
             with self.get_connection() as connection:
                 cursor = connection.cursor(dictionary=True)
 
-                # Check if the cash_balance_history table exists
-                check_table_query = """
-                    SELECT COUNT(*) as count
-                    FROM information_schema.tables
-                    WHERE table_schema = DATABASE()
-                    AND table_name = 'cash_balance_history'
-                """
-                cursor.execute(check_table_query)
-                table_exists = cursor.fetchone()["count"] > 0
-
-                if not table_exists:
-                    # If no history table, return current balance
-                    return self.get_cash_balance(portfolio_id)
-
                 # Get the most recent cash transaction on or before the specified date
                 query = """
-                    SELECT balance_after
-                    FROM cash_balance_history
-                    WHERE portfolio_id = %s
-                    AND DATE(transaction_date) <= %s
-                    ORDER BY transaction_date DESC, id DESC
-                    LIMIT 1
-                """
+                        SELECT balance_after
+                        FROM cash_balance_history
+                        WHERE portfolio_id = %s
+                          AND DATE(transaction_date) <= %s
+                        ORDER BY transaction_date DESC, id DESC
+                        LIMIT 1 \
+                        """
                 cursor.execute(query, (portfolio_id, as_of_date))
                 result = cursor.fetchone()
 
@@ -164,11 +150,11 @@ class PortfolioDAO(BaseDAO):
 
                 # Check if the cash_balance_history table exists
                 check_table_query = """
-                    SELECT COUNT(*) as count
-                    FROM information_schema.tables
-                    WHERE table_schema = DATABASE()
-                    AND table_name = 'cash_balance_history'
-                """
+                                    SELECT COUNT(*) as count
+                                    FROM information_schema.tables
+                                    WHERE table_schema = DATABASE()
+                                      AND table_name = 'cash_balance_history' \
+                                    """
                 cursor.execute(check_table_query)
                 table_exists = cursor.fetchone()[0] > 0
 
@@ -177,11 +163,11 @@ class PortfolioDAO(BaseDAO):
 
                 # Get all transactions ordered by date
                 query = """
-                    SELECT id, transaction_date, amount, transaction_type
-                    FROM cash_balance_history
-                    WHERE portfolio_id = %s
-                    ORDER BY transaction_date ASC, id ASC
-                """
+                        SELECT id, transaction_date, amount, transaction_type
+                        FROM cash_balance_history
+                        WHERE portfolio_id = %s
+                        ORDER BY transaction_date, id \
+                        """
                 cursor.execute(query, (portfolio_id,))
                 transactions = cursor.fetchall()
 
@@ -190,10 +176,10 @@ class PortfolioDAO(BaseDAO):
 
                 # Update each transaction's balance_after field
                 update_query = """
-                    UPDATE cash_balance_history
-                    SET balance_after = %s
-                    WHERE id = %s
-                """
+                               UPDATE cash_balance_history
+                               SET balance_after = %s
+                               WHERE id = %s \
+                               """
 
                 for transaction in transactions:
                     transaction_id = transaction[0]
@@ -319,12 +305,16 @@ class PortfolioDAO(BaseDAO):
         except mysql.connector.Error as e:
             logger.error("Error deleting portfolio: %s", e)
 
-    def add_tickers_to_portfolio(self, portfolio_id, ticker_symbols):
+    # Add a new security to the portfolio
+    def add_tickers_to_portfolio(self, portfolio_id: int, ticker_symbols: list[str], is_core_holding: bool = False):
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                query = "INSERT INTO portfolio_securities (portfolio_id, ticker_id, date_added) VALUES (%s, %s, NOW())"
+                query = """INSERT INTO portfolio_securities
+                               (portfolio_id, ticker_id, date_added, core_holding)
+                           VALUES (%d, %s, NOW(), %d)"""
                 added_count = 0
+
                 for symbol in ticker_symbols:
                     ticker_id = self.ticker_dao.get_ticker_id(symbol)
 
@@ -345,7 +335,7 @@ class PortfolioDAO(BaseDAO):
                         exists = cursor.fetchone()[0] > 0
 
                         if not exists:
-                            values = (portfolio_id, ticker_id)
+                            values = (portfolio_id, ticker_id, 1 if is_core_holding else 0)
                             cursor.execute(query, values)
                             added_count += 1
                         else:
@@ -389,18 +379,20 @@ class PortfolioDAO(BaseDAO):
             logger.error("Error removing tickers from portfolio: %s", e)
             connection.rollback()
 
-    def get_tickers_in_portfolio(self, portfolio_id):
+    def get_tickers_in_portfolio(self, portfolio_id) -> list[tuple[str, int]]:
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                query = """select distinct ticker
-                    from portfolio_securities ps
-                        inner join tickers t on ps.ticker_id = t.id
-                        WHERE portfolio_id = %s
-                    order by ticker; """
+                query = """select distinct 
+                               ticker,
+                                core_holding
+                           from portfolio_securities ps
+                                    inner join tickers t on ps.ticker_id = t.id
+                           WHERE portfolio_id = %s
+                           order by ticker; """
                 values = (portfolio_id,)
                 cursor.execute(query, values)
-                ticker_ids = [row[0] for row in cursor.fetchall()]
+                ticker_ids = cursor.fetchall()
                 return ticker_ids
         except mysql.connector.Error as e:
             logger.error("Error retrieving tickers in portfolio: %s", e)
@@ -454,19 +446,19 @@ class PortfolioDAO(BaseDAO):
             logger.error("Error retrieving security ID: %s", e)
             return None
 
-    def get_all_tickers_in_portfolios(self):
+    def get_all_tickers_in_portfolios(self) :
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                query = """SELECT DISTINCT
-                        ps.ticker_id as id,
-                        t.ticker as symbol,
-                        max(a.activity_date) as last_update
-                    FROM portfolio_securities ps
-                    INNER JOIN tickers t ON ps.ticker_id = t.id
-                    LEFT JOIN activity a ON ps.ticker_id = a.ticker_id
-                    group by ps.ticker_id, t.ticker
-                    order by 3;"""
+                query = """SELECT DISTINCT ps.ticker_id         as id,
+                                           t.ticker             as symbol,
+                                           max(a.activity_date) as last_update, 
+                                           ps.core_holding as is_core_holding
+                           FROM portfolio_securities ps
+                                    INNER JOIN tickers t ON ps.ticker_id = t.id
+                                    LEFT JOIN activity a ON ps.ticker_id = a.ticker_id
+                           group by ps.ticker_id, t.ticker
+                           order by 3;"""
                 cursor.execute(query)
                 return cursor.fetchall()
         except mysql.connector.Error as e:
@@ -474,14 +466,14 @@ class PortfolioDAO(BaseDAO):
             return []
 
     def log_transaction(
-        self,
-        portfolio_id,
-        security_id,
-        transaction_type,
-        transaction_date,
-        shares=None,
-        price=None,
-        amount=None,
+            self,
+            portfolio_id,
+            security_id,
+            transaction_type,
+            transaction_date,
+            shares=None,
+            price=None,
+            amount=None,
     ):
         trans_id = self.transactions_dao.get_transaction_id(
             portfolio_id,
@@ -512,12 +504,12 @@ class PortfolioDAO(BaseDAO):
 
     # Cash history management methods
     def log_cash_transaction(
-        self,
-        portfolio_id,
-        amount,
-        transaction_type,
-        description=None,
-        transaction_date=None,
+            self,
+            portfolio_id,
+            amount,
+            transaction_type,
+            description=None,
+            transaction_date=None,
     ):
         """
         Log a cash transaction to the cash_balance_history table and update portfolio cash balance.
@@ -548,10 +540,10 @@ class PortfolioDAO(BaseDAO):
 
                 # Insert the transaction into history
                 insert_query = """
-                    INSERT INTO cash_balance_history
-                    (portfolio_id, transaction_date, amount, transaction_type, description, balance_after)
-                    VALUES (%s, %s, %s, %s, %s, %s)
-                """
+                               INSERT INTO cash_balance_history
+                               (portfolio_id, transaction_date, amount, transaction_type, description, balance_after)
+                               VALUES (%s, %s, %s, %s, %s, %s) \
+                               """
                 insert_values = (
                     portfolio_id,
                     transaction_date,
@@ -589,38 +581,40 @@ class PortfolioDAO(BaseDAO):
 
                 # Check if the cash_balance_history table exists
                 check_table_query = """
-                    SELECT COUNT(*) as count
-                    FROM information_schema.tables
-                    WHERE table_schema = DATABASE()
-                    AND table_name = 'cash_balance_history'
-                """
+                                    SELECT COUNT(*) as count
+                                    FROM information_schema.tables
+                                    WHERE table_schema = DATABASE()
+                                      AND table_name = 'cash_balance_history' \
+                                    """
                 cursor.execute(check_table_query)
                 table_exists = cursor.fetchone()["count"] > 0
 
                 if not table_exists:
                     # Create the table if it doesn't exist
                     create_table_query = """
-                        CREATE TABLE cash_balance_history (
-                            id INT AUTO_INCREMENT PRIMARY KEY,
-                            portfolio_id INT NOT NULL,
-                            transaction_date DATETIME NOT NULL,
-                            amount DECIMAL(10,2) NOT NULL,
-                            transaction_type VARCHAR(20) NOT NULL,
-                            description VARCHAR(255),
-                            balance_after DECIMAL(10,2) NOT NULL,
-                            FOREIGN KEY (portfolio_id) REFERENCES portfolio(id)
-                        )
-                    """
+                                         CREATE TABLE cash_balance_history
+                                         (
+                                             id               INT AUTO_INCREMENT PRIMARY KEY,
+                                             portfolio_id     INT            NOT NULL,
+                                             transaction_date DATETIME       NOT NULL,
+                                             amount           DECIMAL(10, 2) NOT NULL,
+                                             transaction_type VARCHAR(20)    NOT NULL,
+                                             description      VARCHAR(255),
+                                             balance_after    DECIMAL(10, 2) NOT NULL,
+                                             FOREIGN KEY (portfolio_id) REFERENCES portfolio (id)
+                                         ) \
+                                         """
                     cursor.execute(create_table_query)
                     connection.commit()
                     return []
 
                 # Get all cash transactions
                 query = """
-                    SELECT * FROM cash_balance_history
-                    WHERE portfolio_id = %s
-                    ORDER BY transaction_date DESC, id DESC
-                """
+                        SELECT *
+                        FROM cash_balance_history
+                        WHERE portfolio_id = %s
+                        ORDER BY transaction_date DESC, id DESC \
+                        """
                 cursor.execute(query, (portfolio_id,))
                 return cursor.fetchall()
 

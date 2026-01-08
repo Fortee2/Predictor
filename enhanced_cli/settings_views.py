@@ -7,7 +7,7 @@ such as database connection, UI preferences, and analysis parameters.
 
 from rich.prompt import Prompt
 
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 

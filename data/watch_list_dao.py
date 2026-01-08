@@ -51,17 +51,18 @@ class WatchListDAO(BaseDAO):
             dict or list: The requested watch list or all watch lists
         """
         try:
-            cursor = self.current_connection.cursor(dictionary=True)
-            if watch_list_id:
-                query = "SELECT * FROM watch_lists WHERE id = %s"
-                values = (watch_list_id,)
-            else:
-                query = "SELECT * FROM watch_lists ORDER BY name"
-                values = None
-            cursor.execute(query, values)
-            if watch_list_id:
-                return cursor.fetchone()
-            return cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                if watch_list_id:
+                    query = "SELECT * FROM watch_lists WHERE id = %s"
+                    values = (watch_list_id,)
+                else:
+                    query = "SELECT * FROM watch_lists ORDER BY name"
+                    values = None
+                cursor.execute(query, values)
+                if watch_list_id:
+                    return cursor.fetchone()
+                return cursor.fetchall()
         except mysql.connector.Error as e:
             logger.error("Error retrieving watch list(s): %s", e)
             return [] if watch_list_id is None else None
@@ -198,18 +199,19 @@ class WatchListDAO(BaseDAO):
             list: A list of dictionaries with ticker information
         """
         try:
-            cursor = self.current_connection.cursor(dictionary=True)
-            query = """
-                SELECT wlt.id, wlt.ticker_id, t.ticker as symbol, t.ticker_name as name,
-                       wlt.date_added, wlt.notes
-                FROM watch_list_tickers wlt
-                JOIN tickers t ON wlt.ticker_id = t.id
-                WHERE wlt.watch_list_id = %s
-                ORDER BY t.ticker
-            """
-            values = (watch_list_id,)
-            cursor.execute(query, values)
-            return cursor.fetchall()
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                query = """
+                    SELECT wlt.id, wlt.ticker_id, t.ticker as symbol, t.ticker_name as name,
+                           wlt.date_added, wlt.notes
+                    FROM watch_list_tickers wlt
+                    JOIN tickers t ON wlt.ticker_id = t.id
+                    WHERE wlt.watch_list_id = %s
+                    ORDER BY t.ticker
+                """
+                values = (watch_list_id,)
+                cursor.execute(query, values)
+                return cursor.fetchall()
         except mysql.connector.Error as e:
             logger.error("Error retrieving tickers in watch list: %s", e)
             return []
