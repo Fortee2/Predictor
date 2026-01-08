@@ -56,7 +56,9 @@ inferenceConfig={
 }
 ```
 
-**Rationale:** Temperature of 0.0 produces the most deterministic outputs. Combined with topP=1.0, this maximizes consistency.
+**Rationale:** Temperature of 0.0 produces the most deterministic outputs.
+
+**Note:** AWS Bedrock Claude models do not allow both `temperature` and `topP` to be specified together. Using `temperature: 0.0` alone provides maximum determinism.
 
 ---
 
@@ -576,7 +578,7 @@ After implementing these recommendations:
 ## Summary Checklist
 
 - [x] Change temperature to 0.0 ✅ **COMPLETED 2026-01-06**
-- [x] Add topP=1.0 to inference config ✅ **COMPLETED 2026-01-06**
+- [x] ~~Add topP=1.0 to inference config~~ ❌ **Not compatible with Claude models - removed 2026-01-08**
 - [x] Add reset_context parameter (default True) ✅ **COMPLETED 2026-01-06**
 - [ ] Update system prompt with structured output requirements
 - [ ] Implement _normalize_tool_result() method

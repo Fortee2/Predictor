@@ -475,7 +475,6 @@ Available tool categories:
                     system=self._get_system_prompt(portfolio_id),
                     inferenceConfig={
                         "temperature": 0.0,  # Maximum determinism for consistent results
-                        "topP": 1.0,         # Use all probability mass
                         "maxTokens": 4096
                     }
                 )
