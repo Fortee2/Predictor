@@ -23,6 +23,7 @@ DEFAULT_AWS_REGION = "us-east-1"
 DEFAULT_LLM_MODEL = "anthropic.claude-3-5-sonnet-20241022-v2:0"
 
 from .ai_recommendations_dao import AIRecommendationsDAO
+from .conversation_history_dao import ConversationHistoryDAO
 from .fundamental_data_dao import FundamentalDataDAO
 from .macd import MACD
 from .moving_averages import moving_averages
@@ -65,6 +66,7 @@ class LLMPortfolioAnalyzer:
         self.news_analyzer = NewsSentimentAnalyzer(pool=self.db_pool)
         self.fundamental_dao = FundamentalDataDAO(pool=self.db_pool)
         self.recommendations_dao = AIRecommendationsDAO(pool=self.db_pool)
+        self.conversation_dao = ConversationHistoryDAO(pool=self.db_pool)
 
         # Initialize technical analysis tools
         self.rsi_calc = rsi_calculations(pool=self.db_pool)
@@ -83,6 +85,8 @@ class LLMPortfolioAnalyzer:
 
         # Conversation history
         self.conversation_history = []
+        self.current_session_id = None
+        self.auto_save = True  # Automatically save conversation after each exchange
 
         # Logger
         self.logger = logging.getLogger(__name__)
@@ -532,10 +536,74 @@ Available tool categories:
         except Exception as e:
             self.logger.error(f"Error in chat: {e}")
             return f"I encountered an error: {str(e)}"
+        finally:
+            # Auto-save conversation to database after each interaction
+            if self.auto_save and portfolio_id and len(self.conversation_history) > 0:
+                try:
+                    self.save_conversation_to_db(portfolio_id)
+                except Exception as save_error:
+                    self.logger.error(f"Error auto-saving conversation: {save_error}")
+
+    def save_conversation_to_db(
+        self, 
+        portfolio_id: int, 
+        session_name: Optional[str] = None
+    ) -> Optional[int]:
+        """
+        Save current conversation to database.
+
+        Args:
+            portfolio_id: Portfolio ID
+            session_name: Optional name for the session
+
+        Returns:
+            Session ID if successful, None otherwise
+        """
+        if not self.conversation_history:
+            self.logger.warning("No conversation history to save")
+            return None
+
+        session_id = self.conversation_dao.save_conversation(
+            portfolio_id=portfolio_id,
+            conversation_data=self.conversation_history,
+            session_name=session_name,
+            set_as_active=True
+        )
+
+        if session_id:
+            self.current_session_id = session_id
+            self.logger.info(f"Saved conversation to session {session_id}")
+
+        return session_id
+
+    def load_conversation_from_db(self, portfolio_id: int) -> bool:
+        """
+        Load the active conversation for a portfolio from database.
+
+        Args:
+            portfolio_id: Portfolio ID
+
+        Returns:
+            True if conversation was loaded, False if no active session exists
+        """
+        session_data = self.conversation_dao.load_active_conversation(portfolio_id)
+
+        if session_data:
+            self.conversation_history = session_data['conversation_data']
+            self.current_session_id = session_data['id']
+            self.logger.info(
+                f"Loaded conversation session {self.current_session_id} "
+                f"with {session_data['exchange_count']} exchanges"
+            )
+            return True
+        else:
+            self.logger.info(f"No active conversation found for portfolio {portfolio_id}")
+            return False
 
     def reset_conversation(self):
         """Clear conversation history to start fresh."""
         self.conversation_history = []
+        self.current_session_id = None
         self.logger.info("Conversation history cleared")
 
     def get_conversation_history(self) -> List[Dict]:
@@ -546,6 +614,23 @@ Available tool categories:
         """Set conversation history (useful for continuing previous conversations)."""
         self.conversation_history = history
         self.logger.info(f"Conversation history set with {len(history)} messages")
+
+    def get_conversation_stats(self) -> Dict:
+        """
+        Get statistics about the current conversation.
+
+        Returns:
+            Dictionary with message count, exchange count, and session info
+        """
+        message_count = len(self.conversation_history)
+        exchange_count = message_count // 2
+
+        return {
+            'message_count': message_count,
+            'exchange_count': exchange_count,
+            'session_id': self.current_session_id,
+            'has_history': message_count > 0
+        }
 
     def query_portfolio(self, portfolio_id: int, query: str, force_refresh: bool = False) -> str:
         """

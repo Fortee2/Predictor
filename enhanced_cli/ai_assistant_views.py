@@ -98,8 +98,57 @@ def ai_chat_interface(console: Console, portfolio_id: int):
     - Understand why certain actions were suggested
     - Track which suggestions were followed and which weren't
     - Provide context-aware follow-up advice
+    - Persist conversations between application restarts
     """
 
+    analyzer = create_llm_analyzer()
+    if not analyzer:
+        console.print("[red]Error: Could not connect to AI assistant. Please check your configuration.[/red]")
+        return
+
+    # Check if there's a saved conversation to resume
+    has_saved_session = False
+    session_info = None
+    
+    with console.status("[bold green]Checking for saved conversations...[/bold green]"):
+        try:
+            # Try to load existing session
+            has_saved_session = analyzer.load_conversation_from_db(portfolio_id)
+            if has_saved_session:
+                session_info = analyzer.get_conversation_stats()
+        except Exception as e:
+            console.print(f"[yellow]Note: Could not check for saved sessions: {e}[/yellow]")
+
+    # Offer to resume or start fresh
+    start_fresh = True
+    if has_saved_session and session_info:
+        console.print(
+            Panel(
+                f"[bold cyan]📝 Found Previous Conversation[/bold cyan]\n\n"
+                f"Session ID: {session_info['session_id']}\n"
+                f"Exchanges: {session_info['exchange_count']}\n"
+                f"Messages: {session_info['message_count']}\n\n"
+                f"Would you like to continue where you left off?",
+                title="Resume Session?",
+                border_style="cyan",
+            )
+        )
+        
+        resume_choice = Confirm.ask(
+            "[bold]Resume previous conversation?[/bold]",
+            default=True
+        )
+        
+        if resume_choice:
+            start_fresh = False
+            console.print("[green]✅ Resuming previous conversation session[/green]\n")
+        else:
+            analyzer.reset_conversation()
+            console.print("[yellow]🆕 Starting fresh conversation (previous session archived)[/yellow]\n")
+    else:
+        console.print("[cyan]🆕 Starting new conversation session[/cyan]\n")
+
+    # Display welcome message
     console.print(
         Panel(
             "[bold green]🤖 AI Portfolio Assistant - Your Personal Advisor[/bold green]\n\n"
@@ -111,31 +160,25 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             "• 🎯 Technical analysis - \"Show me RSI for AAPL\"\n"
             "• 💡 Investment ideas - \"Which stocks look good?\"\n"
             "• 🤔 Follow-up questions - \"Why did you recommend that?\"\n\n"
-            "[bold]I maintain full context:[/bold]\n"
-            "• Track recommendations and their outcomes\n"
-            "• Remember why actions were suggested\n"
-            "• Monitor which suggestions you follow\n"
-            "• Provide consistent, context-aware advice\n\n"
+            "[bold]Conversation persistence:[/bold]\n"
+            "• 💾 Auto-saved after each exchange\n"
+            "• 🔄 Resume where you left off next time\n"
+            "• 📊 Track recommendations over time\n"
+            "• 🧠 Remember context across sessions\n\n"
             "[cyan]Commands:[/cyan]\n"
-            "  • 'clear' - Start a fresh session\n"
+            "  • 'clear' - Archive current & start fresh session\n"
             "  • 'history' - See conversation summary\n"
-            "[yellow]  • 'exit' - End session[/yellow]",
+            "  • 'sessions' - List saved sessions\n"
+            "  • 'name <name>' - Name current session\n"
+            "[yellow]  • 'exit' - End session (auto-saved)[/yellow]",
             title="AI Portfolio Advisory Session",
             border_style="green",
         )
     )
-
-    analyzer = create_llm_analyzer()
-    if not analyzer:
-        console.print("[red]Error: Could not connect to AI assistant. Please check your configuration.[/red]")
-        return
-
-    # Start with fresh context for this advisory session
-    analyzer.reset_conversation()
     
     # Track session state
-    first_query = True
-    query_count = 0
+    first_query = start_fresh
+    query_count = 0 if start_fresh else session_info.get('exchange_count', 0)
 
     try:
         while True:
@@ -153,19 +196,66 @@ def ai_chat_interface(console: Console, portfolio_id: int):
 
             # Handle special commands
             if user_question.lower() in ["clear", "reset", "new"]:
-                if Confirm.ask("[yellow]Start a new advisory session? This will clear conversation history.[/yellow]"):
+                if Confirm.ask("[yellow]Archive current session and start fresh? (Current session will be saved)[/yellow]"):
+                    # Save current session before clearing
+                    if len(analyzer.get_conversation_history()) > 0:
+                        try:
+                            analyzer.conversation_dao.deactivate_session(analyzer.current_session_id)
+                            console.print("[cyan]📦 Current session archived[/cyan]")
+                        except Exception as e:
+                            console.print(f"[yellow]Note: Could not archive session: {e}[/yellow]")
+                    
                     analyzer.reset_conversation()
                     first_query = True
                     query_count = 0
-                    console.print("[green]✅ Started fresh advisory session. Previous context cleared.[/green]")
+                    console.print("[green]✅ Started fresh advisory session.[/green]")
                 continue
             
             if user_question.lower() in ["history", "context", "summary"]:
-                history = analyzer.get_conversation_history()
+                stats = analyzer.get_conversation_stats()
                 console.print(f"\n[cyan]Current advisory session:[/cyan]")
-                console.print(f"  • Total exchanges: {len(history) // 2}")
-                console.print(f"  • Conversation history: {len(history)} messages")
+                console.print(f"  • Session ID: {stats['session_id'] or 'Not saved yet'}")
+                console.print(f"  • Total exchanges: {stats['exchange_count']}")
+                console.print(f"  • Conversation history: {stats['message_count']} messages")
+                console.print(f"  • Auto-saved: {'Yes' if analyzer.auto_save else 'No'}")
                 console.print(f"  • Session maintains full context of all recommendations and discussions")
+                continue
+            
+            if user_question.lower() == "sessions":
+                try:
+                    sessions = analyzer.conversation_dao.list_sessions(portfolio_id, limit=10)
+                    if sessions:
+                        console.print(f"\n[cyan]Recent conversation sessions:[/cyan]")
+                        for session in sessions:
+                            active_marker = "✓ " if session['is_active'] else "  "
+                            session_name = session['session_name'] or "Unnamed"
+                            console.print(
+                                f"{active_marker}ID {session['id']}: {session_name} "
+                                f"({session['exchange_count']} exchanges, "
+                                f"last: {session['last_accessed_at'].strftime('%Y-%m-%d %H:%M')})"
+                            )
+                    else:
+                        console.print("[yellow]No saved sessions found[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]Error listing sessions: {e}[/red]")
+                continue
+            
+            if user_question.lower().startswith("name "):
+                session_name = user_question[5:].strip()
+                if session_name and analyzer.current_session_id:
+                    try:
+                        success = analyzer.conversation_dao.set_session_name(
+                            analyzer.current_session_id, 
+                            session_name
+                        )
+                        if success:
+                            console.print(f"[green]✅ Session renamed to: {session_name}[/green]")
+                        else:
+                            console.print("[red]Failed to rename session[/red]")
+                    except Exception as e:
+                        console.print(f"[red]Error renaming session: {e}[/red]")
+                else:
+                    console.print("[yellow]Usage: name <session_name>[/yellow]")
                 continue
 
             # Increment query counter
@@ -203,7 +293,22 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             console.print("=" * 80 + "\n")
 
     except KeyboardInterrupt:
-        console.print("\n[yellow]Advisory session interrupted. Context preserved if you return.[/yellow]")
+        console.print("\n[yellow]Advisory session interrupted.[/yellow]")
+        # Auto-save on interrupt
+        if len(analyzer.get_conversation_history()) > 0:
+            try:
+                with console.status("[bold green]💾 Saving conversation...[/bold green]"):
+                    analyzer.save_conversation_to_db(portfolio_id)
+                console.print("[green]✅ Conversation saved. Resume anytime![/green]")
+            except Exception as e:
+                console.print(f"[yellow]Note: Could not save conversation: {e}[/yellow]")
+    finally:
+        # Final save on exit
+        if len(analyzer.get_conversation_history()) > 0:
+            try:
+                analyzer.save_conversation_to_db(portfolio_id)
+            except Exception:
+                pass  # Already logged in auto-save
 
 
 def get_weekly_recommendations(console: Console, portfolio_id: int):

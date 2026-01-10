@@ -20,11 +20,12 @@ from enhanced_cli.ui_components import ui
 class ComprehensiveAnalysisCommand(Command):
     """Command to perform comprehensive multi-timeframe portfolio analysis."""
 
-    def __init__(self):
+    def __init__(self, pool: DatabaseConnectionPool):
         super().__init__(
             "Comprehensive Analysis",
             "Comprehensive multi-timeframe portfolio analysis with benchmarks",
         )
+        self.pool = pool
 
     @error_handler("performing comprehensive analysis")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -64,9 +65,8 @@ class ComprehensiveAnalysisCommand(Command):
             with ui.progress("Updating S&P 500 data...") as progress:
                 progress.add_task("", total=None)
                 try:
-                    analyzer = MultiTimeframeAnalyzer()
+                    analyzer = MultiTimeframeAnalyzer(self.pool)
                     analyzer.update_sp500_data()
-                    analyzer.close_connection()
                     ui.status_message("S&P 500 data updated successfully", "success")
                 except Exception as e:
                     ui.status_message(f"Warning: Could not update S&P 500 data: {e}", "warning")
@@ -77,7 +77,7 @@ class ComprehensiveAnalysisCommand(Command):
 
             try:
                 # Initialize analyzer
-                analyzer = MultiTimeframeAnalyzer()
+                analyzer = MultiTimeframeAnalyzer(self.pool)
                 progress.update(task, advance=20)
 
                 # Analyze portfolio across all timeframes
@@ -87,7 +87,6 @@ class ComprehensiveAnalysisCommand(Command):
 
                 if not portfolio_metrics:
                     ui.status_message("No performance data available for analysis", "warning")
-                    analyzer.close_connection()
                     return
 
                 # Save metrics to database
@@ -102,8 +101,6 @@ class ComprehensiveAnalysisCommand(Command):
                 # Get market events performance (placeholder for now)
                 market_events_performance = self._get_market_events_analysis(analyzer, portfolio_id)
                 progress.update(task, advance=10)
-
-                analyzer.close_connection()
 
             except Exception as e:
                 ui.status_message(f"Error during analysis: {e}", "error")
@@ -344,6 +341,6 @@ def register_comprehensive_analysis_commands(registry: CommandRegistry, pool: Da
     Args:
         registry: The command registry to register commands with
     """
-    registry.register("comprehensive_analysis", ComprehensiveAnalysisCommand(), "analysis")
+    registry.register("comprehensive_analysis", ComprehensiveAnalysisCommand(pool), "analysis")
     registry.register("view_saved_metrics", ViewSavedMetricsCommand(pool), "analysis")
     registry.register("update_benchmark_data", UpdateBenchmarkDataCommand(pool), "analysis")

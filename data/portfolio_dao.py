@@ -312,7 +312,7 @@ class PortfolioDAO(BaseDAO):
                 cursor = connection.cursor()
                 query = """INSERT INTO portfolio_securities
                                (portfolio_id, ticker_id, date_added, core_holding)
-                           VALUES (%d, %s, NOW(), %d)"""
+                           VALUES (%s, %s, NOW(), %s)"""
                 added_count = 0
 
                 for symbol in ticker_symbols:
