@@ -70,17 +70,19 @@ Example:
 
 ```python
 # In your_module.py
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
+
 
 class YourCommand(Command):
     def __init__(self):
         super().__init__("Your Command", "Description of your command")
-    
+
     @error_handler("performing your command")
     def execute(self, cli, *args, **kwargs) -> None:
         # Implementation here
         pass
+
 
 def register_your_commands(registry: CommandRegistry) -> None:
     registry.register("your_command_id", YourCommand(), "your_category")

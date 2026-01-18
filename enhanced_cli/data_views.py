@@ -5,7 +5,7 @@ This module provides commands for data management operations such as
 updating data for all securities in portfolios.
 """
 
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 # Import DataRetrieval lazily to avoid startup delay

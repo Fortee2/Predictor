@@ -123,6 +123,7 @@ class PortfolioValueService:
                         "gain_loss": gain_loss,
                         "gain_loss_pct": gain_loss_pct,
                         "weight_pct": 0,  # Will be calculated after total is known
+                        "core_holding": position.get("core_holding", 0),
                     }
 
             # Get cash balance
@@ -188,7 +189,8 @@ class PortfolioValueService:
                         t.transaction_type,
                         t.transaction_date,
                         t.shares,
-                        t.price
+                        t.price,
+                        s.core_holding
                     FROM portfolio_transactions t
                     JOIN portfolio_securities s ON t.security_id = s.id
                     JOIN tickers tk ON s.ticker_id = tk.id
@@ -205,6 +207,7 @@ class PortfolioValueService:
                 current_ticker = None
                 buy_queue = []
                 symbol: str = ""
+                core_holding: int = 0
 
                 for transaction in transactions:
                     ticker_id = transaction["ticker_id"]
@@ -213,11 +216,12 @@ class PortfolioValueService:
                     # If we're starting a new ticker, finalize the previous one
                     if current_ticker is not None and current_ticker != ticker_id:
                         if buy_queue:
-                            positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol)
+                            positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol, core_holding)
                         buy_queue = []
 
                     current_ticker = ticker_id
                     symbol = transaction["symbol"]
+                    core_holding = transaction["core_holding"]
 
                     shares = float(transaction["shares"] or 0)
                     price = float(transaction["price"] or 0)
@@ -232,7 +236,7 @@ class PortfolioValueService:
 
                 # Process the last ticker
                 if current_ticker is not None and buy_queue:
-                    positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol)
+                    positions[current_ticker] = self._calculate_position_from_queue(buy_queue, symbol, core_holding)
 
                 return positions
 
@@ -240,7 +244,7 @@ class PortfolioValueService:
             logger.error("Error getting current positions: %s", e, exc_info=True)
             return {}
 
-    def _calculate_position_from_queue(self, buy_queue: list, symbol: str) -> Dict[str, Any] | None:
+    def _calculate_position_from_queue(self, buy_queue: list, symbol: str, core_holding: int = 0) -> Dict[str, Any] | None:
         """Calculate position details from a buy queue."""
         total_shares = sum(shares for shares, _ in buy_queue)
         total_cost = sum(shares * price for shares, price in buy_queue)
@@ -250,6 +254,7 @@ class PortfolioValueService:
                 "symbol": symbol,
                 "shares": round(total_shares, 4),
                 "avg_price": round(total_cost / total_shares, 2),
+                "core_holding": core_holding,
             }
         return None
 

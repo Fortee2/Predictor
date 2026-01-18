@@ -8,7 +8,7 @@ and provides the main menu and application flow.
 from rich.console import Console
 from rich.prompt import Prompt
 
-from enhanced_cli.command import CommandRegistry, error_handler
+from enhanced_cli.core.command import CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 from logging_setup import setup_logging
 from portfolio_cli import PortfolioCLI
@@ -50,6 +50,7 @@ class EnhancedCLI:
 
         # Now we can safely import the real implementations
         from enhanced_cli.ai_assistant_views import register_ai_assistant_commands
+        from enhanced_cli.ai_recommendations_views import register_ai_recommendations_commands
         from enhanced_cli.analysis_views import register_analysis_commands as real_register_analysis_commands
         from enhanced_cli.cash_management_views import (
             register_cash_management_commands as real_register_cash_management_commands,
@@ -72,9 +73,15 @@ class EnhancedCLI:
         real_register_settings_commands(self.command_registry)
         real_register_cash_management_commands(self.command_registry)
         real_register_data_commands(self.command_registry)
-        register_comprehensive_analysis_commands(self.command_registry)
+        register_comprehensive_analysis_commands(self.command_registry, self.cli.db_pool)
         register_llm_export_commands(self.command_registry)
         register_ai_assistant_commands(self.command_registry)
+        register_ai_recommendations_commands(self.command_registry)
+
+        # Register trading strategies commands
+        from enhanced_cli.trading_strategy_views import register_trading_strategy_commands
+
+        register_trading_strategy_commands(self.command_registry, self.cli.db_pool)
 
     def display_header(self):
         """Display application header."""
@@ -111,6 +118,8 @@ class EnhancedCLI:
         menu_options["6"] = "Data Management"
         # Settings
         menu_options["7"] = "Settings"
+        # Trading Strategies
+        menu_options["8"] = "Trading Strategies"
         # Exit
         menu_options["0"] = "Exit"
 
@@ -146,6 +155,8 @@ class EnhancedCLI:
             self.show_data_menu()
         elif choice == "7":
             self.show_settings_menu()
+        elif choice == "8":
+            self.show_trading_strategies_menu()
         elif choice == "0":
             self.console.print("[bold green]Thank you for using the Portfolio Management System![/bold green]")
             return False
@@ -305,6 +316,49 @@ class EnhancedCLI:
                 }.get(choice),
             )
         # choice 7 returns to main menu
+
+    def show_trading_strategies_menu(self):
+        """Display the trading strategies menu."""
+        options = {
+            "1": "Create New Strategy",
+            "2": "List All Strategies",
+            "3": "View Strategy Details",
+            "4": "Delete Strategy",
+            "5": "Toggle Strategy On/Off",
+            "6": "Generate Signals Now",
+            "7": "View Active Signals",
+            "8": "View Signal Details",
+            "9": "Backtest Strategy",
+            "10": "Strategy Performance",
+            "11": "Strategy Leaderboard",
+            "0": "Back to Main Menu",
+        }
+
+        choice = ui.menu("Trading Strategies", options)
+
+        if choice == "1":
+            self.command_registry.execute("create_strategy", self)
+        elif choice == "2":
+            self.command_registry.execute("list_strategies", self)
+        elif choice == "3":
+            self.command_registry.execute("view_strategy_details", self)
+        elif choice == "4":
+            self.command_registry.execute("delete_strategy", self)
+        elif choice == "5":
+            self.command_registry.execute("toggle_strategy", self)
+        elif choice == "6":
+            self.command_registry.execute("generate_signals", self, portfolio_id=self.selected_portfolio)
+        elif choice == "7":
+            self.command_registry.execute("view_active_signals", self, portfolio_id=self.selected_portfolio)
+        elif choice == "8":
+            self.command_registry.execute("view_signal_details", self)
+        elif choice == "9":
+            self.command_registry.execute("backtest_strategy", self)
+        elif choice == "10":
+            self.command_registry.execute("strategy_performance", self)
+        elif choice == "11":
+            self.command_registry.execute("strategy_leaderboard", self)
+        # choice 0 returns to main menu
 
     @error_handler("application execution")
     def run(self):

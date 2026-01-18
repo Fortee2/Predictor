@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 
 from rich.prompt import Prompt
 
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 
@@ -72,7 +72,7 @@ class AnalyzePortfolioCommand(Command):
 
             ui.console.print("[bold]Available Tickers:[/bold]")
             for i, ticker in enumerate(tickers, 1):
-                ui.console.print(f"[{i}] {ticker}")
+                ui.console.print(f"[{i}] {ticker[0]} core holding: {ticker[1]}")
 
             ticker_symbol = Prompt.ask("[bold]Enter ticker symbol[/bold] (or leave empty for all)").upper()
             if ticker_symbol == "":
@@ -97,6 +97,70 @@ class AnalyzePortfolioCommand(Command):
             cli.cli.analyze_portfolio(portfolio_id, ticker_symbol, analysis_date)
 
         # Analysis results are printed directly by the CLI analyze_portfolio method
+
+        # Check for active trading signals
+        try:
+            from data.trading_signal_dao import TradingSignalDAO
+
+            signal_dao = TradingSignalDAO(cli.cli.pool)
+            ticker_id_for_signals = None
+
+            if ticker_symbol:
+                from data.ticker_dao import TickerDao
+
+                ticker_dao = TickerDao(cli.cli.pool)
+                ticker_id_for_signals = ticker_dao.get_ticker_id(ticker_symbol)
+
+            signals = signal_dao.get_active_signals(
+                portfolio_id=portfolio_id, ticker_id=ticker_id_for_signals
+            )
+
+            if signals:
+                from rich.table import Table
+
+                ui.console.print("\n" + ui.section_header("Active Trading Signals"))
+
+                signal_table = Table(title="")
+                signal_table.add_column("Strategy", style="blue", width=20)
+                signal_table.add_column("Signal", style="bold", width=6)
+                signal_table.add_column("Confidence", justify="right", width=10)
+                signal_table.add_column("Price", justify="right", width=10)
+                signal_table.add_column("Date", width=12)
+
+                for signal in signals[:5]:  # Show max 5 signals
+                    signal_color = "green" if signal["signal_type"] == "BUY" else "red"
+                    conf_color = (
+                        "green"
+                        if signal["confidence_score"] >= 80
+                        else "yellow" if signal["confidence_score"] >= 60 else "white"
+                    )
+
+                    signal_table.add_row(
+                        signal["strategy_name"][:18],
+                        f"[{signal_color}]{signal['signal_type']}[/{signal_color}]",
+                        f"[{conf_color}]{signal['confidence_score']:.0f}%[/{conf_color}]",
+                        f"${signal['price_at_signal']:.2f}",
+                        signal["signal_date"].strftime("%Y-%m-%d"),
+                    )
+
+                ui.console.print(signal_table)
+                if len(signals) > 5:
+                    ui.console.print(
+                        f"[dim]... and {len(signals) - 5} more. "
+                        f"View all: Trading Strategies → View Active Signals[/dim]"
+                    )
+                else:
+                    ui.console.print(
+                        "[dim]View all signals: Trading Strategies → View Active Signals[/dim]"
+                    )
+
+        except ImportError:
+            # Trading strategies module not available
+            pass
+        except Exception:
+            # Silently ignore errors in signal display
+            pass
+
         # After analysis is complete, wait for user input to continue
         ui.wait_for_user()
 

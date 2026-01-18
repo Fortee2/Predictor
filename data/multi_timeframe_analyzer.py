@@ -43,9 +43,10 @@ class MultiTimeframeAnalyzer(BaseDAO):
         Returns:
             DataFrame with dates and portfolio values
         """
+        cursor = None
         try:
             with self.get_connection() as connection:
-                cursor = connection.cursor()
+                cursor = connection.cursor(dictionary=True)
                 query = """
                     SELECT calculation_date as date, value 
                     FROM portfolio_value 
@@ -55,6 +56,8 @@ class MultiTimeframeAnalyzer(BaseDAO):
                 """
                 cursor.execute(query, (portfolio_id, start_date, end_date))
                 results = cursor.fetchall()
+
+                cursor.close()
 
                 if not results:
                     return pd.DataFrame(columns=["date", "value"])
@@ -85,14 +88,16 @@ class MultiTimeframeAnalyzer(BaseDAO):
         Returns:
             DataFrame with dates and closing prices
         """
+        cursor = None
         try:
             with self.get_connection() as connection:
-                cursor = connection.cursor()
+                cursor = connection.cursor(dictionary=True)
                 # Get ticker symbol
                 cursor.execute("SELECT ticker FROM tickers WHERE id = %s", (ticker_id,))
                 result = cursor.fetchone()
                 if not result:
                     self.logger.error("Ticker ID %s not found", ticker_id)
+                    cursor.close()
                     return pd.DataFrame(columns=["date", "close"])
 
                 symbol = result["ticker"]
@@ -113,7 +118,10 @@ class MultiTimeframeAnalyzer(BaseDAO):
                     df["date"] = pd.to_datetime(df["date"])
                     df["close"] = df["close"].astype(float)
                     df.set_index("date", inplace=True)
+                    cursor.close()
                     return df
+
+                cursor.close()
 
                 # Fallback to yfinance if no database data
                 self.logger.info("No database data for %s, fetching from yfinance", symbol)
@@ -265,76 +273,83 @@ class MultiTimeframeAnalyzer(BaseDAO):
         results = {}
 
         # Get the earliest transaction date to determine MAX timeframe
-        with self.get_connection() as connection:
-            cursor = connection.cursor()
-            cursor.execute(
-                """
-                SELECT MIN(transaction_date) as earliest_date
-                FROM portfolio_transactions
-                WHERE portfolio_id = %s
-            """,
-                (portfolio_id,),
-            )
-            result = cursor.fetchone()
-            earliest_date = result[0] if result and result[0] else calculation_date - timedelta(days=365)
-            cursor.close()
+        cursor = None
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor(dictionary=True)
+                cursor.execute(
+                    """
+                    SELECT MIN(transaction_date) as earliest_date
+                    FROM portfolio_transactions
+                    WHERE portfolio_id = %s
+                """,
+                    (portfolio_id,),
+                )
+                result = cursor.fetchone()
+                earliest_date = result["earliest_date"] if result and result.get("earliest_date") else calculation_date - timedelta(days=365)
+                cursor.close()
+        except mysql.connector.Error as e:
+            self.logger.error("Error retrieving earliest transaction date: %s", e)
+            earliest_date = calculation_date - timedelta(days=365)
+            if cursor:
+                cursor.close()
 
-            # Analyze each timeframe
-            for timeframe, days in self.TIMEFRAMES.items():
-                start_date = calculation_date - timedelta(days=days)
+        # Analyze each timeframe
+        for timeframe, days in self.TIMEFRAMES.items():
+            start_date = calculation_date - timedelta(days=days)
 
-                # Skip if start_date is before earliest transaction
-                if start_date < earliest_date:
-                    continue
+            # Skip if start_date is before earliest transaction
+            if start_date < earliest_date:
+                continue
 
-                self.logger.info("Analyzing {timeframe} timeframe for portfolio %s", portfolio_id)
+            self.logger.info("Analyzing {timeframe} timeframe for portfolio %s", portfolio_id)
 
-                # Get portfolio value history
-                portfolio_data = self.get_portfolio_value_history(portfolio_id, start_date, calculation_date)
-                if portfolio_data.empty:
-                    self.logger.warning("No portfolio data for %s timeframe", timeframe)
-                    continue
+            # Get portfolio value history
+            portfolio_data = self.get_portfolio_value_history(portfolio_id, start_date, calculation_date)
+            if portfolio_data.empty:
+                self.logger.warning("No portfolio data for %s timeframe", timeframe)
+                continue
 
-                # Calculate portfolio returns
+            # Calculate portfolio returns
+            portfolio_returns = self.calculate_returns(portfolio_data)
+            if portfolio_returns.empty:
+                continue
+
+            # Get S&P 500 benchmark data
+            benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, start_date, calculation_date)
+            benchmark_returns = None
+            if not benchmark_data.empty:
+                benchmark_returns_df = self.calculate_returns(benchmark_data)
+                if not benchmark_returns_df.empty:
+                    benchmark_returns = benchmark_returns_df.iloc[:, 0]
+
+            # Calculate metrics
+            portfolio_returns_series = portfolio_returns.iloc[:, 0]
+            metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
+
+            if metrics:
+                results[timeframe] = metrics
+
+        # Add MAX timeframe (from earliest date to calculation_date)
+        if earliest_date < calculation_date:
+            self.logger.info("Analyzing MAX timeframe for portfolio %s", portfolio_id)
+            portfolio_data = self.get_portfolio_value_history(portfolio_id, earliest_date, calculation_date)
+            if not portfolio_data.empty:
                 portfolio_returns = self.calculate_returns(portfolio_data)
-                if portfolio_returns.empty:
-                    continue
+                if not portfolio_returns.empty:
+                    benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, earliest_date, calculation_date)
+                    benchmark_returns = None
+                    if not benchmark_data.empty:
+                        benchmark_returns_df = self.calculate_returns(benchmark_data)
+                        if not benchmark_returns_df.empty:
+                            benchmark_returns = benchmark_returns_df.iloc[:, 0]
 
-                # Get S&P 500 benchmark data
-                benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, start_date, calculation_date)
-                benchmark_returns = None
-                if not benchmark_data.empty:
-                    benchmark_returns_df = self.calculate_returns(benchmark_data)
-                    if not benchmark_returns_df.empty:
-                        benchmark_returns = benchmark_returns_df.iloc[:, 0]
+                    portfolio_returns_series = portfolio_returns.iloc[:, 0]
+                    metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
+                    if metrics:
+                        results["MAX"] = metrics
 
-                # Calculate metrics
-                portfolio_returns_series = portfolio_returns.iloc[:, 0]
-                metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
-
-                if metrics:
-                    results[timeframe] = metrics
-
-            # Add MAX timeframe (from earliest date to calculation_date)
-            if earliest_date < calculation_date:
-                self.logger.info("Analyzing MAX timeframe for portfolio %s", portfolio_id)
-                portfolio_data = self.get_portfolio_value_history(portfolio_id, earliest_date, calculation_date)
-                if not portfolio_data.empty:
-                    portfolio_returns = self.calculate_returns(portfolio_data)
-                    if not portfolio_returns.empty:
-                        benchmark_data = self.get_benchmark_data(self.sp500_ticker_id, earliest_date, calculation_date)
-                        benchmark_returns = None
-                        if not benchmark_data.empty:
-                            benchmark_returns_df = self.calculate_returns(benchmark_data)
-                            if not benchmark_returns_df.empty:
-                                benchmark_returns = benchmark_returns_df.iloc[:, 0]
-
-                        portfolio_returns_series = portfolio_returns.iloc[:, 0]
-                        metrics = self.calculate_performance_metrics(portfolio_returns_series, benchmark_returns)
-                        if metrics:
-                            results["MAX"] = metrics
-
-            return results
+        return results
 
     def save_portfolio_metrics(
         self,
@@ -353,6 +368,7 @@ class MultiTimeframeAnalyzer(BaseDAO):
         if calculation_date is None:
             calculation_date = date.today()
 
+        cursor = None
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
@@ -406,15 +422,15 @@ class MultiTimeframeAnalyzer(BaseDAO):
 
                     cursor.execute(query, values)
 
-                self.current_connection.commit()
+                cursor.close()
                 self.logger.info("Saved performance metrics for portfolio %s", portfolio_id)
 
         except mysql.connector.Error as e:
             self.logger.error("Error saving portfolio metrics: %s", e)
-            self.current_connection.rollback()
             raise
         finally:
-            cursor.close()
+            if cursor:
+                cursor.close()
 
     def get_portfolio_metrics(self, portfolio_id: int, calculation_date: date = None) -> Dict:
         """
