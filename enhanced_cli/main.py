@@ -8,7 +8,7 @@ and provides the main menu and application flow.
 from rich.console import Console
 from rich.prompt import Prompt
 
-from enhanced_cli.command import CommandRegistry, error_handler
+from enhanced_cli.core.command import CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 from logging_setup import setup_logging
 from portfolio_cli import PortfolioCLI
@@ -50,6 +50,7 @@ class EnhancedCLI:
 
         # Now we can safely import the real implementations
         from enhanced_cli.ai_assistant_views import register_ai_assistant_commands
+        from enhanced_cli.ai_recommendations_views import register_ai_recommendations_commands
         from enhanced_cli.analysis_views import register_analysis_commands as real_register_analysis_commands
         from enhanced_cli.cash_management_views import (
             register_cash_management_commands as real_register_cash_management_commands,
@@ -75,6 +76,7 @@ class EnhancedCLI:
         register_comprehensive_analysis_commands(self.command_registry, self.cli.db_pool)
         register_llm_export_commands(self.command_registry)
         register_ai_assistant_commands(self.command_registry)
+        register_ai_recommendations_commands(self.command_registry)
 
         # Register trading strategies commands
         from enhanced_cli.trading_strategy_views import register_trading_strategy_commands

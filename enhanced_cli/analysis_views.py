@@ -9,7 +9,7 @@ from datetime import date, datetime, timedelta
 
 from rich.prompt import Prompt
 
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 
@@ -72,7 +72,7 @@ class AnalyzePortfolioCommand(Command):
 
             ui.console.print("[bold]Available Tickers:[/bold]")
             for i, ticker in enumerate(tickers, 1):
-                ui.console.print(f"[{i}] {ticker}")
+                ui.console.print(f"[{i}] {ticker[0]} core holding: {ticker[1]}")
 
             ticker_symbol = Prompt.ask("[bold]Enter ticker symbol[/bold] (or leave empty for all)").upper()
             if ticker_symbol == "":

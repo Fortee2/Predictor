@@ -239,7 +239,7 @@ If you need to rollback to Ollama:
 
 1. Restore the previous version from git:
    ```bash
-   git checkout HEAD~1 -- requirements.txt data/llm_integration.py data/config.py enhanced_cli/ai_assistant_views.py
+   git checkout HEAD~1 -- requirements.txt data/llm_portfolio_analyzer.py data/config.py enhanced_cli/ai_assistant_views.py
    ```
 
 2. Reinstall dependencies:

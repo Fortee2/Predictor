@@ -5,7 +5,7 @@ This module provides the registration function for portfolio management commands
 Individual command classes are defined in separate files within this package.
 """
 
-from enhanced_cli.command import CommandRegistry
+from enhanced_cli.core.command import CommandRegistry
 from enhanced_cli.portfolio import (
     AddTickersCommand,
     CreatePortfolioCommand,

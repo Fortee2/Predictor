@@ -5,13 +5,13 @@ This module provides empty implementations of all the command registration funct
 to resolve circular import issues during initialization.
 """
 
-from enhanced_cli.command import CommandRegistry
+from enhanced_cli.core.command import CommandRegistry
 
 
 # Empty stub implementations of all registration functions
 def register_portfolio_commands(registry: CommandRegistry) -> None:
     """Stub for portfolio command registration."""
-    from enhanced_cli.command import Command
+    from enhanced_cli.core.command import Command
 
     class StubListPortfoliosCommand(Command):
         def __init__(self):
