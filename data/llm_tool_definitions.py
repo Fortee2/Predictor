@@ -46,7 +46,7 @@ def get_tool_config():
             {
                 "toolSpec": {
                     "name": "get_current_positions",
-                    "description": "Get current positions in a portfolio with shares, average price, current price, and current value.",
+                    "description": "Get current positions in a portfolio with shares, average price, current price, current value, and core/swing status.",
                     "inputSchema": {
                         "json": {
                             "type": "object",

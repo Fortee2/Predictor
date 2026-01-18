@@ -382,7 +382,7 @@ and news sentiment analysis.
 IMPORTANT INSTRUCTIONS:
 1. Always use the available tools to get accurate, up-to-date information
 2. Provide specific, actionable insights backed by data
-3. When analyzing portfolios, consider the 70/30 Core Strategy:
+3. When analyzing portfolios, consider the 70/30 Core Strategy (use 'is_core_holding' field in position data to identify designated core positions):
    - Core positions (70%): Long-term holds (VTI, FSPSX, VEA, JNJ, BND, KO, quality dividend stocks)
      - Entry: Fundamental strength + reasonable valuation
      - Exit: Only on fundamental breakdown or major trend reversal

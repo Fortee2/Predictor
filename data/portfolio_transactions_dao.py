@@ -228,6 +228,7 @@ class PortfolioTransactionsDAO(BaseDAO):
                 query = """
                         SELECT s.ticker_id,
                                s.id      as security_id,
+                               s.core_holding as is_core_holding,
                                tk.ticker as symbol,
                                t.transaction_type,
                                t.transaction_date,
@@ -249,6 +250,7 @@ class PortfolioTransactionsDAO(BaseDAO):
             current_ticker = None
             buy_queue = []  # Store (shares, price) for each buy
             symbol = None
+            is_core_holding = False
 
             for transaction in all_transactions:
                 ticker_id = transaction["ticker_id"]
@@ -262,12 +264,13 @@ class PortfolioTransactionsDAO(BaseDAO):
                 # If we're starting a new ticker, calculate results for the previous one
                 if current_ticker is not None and current_ticker != ticker_id and buy_queue:
                     # Calculate and store position for the previous ticker
-                    self._store_position_data(positions, current_ticker, buy_queue, symbol)
+                    self._store_position_data(positions, current_ticker, buy_queue, symbol, is_core_holding)
 
                 # Set or update the current ticker and its symbol
                 if current_ticker != ticker_id:
                     current_ticker = ticker_id
                     symbol = transaction["symbol"]
+                    is_core_holding = bool(transaction.get("is_core_holding", False))
                     # Clear the buy queue for the new ticker
                     buy_queue = []
 
@@ -304,14 +307,14 @@ class PortfolioTransactionsDAO(BaseDAO):
 
             # Calculate position for the last ticker
             if current_ticker is not None and buy_queue:
-                self._store_position_data(positions, current_ticker, buy_queue, symbol)
+                self._store_position_data(positions, current_ticker, buy_queue, symbol, is_core_holding)
 
             return positions
         except mysql.connector.Error as e:
             logger.error("Error calculating current positions: %s", e)
             return {}
 
-    def _store_position_data(self, positions_dict, ticker_id, buy_queue, symbol):
+    def _store_position_data(self, positions_dict, ticker_id, buy_queue, symbol, is_core_holding=False):
         """Helper method to calculate and store position data from a buy queue."""
         try:
             total_shares = 0
@@ -328,6 +331,7 @@ class PortfolioTransactionsDAO(BaseDAO):
                     "symbol": symbol,
                     "shares": rounded_shares,
                     "avg_price": (round(total_cost / total_shares, 2) if total_shares > 0 else 0),
+                    "is_core_holding": is_core_holding
                 }
             return positions_dict
         except Exception as e:

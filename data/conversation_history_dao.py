@@ -1,3 +1,4 @@
+
 """
 DAO for AI Conversation History Persistence
 
@@ -44,6 +45,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             Session ID if successful, None otherwise
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor()
@@ -121,7 +124,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def load_active_conversation(self, portfolio_id: int) -> Optional[Dict]:
         """
@@ -133,6 +136,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             Dictionary with session info and conversation data, or None if no active session
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor(dictionary=True)
@@ -178,7 +183,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def get_conversation_by_id(self, session_id: int) -> Optional[Dict]:
         """
@@ -190,6 +195,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             Dictionary with session info and conversation data, or None if not found
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor(dictionary=True)
@@ -233,7 +240,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def list_sessions(self, portfolio_id: int, limit: int = 10) -> List[Dict]:
         """
@@ -246,6 +253,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             List of session summaries (without full conversation data)
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor(dictionary=True)
@@ -272,7 +281,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def delete_session(self, session_id: int) -> bool:
         """
@@ -284,6 +293,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             True if successful, False otherwise
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor()
@@ -306,7 +317,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def clear_old_sessions(self, portfolio_id: int, days_old: int = 30) -> int:
         """
@@ -319,6 +330,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             Number of sessions deleted
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor()
@@ -348,7 +361,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def deactivate_session(self, session_id: int) -> bool:
         """
@@ -360,6 +373,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             True if successful, False otherwise
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor()
@@ -381,7 +396,7 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
 
     def set_session_name(self, session_id: int, session_name: str) -> bool:
         """
@@ -394,6 +409,8 @@ class ConversationHistoryDAO(BaseDAO):
         Returns:
             True if successful, False otherwise
         """
+        connection = None
+        cursor = None
         try:
             connection = self.pool.get_connection()
             cursor = connection.cursor()
@@ -415,4 +432,4 @@ class ConversationHistoryDAO(BaseDAO):
             if cursor:
                 cursor.close()
             if connection:
-                self.pool.release_connection(connection)
+                connection.close()
