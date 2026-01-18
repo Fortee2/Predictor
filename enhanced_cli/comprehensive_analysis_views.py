@@ -125,6 +125,47 @@ class ComprehensiveAnalysisCommand(Command):
             # Fallback to simple display
             self._display_simple_results(portfolio_metrics, portfolio_name)
 
+        # Display active trading signals summary
+        try:
+            from data.trading_signal_dao import TradingSignalDAO
+
+            signal_dao = TradingSignalDAO(self.pool)
+            signals = signal_dao.get_active_signals(portfolio_id=portfolio_id)
+
+            if signals:
+                ui.console.print("\n" + ui.section_header("Trading Signals Summary"))
+
+                buy_signals = [s for s in signals if s["signal_type"] == "BUY"]
+                sell_signals = [s for s in signals if s["signal_type"] == "SELL"]
+
+                ui.console.print(f"[green]● {len(buy_signals)} BUY signals[/green]")
+                ui.console.print(f"[red]● {len(sell_signals)} SELL signals[/red]")
+
+                if buy_signals or sell_signals:
+                    high_confidence = [s for s in signals if s["confidence_score"] >= 80]
+                    if high_confidence:
+                        ui.console.print(
+                            f"\n[bold yellow]⚠  {len(high_confidence)} high-confidence signals (≥80%)[/bold yellow]"
+                        )
+                        for signal in high_confidence[:3]:  # Show top 3
+                            signal_color = "green" if signal["signal_type"] == "BUY" else "red"
+                            ui.console.print(
+                                f"  • [{signal_color}]{signal['ticker_symbol']}[/{signal_color}]: "
+                                f"[{signal_color}]{signal['signal_type']}[/{signal_color}] "
+                                f"at ${signal['price_at_signal']:.2f} ({signal['confidence_score']:.0f}%)"
+                            )
+
+                ui.console.print(
+                    "\n[dim]View all signals: Trading Strategies → View Active Signals[/dim]"
+                )
+
+        except ImportError:
+            # Trading strategies module not available
+            pass
+        except Exception:
+            # Silently ignore errors in signal display
+            pass
+
         # Wait for user input to continue
         ui.wait_for_user()
 

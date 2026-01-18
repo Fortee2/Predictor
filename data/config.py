@@ -61,6 +61,17 @@ class Config:
                 "auto_save": True,
                 "save_path": "charts",
             },
+            "trading_strategies": {
+                "enabled": True,
+                "auto_evaluate_on_data_update": False,
+                "signal_expiration_days": 7,
+                "min_confidence_threshold": 70.0,
+                "max_signals_per_ticker_per_day": 3,
+                "auto_create_ai_recommendation": True,
+                "ai_recommendation_min_confidence": 75.0,
+                "backtest_default_capital": 10000.0,
+                "backtest_transaction_cost": 5.0,
+            },
         }
 
         # User's configuration file path
@@ -173,3 +184,49 @@ class Config:
     def get_all(self):
         """Get the entire configuration."""
         return self.config
+
+    # Trading Strategies Configuration Properties
+    @property
+    def trading_strategies_enabled(self) -> bool:
+        """Check if trading strategies feature is enabled."""
+        return self.config.get("trading_strategies", {}).get("enabled", True)
+
+    @property
+    def auto_evaluate_on_data_update(self) -> bool:
+        """Check if strategies should be auto-evaluated on data updates."""
+        return self.config.get("trading_strategies", {}).get("auto_evaluate_on_data_update", False)
+
+    @property
+    def signal_expiration_days(self) -> int:
+        """Get number of days before signals expire."""
+        return self.config.get("trading_strategies", {}).get("signal_expiration_days", 7)
+
+    @property
+    def min_confidence_threshold(self) -> float:
+        """Get minimum confidence threshold for signal generation."""
+        return self.config.get("trading_strategies", {}).get("min_confidence_threshold", 70.0)
+
+    @property
+    def max_signals_per_ticker_per_day(self) -> int:
+        """Get maximum signals allowed per ticker per day."""
+        return self.config.get("trading_strategies", {}).get("max_signals_per_ticker_per_day", 3)
+
+    @property
+    def auto_create_ai_recommendation(self) -> bool:
+        """Check if high-confidence signals should auto-create AI recommendations."""
+        return self.config.get("trading_strategies", {}).get("auto_create_ai_recommendation", True)
+
+    @property
+    def ai_recommendation_min_confidence(self) -> float:
+        """Get minimum confidence for auto-creating AI recommendations."""
+        return self.config.get("trading_strategies", {}).get("ai_recommendation_min_confidence", 75.0)
+
+    @property
+    def backtest_default_capital(self) -> float:
+        """Get default initial capital for backtesting."""
+        return self.config.get("trading_strategies", {}).get("backtest_default_capital", 10000.0)
+
+    @property
+    def backtest_transaction_cost(self) -> float:
+        """Get transaction cost for backtesting simulations."""
+        return self.config.get("trading_strategies", {}).get("backtest_transaction_cost", 5.0)

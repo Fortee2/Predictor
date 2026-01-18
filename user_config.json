@@ -29,5 +29,16 @@
         "default_theme": "dark",
         "auto_save": true,
         "save_path": "charts"
+    },
+    "trading_strategies": {
+        "enabled": true,
+        "auto_evaluate_on_data_update": false,
+        "signal_expiration_days": 7,
+        "min_confidence_threshold": 70.0,
+        "max_signals_per_ticker_per_day": 3,
+        "auto_create_ai_recommendation": true,
+        "ai_recommendation_min_confidence": 75.0,
+        "backtest_default_capital": 10000.0,
+        "backtest_transaction_cost": 5.0
     }
 }

@@ -1,0 +1,346 @@
+{
+  "templates": [
+    {
+      "id": "rsi_reversal",
+      "name": "RSI Reversal",
+      "description": "Buy when RSI indicates oversold conditions (≤30), sell when overbought (≥70). Classic mean-reversion strategy that works well in ranging markets.",
+      "strategy_type": "RSI_REVERSAL",
+      "anchor_indicator": "rsi",
+      "anchor_config": {
+        "period": 14
+      },
+      "buy_conditions": {
+        "rsi_value": {
+          "operator": "<=",
+          "value": 30
+        }
+      },
+      "sell_conditions": {
+        "rsi_value": {
+          "operator": ">=",
+          "value": 70
+        }
+      },
+      "confirmation_indicators": [
+        {
+          "indicator": "trend",
+          "config": {
+            "period": 20
+          },
+          "required": false,
+          "conditions": {
+            "trend_direction": {
+              "not_equals": "DOWN"
+            }
+          },
+          "weight": 10
+        },
+        {
+          "indicator": "volume",
+          "config": {},
+          "required": false,
+          "conditions": {
+            "volume_trend": {
+              "equals": "INCREASING"
+            }
+          },
+          "weight": 5
+        }
+      ],
+      "min_confidence_score": 65.0
+    },
+    {
+      "id": "macd_crossover",
+      "name": "MACD Momentum",
+      "description": "Buy on bullish MACD crossover (MACD crosses above signal line), sell on bearish crossover. Captures momentum shifts and trend changes.",
+      "strategy_type": "MACD_MOMENTUM",
+      "anchor_indicator": "macd",
+      "anchor_config": {
+        "fast": 12,
+        "slow": 26,
+        "signal": 9
+      },
+      "buy_conditions": {
+        "current_signal": {
+          "equals": "BUY"
+        },
+        "histogram": {
+          "operator": ">",
+          "value": 0
+        }
+      },
+      "sell_conditions": {
+        "current_signal": {
+          "equals": "SELL"
+        },
+        "histogram": {
+          "operator": "<",
+          "value": 0
+        }
+      },
+      "confirmation_indicators": [
+        {
+          "indicator": "rsi",
+          "config": {
+            "period": 14
+          },
+          "required": true,
+          "conditions": {
+            "rsi_value": {
+              "operator": "<",
+              "value": 70
+            }
+          },
+          "weight": 15
+        },
+        {
+          "indicator": "moving_average",
+          "config": {
+            "period": 50
+          },
+          "required": false,
+          "conditions": {
+            "price_position": {
+              "equals": "ABOVE_MA"
+            }
+          },
+          "weight": 10
+        }
+      ],
+      "min_confidence_score": 70.0
+    },
+    {
+      "id": "golden_cross",
+      "name": "Golden Cross / Death Cross",
+      "description": "Buy when 50-day MA crosses above 200-day MA (Golden Cross), sell when it crosses below (Death Cross). Classic long-term trend-following strategy.",
+      "strategy_type": "MA_CROSSOVER",
+      "anchor_indicator": "moving_average",
+      "anchor_config": {
+        "fast_period": 50,
+        "slow_period": 200,
+        "crossover_type": "golden_cross"
+      },
+      "buy_conditions": {
+        "fast_ma": {
+          "operator": ">",
+          "reference": "slow_ma"
+        },
+        "price_position": {
+          "equals": "ABOVE_MA"
+        },
+        "crossover_recent": {
+          "operator": "<=",
+          "value": 5,
+          "unit": "days"
+        }
+      },
+      "sell_conditions": {
+        "fast_ma": {
+          "operator": "<",
+          "reference": "slow_ma"
+        },
+        "crossover_recent": {
+          "operator": "<=",
+          "value": 5,
+          "unit": "days"
+        }
+      },
+      "confirmation_indicators": [
+        {
+          "indicator": "trend",
+          "config": {
+            "period": 20
+          },
+          "required": true,
+          "conditions": {
+            "trend_direction": {
+              "equals": "UP"
+            },
+            "trend_strength": {
+              "not_equals": "WEAK"
+            }
+          },
+          "weight": 20
+        },
+        {
+          "indicator": "volume",
+          "config": {},
+          "required": false,
+          "conditions": {
+            "volume_trend": {
+              "equals": "INCREASING"
+            }
+          },
+          "weight": 10
+        }
+      ],
+      "min_confidence_score": 75.0
+    },
+    {
+      "id": "bollinger_bounce",
+      "name": "Bollinger Band Bounce",
+      "description": "Buy when price touches lower Bollinger Band, sell when it touches upper band. Mean-reversion strategy that assumes price returns to the mean.",
+      "strategy_type": "BOLLINGER_BOUNCE",
+      "anchor_indicator": "bollinger_bands",
+      "anchor_config": {
+        "period": 20,
+        "std_dev": 2
+      },
+      "buy_conditions": {
+        "price_position": {
+          "equals": "AT_LOWER_BAND"
+        },
+        "distance_from_band": {
+          "operator": "<=",
+          "value": 2,
+          "unit": "percent"
+        }
+      },
+      "sell_conditions": {
+        "price_position": {
+          "equals": "AT_UPPER_BAND"
+        },
+        "distance_from_band": {
+          "operator": "<=",
+          "value": 2,
+          "unit": "percent"
+        }
+      },
+      "confirmation_indicators": [
+        {
+          "indicator": "rsi",
+          "config": {
+            "period": 14
+          },
+          "required": false,
+          "conditions": {
+            "rsi_value_for_buy": {
+              "operator": "<=",
+              "value": 35
+            },
+            "rsi_value_for_sell": {
+              "operator": ">=",
+              "value": 65
+            }
+          },
+          "weight": 15
+        },
+        {
+          "indicator": "trend",
+          "config": {
+            "period": 20
+          },
+          "required": false,
+          "conditions": {
+            "trend_direction": {
+              "equals": "FLAT"
+            }
+          },
+          "weight": 10
+        }
+      ],
+      "min_confidence_score": 65.0
+    },
+    {
+      "id": "multi_indicator_consensus",
+      "name": "Multi-Indicator Consensus",
+      "description": "Requires alignment of RSI, MACD, and Stochastic indicators for high-confidence signals. Conservative approach with multiple confirmations.",
+      "strategy_type": "MULTI_INDICATOR",
+      "anchor_indicator": "rsi",
+      "anchor_config": {
+        "period": 14
+      },
+      "buy_conditions": {
+        "rsi_value": {
+          "operator": ">",
+          "value": 40
+        },
+        "rsi_value_max": {
+          "operator": "<",
+          "value": 70
+        }
+      },
+      "sell_conditions": {
+        "rsi_value": {
+          "operator": "<",
+          "value": 60
+        },
+        "rsi_value_min": {
+          "operator": ">",
+          "value": 30
+        }
+      },
+      "confirmation_indicators": [
+        {
+          "indicator": "macd",
+          "config": {
+            "fast": 12,
+            "slow": 26,
+            "signal": 9
+          },
+          "required": true,
+          "conditions": {
+            "current_signal": {
+              "equals": "BUY"
+            }
+          },
+          "weight": 25
+        },
+        {
+          "indicator": "stochastic",
+          "config": {
+            "k_period": 14,
+            "d_period": 3
+          },
+          "required": true,
+          "conditions": {
+            "signal": {
+              "not_equals": "OVERBOUGHT"
+            },
+            "stoch_k": {
+              "operator": ">",
+              "value": 20
+            }
+          },
+          "weight": 25
+        },
+        {
+          "indicator": "trend",
+          "config": {
+            "period": 50
+          },
+          "required": true,
+          "conditions": {
+            "trend_direction": {
+              "equals": "UP"
+            }
+          },
+          "weight": 15
+        },
+        {
+          "indicator": "moving_average",
+          "config": {
+            "period": 50
+          },
+          "required": false,
+          "conditions": {
+            "price_position": {
+              "equals": "ABOVE_MA"
+            }
+          },
+          "weight": 10
+        }
+      ],
+      "min_confidence_score": 80.0
+    }
+  ],
+  "version": "1.0",
+  "last_updated": "2026-01-14",
+  "notes": [
+    "These templates provide starting points for common trading strategies.",
+    "Users can customize parameters (periods, thresholds) when creating strategies from templates.",
+    "Confirmation indicators marked as 'required': true will reduce confidence if conditions not met.",
+    "Confirmation indicators marked as 'required': false will add to confidence if conditions are met.",
+    "Weight values indicate how much each confirmation contributes to overall confidence score."
+  ]
+}
