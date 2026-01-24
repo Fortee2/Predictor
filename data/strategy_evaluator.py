@@ -9,7 +9,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
-from .ai_recommendations_dao import AIRecommendationsDAO
+# from .ai_recommendations_dao import AIRecommendationsDAO  # TODO: Add this module if needed
 from .bollinger_bands import BollingerBandAnalyzer
 from .config import Config
 from .fundamental_data_dao import FundamentalDataDAO
@@ -17,7 +17,7 @@ from .macd import MACD
 from .moving_averages import moving_averages
 from .news_sentiment_analyzer import NewsSentimentAnalyzer
 from .options_data import OptionsData
-from .portfolio_dao import PortfolioDao
+from .portfolio_dao import PortfolioDAO
 from .rsi_calculations import rsi_calculations
 from .shared_analysis_metrics import SharedAnalysisMetrics
 from .stochastic_oscillator import StochasticOscillator
@@ -51,7 +51,7 @@ class StrategyEvaluator:
 
         # Initialize all indicator analyzers
         self.ticker_dao = TickerDao(pool)
-        self.portfolio_dao = PortfolioDao(pool)
+        self.portfolio_dao = PortfolioDAO(pool)
         self.rsi_calc = rsi_calculations(pool)
         self.moving_avg = moving_averages(pool)
         self.macd_analyzer = MACD(pool)
@@ -78,7 +78,8 @@ class StrategyEvaluator:
         # Initialize DAOs
         self.signal_dao = TradingSignalDAO(pool)
         self.strategy_dao = TradingStrategyDAO(pool)
-        self.ai_rec_dao = AIRecommendationsDAO(pool)
+        # self.ai_rec_dao = AIRecommendationsDAO(pool)  # TODO: Add this module if needed
+        self.ai_rec_dao = None  # Placeholder until AIRecommendationsDAO is implemented
 
     def evaluate_strategy(
         self,
@@ -554,26 +555,27 @@ class StrategyEvaluator:
             reasoning += f"Confidence Score: {signal['confidence_score']:.1f}%\n"
             reasoning += f"Signal Strength: {signal['signal_strength']}"
 
-            # Create recommendation
-            rec_id = self.ai_rec_dao.save_recommendation(
-                portfolio_id=signal.get("portfolio_id"),
-                ticker_symbol=signal["symbol"],
-                recommendation_type=signal["signal_type"],
-                recommended_price=signal["price_at_signal"],
-                confidence_score=signal["confidence_score"],
-                reasoning=reasoning,
-                technical_indicators=signal["indicator_snapshot"],
-                sentiment_score=signal["indicator_snapshot"]
-                .get("all_indicators", {})
-                .get("news_sentiment", {})
-                .get("average_sentiment"),
-                recommendation_date=signal.get("signal_date"),
-                expires_date=signal.get("expires_date"),
-            )
+            # Create recommendation (if AI recommendations module is available)
+            if self.ai_rec_dao:
+                rec_id = self.ai_rec_dao.save_recommendation(
+                    portfolio_id=signal.get("portfolio_id"),
+                    ticker_symbol=signal["symbol"],
+                    recommendation_type=signal["signal_type"],
+                    recommended_price=signal["price_at_signal"],
+                    confidence_score=signal["confidence_score"],
+                    reasoning=reasoning,
+                    technical_indicators=signal["indicator_snapshot"],
+                    sentiment_score=signal["indicator_snapshot"]
+                    .get("all_indicators", {})
+                    .get("news_sentiment", {})
+                    .get("average_sentiment"),
+                    recommendation_date=signal.get("signal_date"),
+                    expires_date=signal.get("expires_date"),
+                )
 
-            if rec_id:
-                # Link signal to recommendation
-                self.signal_dao.link_signal_to_recommendation(signal_id, rec_id)
+                if rec_id:
+                    # Link signal to recommendation
+                    self.signal_dao.link_signal_to_recommendation(signal_id, rec_id)
                 logger.info(
                     f"Created AI recommendation {rec_id} from signal {signal_id}"
                 )
@@ -750,3 +752,97 @@ class StrategyEvaluator:
             logger.error(f"Error in watchlist batch evaluation: {e}", exc_info=True)
 
         return signals
+
+    def batch_evaluate_all_strategies(self) -> List[Dict]:
+        """
+        Evaluate all active global strategies across all portfolios.
+
+        This method is useful for automated signal generation after data updates.
+        It evaluates:
+        - Global strategies (portfolio_id=NULL, watch_list_id=NULL)
+        - Portfolio-specific strategies for all portfolios
+        - Watchlist-specific strategies for all watchlists
+
+        Returns:
+            List of all generated signals
+        """
+        all_signals = []
+
+        try:
+            logger.info("Starting batch evaluation for all active strategies")
+
+            # Get all active strategies
+            all_strategies = self.strategy_dao.get_all_strategies(include_inactive=False)
+
+            if not all_strategies:
+                logger.warning("No active strategies found")
+                return all_signals
+
+            logger.info(f"Found {len(all_strategies)} active strategies")
+
+            # Group strategies by scope
+            global_strategies = []
+            portfolio_strategies = {}
+            watchlist_strategies = {}
+
+            for strategy in all_strategies:
+                if strategy.get("portfolio_id"):
+                    # Portfolio-specific strategy
+                    pid = strategy["portfolio_id"]
+                    if pid not in portfolio_strategies:
+                        portfolio_strategies[pid] = []
+                    portfolio_strategies[pid].append(strategy["id"])
+                elif strategy.get("watch_list_id"):
+                    # Watchlist-specific strategy
+                    wid = strategy["watch_list_id"]
+                    if wid not in watchlist_strategies:
+                        watchlist_strategies[wid] = []
+                    watchlist_strategies[wid].append(strategy["id"])
+                else:
+                    # Global strategy - applies to all portfolios
+                    global_strategies.append(strategy)
+
+            # Evaluate global strategies for all portfolios
+            if global_strategies:
+                logger.info(f"Evaluating {len(global_strategies)} global strategies")
+                portfolios = self.portfolio_dao.get_portfolio_list()
+
+                for portfolio in portfolios:
+                    if portfolio.get("status") != "Active":
+                        continue
+
+                    portfolio_id = portfolio["id"]
+                    logger.info(f"Evaluating global strategies for portfolio {portfolio_id}")
+
+                    signals = self.batch_evaluate_portfolio(
+                        portfolio_id,
+                        strategy_ids=[s["id"] for s in global_strategies]
+                    )
+                    all_signals.extend(signals)
+
+            # Evaluate portfolio-specific strategies
+            for portfolio_id, strategy_ids in portfolio_strategies.items():
+                logger.info(
+                    f"Evaluating {len(strategy_ids)} portfolio-specific "
+                    f"strategies for portfolio {portfolio_id}"
+                )
+                signals = self.batch_evaluate_portfolio(portfolio_id, strategy_ids)
+                all_signals.extend(signals)
+
+            # Evaluate watchlist-specific strategies
+            for watchlist_id, strategy_ids in watchlist_strategies.items():
+                logger.info(
+                    f"Evaluating {len(strategy_ids)} watchlist-specific "
+                    f"strategies for watchlist {watchlist_id}"
+                )
+                signals = self.batch_evaluate_watchlist(watchlist_id, strategy_ids)
+                all_signals.extend(signals)
+
+            logger.info(
+                f"Batch evaluation complete. Generated {len(all_signals)} total signals"
+            )
+
+        except Exception as e:
+            logger.error(f"Error in batch_evaluate_all_strategies: {e}", exc_info=True)
+
+        return all_signals

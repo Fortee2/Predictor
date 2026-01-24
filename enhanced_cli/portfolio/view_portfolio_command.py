@@ -80,6 +80,49 @@ class ViewPortfolioCommand(Command):
         )
         ui.console.print(f"[bold]Date Added:[/bold] {portfolio['date_added'].strftime('%Y-%m-%d')}")
 
+        # Display assigned trading strategies
+        try:
+            from data.trading_strategy_dao import TradingStrategyDAO
+
+            strategy_dao = TradingStrategyDAO(cli.cli.db_pool)
+
+            # Get strategies for this portfolio (includes both portfolio-specific and global)
+            strategies = strategy_dao.get_active_strategies(portfolio_id=portfolio_id)
+
+            if strategies:
+                # Separate global from portfolio-specific
+                global_strats = [s for s in strategies if s.get('portfolio_id') is None]
+                portfolio_strats = [s for s in strategies if s.get('portfolio_id') is not None]
+
+                strategy_parts = []
+                if portfolio_strats:
+                    strategy_parts.append(
+                        f"[cyan]{len(portfolio_strats)} portfolio-specific[/cyan]"
+                    )
+                if global_strats:
+                    strategy_parts.append(
+                        f"[yellow]{len(global_strats)} global[/yellow]"
+                    )
+
+                strategies_text = " + ".join(strategy_parts)
+                ui.console.print(f"[bold]Active Strategies:[/bold] {strategies_text}")
+
+                # Show first 3 strategy names
+                top_strategies = strategies[:3]
+                for s in top_strategies:
+                    scope = "Global" if s.get('portfolio_id') is None else "Portfolio"
+                    ui.console.print(
+                        f"  • [{scope}] {s['name']} ({s['strategy_type'].replace('_', ' ')})",
+                        style="dim"
+                    )
+                if len(strategies) > 3:
+                    ui.console.print(f"  [dim]... and {len(strategies) - 3} more[/dim]")
+            else:
+                ui.console.print("[bold]Active Strategies:[/bold] [dim]None assigned[/dim]")
+        except Exception:
+            # Silently fail if trading strategies aren't available
+            pass
+
         # Parse view date for calculations
         calculation_date = None
         use_current_prices = True
@@ -163,7 +206,8 @@ class ViewPortfolioCommand(Command):
             "5": "Analyze Portfolio",
             "6": "View Performance",
             "7": "Manage Cash",
-            "8": "Back to Main Menu",
+            "8": "View Assigned Strategies",
+            "9": "Back to Main Menu",
         }
 
         choice = ui.menu("Portfolio Actions", options)
@@ -199,4 +243,49 @@ class ViewPortfolioCommand(Command):
 
             cash_command = ManageCashCommand()
             cash_command.execute(cli, portfolio_id=portfolio_id)
-        # choice 8 returns to main menu
+        elif choice == "8":
+            # View assigned strategies
+            try:
+                from data.trading_strategy_dao import TradingStrategyDAO
+                from rich.table import Table
+
+                strategy_dao = TradingStrategyDAO(cli.cli.db_pool)
+                strategies = strategy_dao.get_active_strategies(portfolio_id=portfolio_id)
+
+                if not strategies:
+                    ui.status_message("No strategies assigned to this portfolio", "info")
+                    ui.wait_for_user()
+                else:
+                    ui.console.print(ui.section_header(f"Strategies for Portfolio: {portfolio['name']}"))
+
+                    # Create strategies table
+                    table = Table(title=f"Active Strategies ({len(strategies)} total)")
+                    table.add_column("ID", style="cyan", width=6)
+                    table.add_column("Name", style="bold")
+                    table.add_column("Type", style="blue")
+                    table.add_column("Anchor", style="green")
+                    table.add_column("Scope", width=12)
+                    table.add_column("Min Conf", justify="right", width=8)
+
+                    for strategy in strategies:
+                        scope = "Global" if strategy.get("portfolio_id") is None else "Portfolio"
+                        scope_color = "yellow" if scope == "Global" else "cyan"
+
+                        table.add_row(
+                            str(strategy["id"]),
+                            strategy["name"][:30],
+                            strategy["strategy_type"].replace("_", " "),
+                            strategy["anchor_indicator"],
+                            f"[{scope_color}]{scope}[/{scope_color}]",
+                            f"{strategy['min_confidence_score']:.0f}%",
+                        )
+
+                    ui.console.print(table)
+                    ui.console.print(
+                        "\n[dim]Tip: Use 'Trading Strategies' menu to manage strategies or generate signals[/dim]"
+                    )
+                    ui.wait_for_user()
+            except Exception as e:
+                ui.status_message(f"Error viewing strategies: {str(e)}", "error")
+                ui.wait_for_user()
+        # choice 9 returns to main menu

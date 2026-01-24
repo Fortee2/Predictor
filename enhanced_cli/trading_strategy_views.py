@@ -20,7 +20,7 @@ from data.ticker_dao import TickerDao
 from data.trading_signal_dao import TradingSignalDAO
 from data.trading_strategy_dao import TradingStrategyDAO
 from data.utility import DatabaseConnectionPool
-from enhanced_cli.core.command import Command, CommandRegistry, error_handler
+from enhanced_cli.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 

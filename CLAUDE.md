@@ -50,12 +50,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `news_sentiment_analyzer.py` - FinBERT-based sentiment analysis
 - `options_data.py` - Options market data analysis
 
+**Trading Strategy System (data/ directory):**
+- `trading_strategy_dao.py` - Strategy creation and management
+- `trading_signal_dao.py` - Signal generation and tracking
+- `strategy_performance_dao.py` - Performance metrics and analytics
+- `strategy_evaluator.py` - Signal evaluation and outcome tracking
+- `strategy_backtester.py` - Historical strategy testing
+- `strategy_templates.json` - Pre-configured strategy templates (RSI, MACD, MA Crossover, etc.)
+
 **Enhanced CLI Components (enhanced_cli/ directory):**
 - `main.py` - Core CLI application and menu system
 - `portfolio_views.py` - Portfolio management interfaces
 - `analysis_views.py` - Technical analysis displays
 - `transaction_views.py` - Transaction management interfaces
 - `cash_management_views.py` - Cash operation interfaces
+- `trading_strategy_views.py` - Trading strategy management and signal generation
 - `ui_components.py` - Reusable UI elements using Rich library
 - `formatters.py` - Data formatting utilities
 
@@ -92,6 +101,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **Data Retrieval** → Yahoo Finance API → Consolidated data retrieval → Database storage
 3. **Technical Analysis** → Historical data from DB → Indicator calculations → Formatted results
 4. **Transaction Processing** → Validation → Database storage → Cash balance updates
+5. **Trading Strategies** → Strategy evaluation → Signal generation → Performance tracking → Backtesting
 
 ### Important Implementation Notes
 
@@ -101,6 +111,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Rich UI**: Enhanced CLI uses Rich library extensively for formatted output, tables, and progress indicators
 - **News Analysis**: Uses transformers library with FinBERT model for sentiment analysis
 - **Options Data**: Implied volatility and put/call ratio analysis for market sentiment
+- **Trading Strategies**: Automated signal generation using anchor indicators with optional confirmations, template-based creation, performance tracking, and backtesting capabilities
 
 ### Development Workflow
 
@@ -115,6 +126,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `data/` - All data access and business logic
 - `enhanced_cli/` - Enhanced user interface components
 - `database_script/` - Database schema and migration scripts
+- `docs/` - User documentation and guides
 - `MCP/` - Model Context Protocol integration (if applicable)
+
+### Documentation
+
+- **User Guides:**
+  - `README.md` - System overview, installation, and basic usage
+  - `swing_trading_guide.md` - Technical analysis and swing trading with Predictor
+  - `docs/TRADING_STRATEGIES_GUIDE.md` - Comprehensive guide to trading strategies system
+  - `docs/FIFO_COST_BASIS_IMPLEMENTATION.md` - Cost basis calculation details
+
+- **Development Documentation:**
+  - `CLAUDE.md` (this file) - Development guidance and architecture overview
+  - `enhanced_cli/README.md` - Enhanced CLI architecture and command pattern
+  - Various `*_FIXES.md`, `*_GUIDE.md`, and `*_PLAN.md` files - Implementation notes and technical details
 
 This system is designed for stock portfolio management with comprehensive technical analysis capabilities, supporting both simple command-line usage and rich interactive interfaces.
