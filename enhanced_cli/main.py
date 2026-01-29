@@ -73,7 +73,7 @@ class EnhancedCLI:
         real_register_settings_commands(self.command_registry)
         real_register_cash_management_commands(self.command_registry)
         real_register_data_commands(self.command_registry)
-        register_comprehensive_analysis_commands(self.command_registry)
+        register_comprehensive_analysis_commands(self.command_registry, self.cli.db_pool)
         register_llm_export_commands(self.command_registry)
         register_ai_assistant_commands(self.command_registry)
         register_ai_recommendations_commands(self.command_registry)

@@ -518,17 +518,33 @@ class DataRetrieval(BaseDAO):
         """Update stock activity for all tickers in portfolios with rate limiting"""
         try:
             trading_day = self._find_last_trading_day()
-            # TODO: Pass in portfolio_id
-            portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
-            open_positions = self.portfolio_transactions_dao.get_current_positions(1)
-            loop_tickers = portfolio_tickers.copy()
+            # Get all tickers from all portfolios
+            # We don't filter by open positions here because we want to update data for
+            # all securities tracked in portfolios, regardless of current share count or portfolio ID.
+            # This fixes an issue where securities in portfolios other than ID 1 were being skipped.
+            raw_portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
+            # Normalize to 3-tuples (id, symbol, last_update) to match watchlist format and avoid unpacking errors
+            portfolio_tickers = [(t[0], t[1], t[2]) for t in raw_portfolio_tickers]
 
-            for security in loop_tickers:
-                if security[0] in open_positions:
-                    if open_positions[security[0]]["shares"] <= 0:
-                        portfolio_tickers.remove(security)
-                else:
-                    portfolio_tickers.remove(security)
+            # Also include tickers that have open positions but might be missing from portfolio_securities table due to data inconsistencies
+            try:
+                portfolios = self.portfolio_dao.get_portfolio_list()
+                existing_ticker_ids = {t[0] for t in portfolio_tickers}
+
+                for portfolio in portfolios:
+                    positions = self.portfolio_transactions_dao.get_current_positions(portfolio['id'])
+                    for ticker_id, position_data in positions.items():
+                        if ticker_id not in existing_ticker_ids:
+                            # Add to update list: (ticker_id, symbol, last_update)
+                            # We pass None for last_update to force update
+                            symbol = position_data['symbol']
+                            # We only need 3 elements (id, symbol, last_update)
+                            new_entry = (ticker_id, symbol, None)
+                            portfolio_tickers.append(new_entry)
+                            existing_ticker_ids.add(ticker_id)
+                            print(f"Added {symbol} (ID: {ticker_id}) from transactions (was missing from portfolio list)")
+            except Exception as e:
+                print(f"Warning: Error fetching additional positions: {str(e)}")
 
             if update_watch_list:
                 watch_list_tickers = self.watch_list_dao.get_all_watchlist_tickers()

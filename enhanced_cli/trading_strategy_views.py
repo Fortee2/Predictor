@@ -20,7 +20,7 @@ from data.ticker_dao import TickerDao
 from data.trading_signal_dao import TradingSignalDAO
 from data.trading_strategy_dao import TradingStrategyDAO
 from data.utility import DatabaseConnectionPool
-from enhanced_cli.command import Command, CommandRegistry, error_handler
+from enhanced_cli.core.command import Command, CommandRegistry, error_handler
 from enhanced_cli.ui_components import ui
 
 
@@ -355,6 +355,11 @@ class GenerateSignalsCommand(Command):
 
         signals = []
 
+        def update_progress(current, total, message):
+            """Callback to update progress bar."""
+            progress.update(task, completed=current, total=total, description=message)
+
+        stats = {}
         if target == "1":
             # Portfolio
             portfolio_id = cli.selected_portfolio if hasattr(cli, "selected_portfolio") else None
@@ -362,8 +367,10 @@ class GenerateSignalsCommand(Command):
                 portfolio_id = int(Prompt.ask("[bold]Enter Portfolio ID[/bold]"))
 
             with ui.progress("Evaluating strategies...") as progress:
-                task = progress.add_task("Generating signals...", total=None)
-                signals = self.evaluator.batch_evaluate_portfolio(portfolio_id)
+                task = progress.add_task("Generating signals...", total=100)
+                signals, stats = self.evaluator.batch_evaluate_portfolio(
+                    portfolio_id, progress_callback=update_progress
+                )
                 progress.update(task, completed=True)
 
         elif target == "2":
@@ -371,13 +378,28 @@ class GenerateSignalsCommand(Command):
             watchlist_id = int(Prompt.ask("[bold]Enter Watchlist ID[/bold]"))
 
             with ui.progress("Evaluating strategies...") as progress:
-                task = progress.add_task("Generating signals...", total=None)
-                signals = self.evaluator.batch_evaluate_watchlist(watchlist_id)
+                task = progress.add_task("Generating signals...", total=100)
+                signals, stats = self.evaluator.batch_evaluate_watchlist(
+                    watchlist_id, progress_callback=update_progress
+                )
                 progress.update(task, completed=True)
 
         # Display results
         ui.console.print(f"\n[bold]Signal Generation Complete:[/bold]")
         ui.console.print(f"  Total signals generated: {len(signals)}")
+        
+        if stats:
+            ui.console.print("\n[bold]Evaluation Statistics:[/bold]")
+            ui.console.print(f"  Processed: {stats.get('processed', 0)}")
+            ui.console.print(f"  Generated: {stats.get('generated', 0)}")
+            ui.console.print(f"  Skipped (Delisted): {stats.get('skipped_delisted', 0)}")
+            ui.console.print(f"  Skipped (Duplicate): {stats.get('skipped_duplicate', 0)}")
+            ui.console.print(f"  No Signal: {stats.get('no_signal', 0)}")
+            if stats.get('errors', 0) > 0:
+                ui.console.print(f"  [red]Errors: {stats.get('errors', 0)}[/red]")
+            
+            if stats.get('last_error'):
+                ui.console.print(f"\n[red]Last Error:[/red] {stats['last_error']}")
 
         if signals:
             buy_signals = [s for s in signals if s["signal_type"] == "BUY"]

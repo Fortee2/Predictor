@@ -587,26 +587,39 @@ class StrategyEvaluator:
             return None
 
     def batch_evaluate_portfolio(
-        self, portfolio_id: int, strategy_ids: Optional[List[int]] = None
-    ) -> List[Dict]:
+        self,
+        portfolio_id: int,
+        strategy_ids: Optional[List[int]] = None,
+        progress_callback=None,
+    ) -> tuple[List[Dict], Dict]:
         """
         Evaluate all active strategies for all tickers in a portfolio.
 
         Args:
             portfolio_id: Portfolio ID
             strategy_ids: Optional list of specific strategy IDs to evaluate
+            progress_callback: Optional callback function(current, total, message)
 
         Returns:
-            List of generated signals
+            Tuple of (List of generated signals, Statistics dict)
         """
         signals = []
+        stats = {
+            "processed": 0,
+            "generated": 0,
+            "skipped_delisted": 0,
+            "skipped_duplicate": 0,
+            "errors": 0,
+            "no_signal": 0,
+            "last_error": None,
+        }
 
         try:
             # Get tickers in portfolio
             tickers = self.portfolio_dao.get_tickers_in_portfolio(portfolio_id)
             if not tickers:
                 logger.warning(f"No tickers found in portfolio {portfolio_id}")
-                return signals
+                return signals, stats
 
             # Get strategies to evaluate
             if strategy_ids:
@@ -621,18 +634,46 @@ class StrategyEvaluator:
 
             if not strategies:
                 logger.warning(f"No active strategies found for portfolio {portfolio_id}")
-                return signals
+                return signals, stats
 
             logger.info(
                 f"Evaluating {len(strategies)} strategies for {len(tickers)} tickers"
             )
 
+            total_ops = len(strategies) * len(tickers)
+            current_op = 0
+
+            if progress_callback:
+                progress_callback(0, total_ops, "Starting evaluation...")
+
             # Evaluate each strategy against each ticker
             for strategy in strategies:
                 for ticker_symbol, _ in tickers:
+                    current_op += 1
+                    stats["processed"] += 1
+                    if progress_callback:
+                        progress_callback(
+                            current_op,
+                            total_ops,
+                            f"Evaluating {strategy['name']} for {ticker_symbol}",
+                        )
+
                     try:
                         ticker_id = self.ticker_dao.get_ticker_id(ticker_symbol)
                         if not ticker_id:
+                            stats["errors"] += 1
+                            continue
+
+                        # Check if ticker is active
+                        t_data = self.ticker_dao.get_ticker_data(ticker_id)
+                        if t_data and t_data.get("trend") == "delisted":
+                            if progress_callback:
+                                progress_callback(
+                                    current_op,
+                                    total_ops,
+                                    f"Skipping delisted {ticker_symbol}",
+                                )
+                            stats["skipped_delisted"] += 1
                             continue
 
                         # Check for duplicate signals
@@ -642,6 +683,7 @@ class StrategyEvaluator:
                             logger.debug(
                                 f"Skipping duplicate signal for {ticker_symbol}"
                             )
+                            stats["skipped_duplicate"] += 1
                             continue
 
                         # Evaluate strategy
@@ -655,46 +697,66 @@ class StrategyEvaluator:
                             if signal_id:
                                 signal["id"] = signal_id
                                 signals.append(signal)
+                                stats["generated"] += 1
+                        else:
+                            stats["no_signal"] += 1
 
                     except Exception as e:
-                        logger.error(
-                            f"Error evaluating {ticker_symbol}: {e}", exc_info=True
-                        )
+                        error_msg = f"Error evaluating {ticker_symbol}: {str(e)}"
+                        logger.error(error_msg, exc_info=True)
+                        stats["errors"] += 1
+                        stats["last_error"] = error_msg
                         continue
 
             logger.info(f"Generated {len(signals)} signals for portfolio {portfolio_id}")
 
         except Exception as e:
-            logger.error(f"Error in batch evaluation: {e}", exc_info=True)
+            error_msg = f"Error in batch evaluation: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            stats["errors"] += 1
+            stats["last_error"] = error_msg
 
-        return signals
+        return signals, stats
 
     def batch_evaluate_watchlist(
-        self, watch_list_id: int, strategy_ids: Optional[List[int]] = None
-    ) -> List[Dict]:
+        self,
+        watch_list_id: int,
+        strategy_ids: Optional[List[int]] = None,
+        progress_callback=None,
+    ) -> tuple[List[Dict], Dict]:
         """
         Evaluate all active strategies for all tickers in a watchlist.
 
         Args:
             watch_list_id: Watchlist ID
             strategy_ids: Optional list of specific strategy IDs
+            progress_callback: Optional callback function(current, total, message)
 
         Returns:
-            List of generated signals
+            Tuple of (List of generated signals, Statistics dict)
         """
         signals = []
+        stats = {
+            "processed": 0,
+            "generated": 0,
+            "skipped_delisted": 0,
+            "skipped_duplicate": 0,
+            "errors": 0,
+            "no_signal": 0,
+            "last_error": None,
+        }
 
         try:
             # Import here to avoid circular dependency
-            from .watch_list_dao import WatchListDao
+            from .watch_list_dao import WatchListDAO
 
-            watchlist_dao = WatchListDao(self.pool)
+            watchlist_dao = WatchListDAO(self.pool)
 
             # Get tickers in watchlist
-            tickers = watchlist_dao.get_watch_list_tickers(watch_list_id)
+            tickers = watchlist_dao.get_tickers_in_watch_list(watch_list_id)
             if not tickers:
                 logger.warning(f"No tickers found in watchlist {watch_list_id}")
-                return signals
+                return signals, stats
 
             # Get strategies
             if strategy_ids:
@@ -709,23 +771,51 @@ class StrategyEvaluator:
 
             if not strategies:
                 logger.warning(f"No active strategies found for watchlist {watch_list_id}")
-                return signals
+                return signals, stats
 
             logger.info(
                 f"Evaluating {len(strategies)} strategies for {len(tickers)} watchlist tickers"
             )
 
+            total_ops = len(strategies) * len(tickers)
+            current_op = 0
+
+            if progress_callback:
+                progress_callback(0, total_ops, "Starting evaluation...")
+
             # Evaluate each strategy against each ticker
             for strategy in strategies:
                 for ticker_data in tickers:
+                    current_op += 1
+                    stats["processed"] += 1
                     try:
                         ticker_id = ticker_data["ticker_id"]
-                        ticker_symbol = ticker_data["ticker_symbol"]
+                        # Handle different field names from DAO
+                        ticker_symbol = ticker_data.get("symbol") or ticker_data.get("ticker_symbol") or ticker_data.get("ticker")
 
-                        # Check for duplicates
+                        if progress_callback:
+                            progress_callback(
+                                current_op,
+                                total_ops,
+                                f"Evaluating {strategy['name']} for {ticker_symbol}",
+                            )
+
+                        # Check if ticker is active
+                        t_data = self.ticker_dao.get_ticker_data(ticker_id)
+                        if t_data and t_data.get("trend") == "delisted":
+                            if progress_callback:
+                                progress_callback(
+                                    current_op,
+                                    total_ops,
+                                    f"Skipping delisted {ticker_symbol}",
+                                )
+                            stats["skipped_delisted"] += 1
+                            continue
+
                         if self.signal_dao.check_duplicate_signal(
                             strategy["id"], ticker_id, datetime.now()
                         ):
+                            stats["skipped_duplicate"] += 1
                             continue
 
                         # Evaluate
@@ -738,18 +828,24 @@ class StrategyEvaluator:
                             if signal_id:
                                 signal["id"] = signal_id
                                 signals.append(signal)
+                                stats["generated"] += 1
+                        else:
+                            stats["no_signal"] += 1
 
                     except Exception as e:
-                        logger.error(
-                            f"Error evaluating ticker {ticker_data.get('ticker_symbol')}: {e}",
-                            exc_info=True,
-                        )
+                        error_msg = f"Error evaluating {ticker_data.get('ticker_symbol', 'Unknown')}: {str(e)}"
+                        logger.error(error_msg, exc_info=True)
+                        stats["errors"] += 1
+                        stats["last_error"] = error_msg
                         continue
 
             logger.info(f"Generated {len(signals)} signals for watchlist {watch_list_id}")
 
         except Exception as e:
-            logger.error(f"Error in watchlist batch evaluation: {e}", exc_info=True)
+            error_msg = f"Error in watchlist batch evaluation: {str(e)}"
+            logger.error(error_msg, exc_info=True)
+            stats["errors"] += 1
+            stats["last_error"] = error_msg
 
         return signals
 
