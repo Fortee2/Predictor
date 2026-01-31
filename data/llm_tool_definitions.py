@@ -111,7 +111,7 @@ def get_tool_config():
             {
                 "toolSpec": {
                     "name": "calculate_rsi",
-                    "description": "Calculate the Relative Strength Index (RSI) for a stock ticker. Returns RSI value and status (Overbought >70, Oversold <30, Neutral).",
+                    "description": "Get the pre-calculated Relative Strength Index (RSI) for a stock ticker. RSI is automatically calculated during data updates. Returns RSI value and status (Overbought >70, Oversold <30, Neutral).",
                     "inputSchema": {
                         "json": {
                             "type": "object",
@@ -129,7 +129,7 @@ def get_tool_config():
             {
                 "toolSpec": {
                     "name": "calculate_macd",
-                    "description": "Calculate MACD (Moving Average Convergence Divergence) indicator for a stock. Returns MACD line, signal line, histogram, and buy/sell signal.",
+                    "description": "Get the pre-calculated MACD (Moving Average Convergence Divergence) indicator for a stock. MACD is automatically calculated during data updates. Returns MACD line, signal line, histogram, and buy/sell signal.",
                     "inputSchema": {
                         "json": {
                             "type": "object",

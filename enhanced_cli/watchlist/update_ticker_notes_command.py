@@ -2,6 +2,8 @@
 
 from rich.prompt import Prompt
 
+from data.utility import DatabaseConnectionPool
+from data.watch_list_dao import WatchListDAO
 from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -11,6 +13,8 @@ class UpdateTickerNotesCommand(Command):
 
     def __init__(self):
         super().__init__("Update Ticker Notes", "Update notes for a ticker in a watchlist")
+        self.pool = DatabaseConnectionPool()
+        self.watch_list_dao = WatchListDAO(self.pool)
 
     @error_handler("updating ticker notes")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -40,7 +44,7 @@ class UpdateTickerNotesCommand(Command):
         # Get watch list tickers
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = self.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if not tickers:
             ui.status_message("This watch list has no tickers.", "warning")
@@ -71,6 +75,6 @@ class UpdateTickerNotesCommand(Command):
         if ui.confirm_action(f"Update notes for {ticker_symbol}?"):
             with ui.progress("Updating notes...") as progress:
                 progress.add_task("", total=None)
-                cli.update_watch_list_ticker_notes(watch_list_id, ticker_symbol, notes)
+                self.watch_list_dao.update_ticker_notes(watch_list_id, ticker_symbol, notes)
 
             ui.status_message("Notes updated successfully", "success")

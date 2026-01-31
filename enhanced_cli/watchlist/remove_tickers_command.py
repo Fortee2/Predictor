@@ -2,6 +2,8 @@
 
 from rich.prompt import Prompt
 
+from data.utility import DatabaseConnectionPool
+from data.watch_list_dao import WatchListDAO
 from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -11,6 +13,8 @@ class RemoveTickersFromWatchListCommand(Command):
 
     def __init__(self):
         super().__init__("Remove Tickers from Watch List", "Remove tickers from a watchlist")
+        self.pool = DatabaseConnectionPool()
+        self.watch_list_dao = WatchListDAO(self.pool)
 
     @error_handler("removing tickers from watchlist")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -38,14 +42,14 @@ class RemoveTickersFromWatchListCommand(Command):
                 return
 
         # Get watch list details
-        watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
+        watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
             return
 
         with ui.progress("Loading tickers...") as progress:
             progress.add_task("", total=None)
-            tickers = cli.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
+            tickers = self.watch_list_dao.get_tickers_in_watch_list(watch_list_id)
 
         if not tickers:
             ui.status_message("This watch list has no tickers to remove.", "warning")
@@ -69,6 +73,7 @@ class RemoveTickersFromWatchListCommand(Command):
         if ui.confirm_action(f"Remove {len(valid_tickers)} ticker(s) from watch list #{watch_list_id}?"):
             with ui.progress("Removing tickers...") as progress:
                 progress.add_task("", total=None)
-                cli.remove_watch_list_ticker(watch_list_id, valid_tickers)
+                for ticker in valid_tickers:
+                    self.watch_list_dao.remove_ticker_from_watch_list(watch_list_id, ticker)
 
             ui.status_message("Tickers removed successfully", "success")

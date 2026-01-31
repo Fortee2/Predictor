@@ -1,3 +1,5 @@
+from data.utility import DatabaseConnectionPool
+from data.watch_list_dao import WatchListDAO
 from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 from rich.prompt import Prompt
@@ -7,6 +9,8 @@ class CreateWatchListCommand(Command):
 
     def __init__(self):
         super().__init__("Create Watch List", "Create a new watchlist")
+        self.pool = DatabaseConnectionPool()
+        self.watch_list_dao = WatchListDAO(self.pool)
 
     @error_handler("creating watchlist")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -32,7 +36,7 @@ class CreateWatchListCommand(Command):
         ):
             with ui.progress("Creating watch list...") as progress:
                 progress.add_task("", total=None)
-                watch_list_id = cli.create_watch_list(data["name"], data["description"])
+                watch_list_id = self.watch_list_dao.create_watch_list(data["name"], data["description"])
 
             if watch_list_id:
                 ui.status_message(

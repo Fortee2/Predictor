@@ -203,9 +203,9 @@ class LLMPortfolioAnalyzer:
             # Technical Analysis Tools
             elif tool_name == "calculate_rsi":
                 ticker_id = tool_input["ticker_id"]
-                self.rsi_calc.calculateRSI(ticker_id)
+                # RSI is pre-calculated during data updates, just retrieve it
                 rsi_data = self.rsi_calc.retrievePrices(1, ticker_id)
-                if not rsi_data.empty:
+                if not rsi_data.empty and not rsi_data["rsi"].isna().all():
                     latest = rsi_data.iloc[-1]
                     rsi_value = float(latest["rsi"])
                     return {
@@ -217,8 +217,9 @@ class LLMPortfolioAnalyzer:
 
             elif tool_name == "calculate_macd":
                 ticker_id = tool_input["ticker_id"]
-                macd_result = self.macd_calc.calculate_macd(ticker_id)
-                if macd_result:
+                # MACD is pre-calculated during data updates, just retrieve it
+                macd_result = self.macd_calc.load_macd_from_db(ticker_id)
+                if macd_result is not None and not macd_result.empty:
                     signals = self.macd_calc.get_macd_signals(ticker_id)
                     return {
                         "macd": macd_result,

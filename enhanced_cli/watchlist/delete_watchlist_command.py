@@ -2,6 +2,8 @@
 
 from rich.prompt import Prompt
 
+from data.utility import DatabaseConnectionPool
+from data.watch_list_dao import WatchListDAO
 from enhanced_cli.core.command import Command, error_handler
 from enhanced_cli.ui_components import ui
 
@@ -11,6 +13,8 @@ class DeleteWatchListCommand(Command):
 
     def __init__(self):
         super().__init__("Delete Watch List", "Delete a watchlist")
+        self.pool = DatabaseConnectionPool()
+        self.watch_list_dao = WatchListDAO(self.pool)
 
     @error_handler("deleting watchlist")
     def execute(self, cli, *args, **kwargs) -> None:
@@ -27,7 +31,7 @@ class DeleteWatchListCommand(Command):
             # First list watch lists for selection
             with ui.progress("Loading watch lists...") as progress:
                 progress.add_task("", total=None)
-                watch_lists = cli.watch_list_dao.get_watch_list()
+                watch_lists = self.watch_list_dao.get_watch_list()
 
             if not watch_lists:
                 ui.status_message("No watch lists found.", "warning")
@@ -42,7 +46,7 @@ class DeleteWatchListCommand(Command):
 
             rows = []
             for wl in watch_lists:
-                ticker_count = len(cli.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
+                ticker_count = len(self.watch_list_dao.get_tickers_in_watch_list(wl["id"]))
                 rows.append([str(wl["id"]), wl["name"], str(ticker_count)])
 
             table = ui.data_table("Your Watch Lists", columns, rows)
@@ -57,7 +61,7 @@ class DeleteWatchListCommand(Command):
         # Get watch list details for confirmation
         with ui.progress("Loading watch list details...") as progress:
             progress.add_task("", total=None)
-            watch_list = cli.watch_list_dao.get_watch_list(watch_list_id)
+            watch_list = self.watch_list_dao.get_watch_list(watch_list_id)
 
         if not watch_list:
             ui.status_message(f"Watch list with ID {watch_list_id} not found.", "error")
@@ -71,6 +75,6 @@ class DeleteWatchListCommand(Command):
         ):
             with ui.progress("Deleting watch list...") as progress:
                 progress.add_task("", total=None)
-                cli.delete_watch_list(watch_list_id)
+                self.watch_list_dao.delete_watch_list(watch_list_id)
 
             ui.status_message("Watch list deleted successfully", "success")
