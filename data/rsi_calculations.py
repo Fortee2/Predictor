@@ -108,7 +108,15 @@ class rsi_calculations(BaseDAO):
         with self.get_connection() as connection:
             cursor = connection.cursor()
 
-            sql = "insert into investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) values (%s, %s, %s, %s, %s, %s);"
+            sql = """
+            INSERT INTO investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) 
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON DUPLICATE KEY UPDATE 
+            avg_gain = VALUES(avg_gain), 
+            avg_loss = VALUES(avg_loss), 
+            rs = VALUES(rs), 
+            rsi = VALUES(rsi);
+            """
 
             cursor.execute(
                 sql,
@@ -133,7 +141,15 @@ class rsi_calculations(BaseDAO):
         try:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
-                sql = "insert into investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) values (%s, %s, %s, %s, %s, %s);"
+                sql = """
+                INSERT INTO investing.rsi (activity_date, ticker_id, avg_gain, avg_loss, rs, rsi) 
+                VALUES (%s, %s, %s, %s, %s, %s)
+                ON DUPLICATE KEY UPDATE 
+                avg_gain = VALUES(avg_gain), 
+                avg_loss = VALUES(avg_loss), 
+                rs = VALUES(rs), 
+                rsi = VALUES(rsi);
+                """
                 cursor.executemany(sql, batch_data)
                 connection.commit()
                 cursor.close()

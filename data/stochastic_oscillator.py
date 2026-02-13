@@ -55,10 +55,10 @@ class StochasticOscillator(BaseDAO):
                 cursor.execute(
                     """
                     SELECT MAX(activity_date) 
-                    FROM investing.averages 
-                    WHERE ticker_id = %s AND average_type = %s
+                    FROM investing.stochastic_indicators 
+                    WHERE ticker_id = %s AND k_period = %s AND d_period = %s
                 """,
-                    (ticker_id, f"STOCH_K_{k_period}"),
+                    (ticker_id, k_period, d_period),
                 )
                 result = cursor.fetchone()
                 last_date = result[0] if result else None
@@ -128,39 +128,30 @@ class StochasticOscillator(BaseDAO):
 
                     if not complete_data.empty:
                         # Store in database - reusing existing storage pattern
-                        rows_updated = 0
-                        for index, row in complete_data.iterrows():
-                            # Store %K
-                            cursor.execute(
-                                """
-                                INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
-                                VALUES (%s, %s, %s, %s)
-                                ON DUPLICATE KEY UPDATE value = VALUES(value)
-                            """,
-                                (
-                                    ticker_id,
-                                    index.date(),
-                                    f"STOCH_K_{k_period}",
-                                    float(row["stoch_k"]),
-                                ),
+                        insert_data = [
+                            (
+                                ticker_id,
+                                index.date(),
+                                float(row["stoch_k"]),
+                                float(row["stoch_d"]),
+                                k_period,
+                                d_period
                             )
+                            for index, row in complete_data.iterrows()
+                        ]
 
-                            # Store %D
-                            cursor.execute(
-                                """
-                                INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
-                                VALUES (%s, %s, %s, %s)
-                                ON DUPLICATE KEY UPDATE value = VALUES(value)
+                        cursor.executemany(
+                            """
+                            INSERT INTO investing.stochastic_indicators 
+                            (ticker_id, activity_date, k_value, d_value, k_period, d_period)
+                            VALUES (%s, %s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE 
+                                k_value = VALUES(k_value),
+                                d_value = VALUES(d_value)
                             """,
-                                (
-                                    ticker_id,
-                                    index.date(),
-                                    f"STOCH_D_{k_period}_{d_period}",
-                                    float(row["stoch_d"]),
-                                ),
-                            )
-
-                            rows_updated += cursor.rowcount
+                            insert_data
+                        )
+                        rows_updated = cursor.rowcount
 
                         connection.commit()
                         logger.info("Updated %s stochastic values for ticker %s", rows_updated, ticker_id)
@@ -197,23 +188,17 @@ class StochasticOscillator(BaseDAO):
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
-                # Load both %K and %D - reusing existing query pattern
+                # Load both %K and %D from dedicated table
                 sql = """
-                    SELECT a.activity_date, 
-                           MAX(CASE WHEN a.average_type = %s THEN a.value END) as stoch_k,
-                           MAX(CASE WHEN a.average_type = %s THEN a.value END) as stoch_d
-                    FROM investing.averages a 
-                    WHERE a.ticker_id = %s 
-                    AND a.average_type IN (%s, %s)
-                    AND a.activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
-                    GROUP BY a.activity_date
-                    ORDER BY a.activity_date ASC
+                    SELECT activity_date, k_value as stoch_k, d_value as stoch_d
+                    FROM investing.stochastic_indicators
+                    WHERE ticker_id = %s 
+                    AND k_period = %s AND d_period = %s
+                    AND activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+                    ORDER BY activity_date ASC
                 """
 
-                k_type = f"STOCH_K_{k_period}"
-                d_type = f"STOCH_D_{k_period}_{d_period}"
-
-                cursor.execute(sql, (k_type, d_type, ticker_id, k_type, d_type))
+                cursor.execute(sql, (ticker_id, k_period, d_period))
 
                 df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "stoch_k", "stoch_d"])
                 df = df.set_index("activity_date")
