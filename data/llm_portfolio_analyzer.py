@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 import boto3
+from duckduckgo_search import DDGS
 
 from .bollinger_bands import BollingerBandAnalyzer
 from .llm_tool_definitions import get_tool_config
@@ -255,6 +256,19 @@ class LLMPortfolioAnalyzer:
                 return {"ticker_id": ticker_id} if ticker_id else {"error": f"Ticker {symbol} not found"}
 
             # News & Fundamental Tools
+            elif tool_name == "web_search":
+                query = tool_input["query"]
+                try:
+                    with DDGS() as ddgs:
+                        # Perform search and get top 5 results
+                        results = list(ddgs.text(query, max_results=5))
+                        if results:
+                            return {"search_results": results}
+                        else:
+                            return {"message": "No results found for your query."}
+                except Exception as e:
+                    return {"error": f"Search failed: {str(e)}"}
+
             elif tool_name == "get_news_sentiment":
                 ticker_id = tool_input["ticker_id"]
                 symbol = tool_input["symbol"]
@@ -410,6 +424,7 @@ Available tool categories:
 - Portfolio queries: Get portfolios, positions, balances, transactions
 - Technical analysis: RSI, MACD, Moving Averages, Bollinger Bands, Stochastic, Trends
 - Fundamental data: P/E ratios, market cap, dividend yields, growth metrics
+- Web search: Find current information about stocks, market events, and economic data
 - News sentiment: Recent news analysis with sentiment scores
 - Write operations: Log transactions, manage cash, add/remove tickers
 - Watchlists: Manage and analyze watchlist securities
