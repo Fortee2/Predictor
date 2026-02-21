@@ -46,13 +46,20 @@ class moving_averages(BaseDAO):
 
                 sql = """
                     select activity_date, value 
-                    from investing.averages a 
+                    from investing.simple_moving_averages a 
                     where a.activity_date between date_add(curdate(), interval -1 YEAR) and curdate() 
-                    and ticker_id = %s and average_type = %s
+                    and ticker_id = %s and period = %s
                     order by a.activity_date;
                 """
 
-                cursor.execute(sql, (int(ticker_id), str(averageType)))
+                # Ensure averageType is treated as period (int)
+                try:
+                    period = int(averageType)
+                except ValueError:
+                    logger.warning("Invalid period for moving average: %s", averageType)
+                    return pd.DataFrame()
+
+                cursor.execute(sql, (int(ticker_id), period))
 
                 df = pd.DataFrame(
                     cursor.fetchall(),
@@ -83,8 +90,8 @@ class moving_averages(BaseDAO):
                 cursor.execute(
                     """
                     SELECT MAX(activity_date) 
-                    FROM investing.averages 
-                    WHERE ticker_id = %s AND average_type = %s
+                    FROM investing.simple_moving_averages 
+                    WHERE ticker_id = %s AND period = %s
                 """,
                     (ticker_id, period),
                 )
@@ -123,18 +130,21 @@ class moving_averages(BaseDAO):
                     if isinstance(new_data, pd.DataFrame):
                         new_data["moving_average"] = new_data["close"].rolling(window=period, min_periods=1).mean()
 
-                    # Insert or update the moving averages in the investing.averages table
-                    rows_updated = 0
-                    for index, row in new_data.iterrows():
-                        cursor.execute(
-                            """
-                            INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
-                            VALUES (%s, %s, %s, %s)
-                            ON DUPLICATE KEY UPDATE value = VALUES(value)
-                        """,
-                            (ticker_id, index.date(), period, row["moving_average"]),
-                        )
-                        rows_updated += cursor.rowcount
+                    # Insert or update the moving averages in the investing.simple_moving_averages table
+                    insert_data = [
+                        (ticker_id, index.date(), period, row["moving_average"])
+                        for index, row in new_data.iterrows()
+                    ]
+
+                    cursor.executemany(
+                        """
+                        INSERT INTO investing.simple_moving_averages (ticker_id, activity_date, period, value)
+                        VALUES (%s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE value = VALUES(value)
+                    """,
+                        insert_data,
+                    )
+                    rows_updated = cursor.rowcount
 
                     # Commit the changes to the database
                     connection.commit()

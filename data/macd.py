@@ -49,6 +49,27 @@ class MACD:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
+                # 1. Get the date of the latest available price data
+                cursor.execute(
+                    "SELECT MAX(activity_date) FROM investing.activity WHERE ticker_id = %s",
+                    (ticker_id,)
+                )
+                latest_price_result = cursor.fetchone()
+                latest_price_date = latest_price_result[0] if latest_price_result else None
+
+                # 2. Get the date of the latest calculated MACD
+                cursor.execute(
+                    "SELECT MAX(activity_date) FROM investing.macd_indicators WHERE ticker_id = %s",
+                    (ticker_id,)
+                )
+                latest_macd_result = cursor.fetchone()
+                latest_macd_date = latest_macd_result[0] if latest_macd_result else None
+
+                # 3. If dates match, data is fresh - skip calculation
+                if latest_price_date and latest_macd_date and latest_macd_date >= latest_price_date:
+                    cursor.close()
+                    return self.load_macd_from_db(ticker_id)
+
                 # Get price data for the last year
                 cursor.execute(
                     """
@@ -79,28 +100,33 @@ class MACD:
                 signal_line = self.calculate_ema(macd_line, 9)
 
                 # Store results in database
+                insert_data = []
                 for date, macd_value, signal_value in zip(macd_line.index, macd_line, signal_line):
-                    # Store MACD line
                     # Convert date to date object if it's a datetime
                     store_date = date.date() if hasattr(date, "date") else date
+                    
+                    # Calculate histogram
+                    histogram = float(macd_value) - float(signal_value)
+                    
+                    insert_data.append((
+                        ticker_id, 
+                        store_date, 
+                        float(macd_value), 
+                        float(signal_value),
+                        histogram
+                    ))
 
-                    cursor.execute(
+                if insert_data:
+                    cursor.executemany(
                         """
-                        INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
-                        VALUES (%s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE value = VALUES(value)
-                    """,
-                        (ticker_id, store_date, "MACD", float(macd_value)),
-                    )
-
-                    # Store Signal line
-                    cursor.execute(
-                        """
-                        INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
-                        VALUES (%s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE value = VALUES(value)
-                    """,
-                        (ticker_id, store_date, "MACD_SIGNAL", float(signal_value)),
+                        INSERT INTO investing.macd_indicators (ticker_id, activity_date, macd, `signal`, histogram)
+                        VALUES (%s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE 
+                            macd = VALUES(macd),
+                            `signal` = VALUES(`signal`),
+                            histogram = VALUES(histogram)
+                        """,
+                        insert_data
                     )
 
                 connection.commit()
@@ -117,26 +143,19 @@ class MACD:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
-                # Get both MACD and Signal line values
+                # Get MACD data from dedicated table
                 sql = """
-                    SELECT a.activity_date, 
-                           MAX(CASE WHEN a.average_type = 'MACD' THEN a.value END) as macd,
-                           MAX(CASE WHEN a.average_type = 'MACD_SIGNAL' THEN a.value END) as signal_line
-                    FROM investing.averages a 
-                    WHERE a.ticker_id = %s 
-                    AND a.average_type IN ('MACD', 'MACD_SIGNAL')
-                    AND a.activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
-                    GROUP BY a.activity_date
-                    ORDER BY a.activity_date ASC
+                    SELECT activity_date, macd, `signal`, histogram
+                    FROM investing.macd_indicators
+                    WHERE ticker_id = %s 
+                    AND activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+                    ORDER BY activity_date ASC
                 """
 
                 cursor.execute(sql, (ticker_id,))
 
-                df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "macd", "signal_line"])
+                df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "macd", "signal_line", "histogram"])
                 df = df.set_index("activity_date")
-
-                # Calculate histogram (MACD - Signal)
-                df["histogram"] = df["macd"] - df["signal_line"]
 
                 cursor.close()
                 return df
