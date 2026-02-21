@@ -431,6 +431,29 @@ def get_tool_config():
                         }
                     }
                 }
+            },
+            # Web Search Tools
+            {
+                "toolSpec": {
+                    "name": "web_search",
+                    "description": "Search the web using DuckDuckGo for current information about stocks, companies, market news, earnings reports, or any financial topic. Returns recent search results with titles, snippets, and URLs.",
+                    "inputSchema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {
+                                "query": {
+                                    "type": "string",
+                                    "description": "The search query (e.g., 'Apple earnings Q4 2024', 'Tesla stock news', 'Federal Reserve interest rates')"
+                                },
+                                "max_results": {
+                                    "type": "integer",
+                                    "description": "Maximum number of results to return (default 5, max 10)"
+                                }
+                            },
+                            "required": ["query"]
+                        }
+                    }
+                }
             }
         ]
     }

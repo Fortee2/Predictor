@@ -11,6 +11,7 @@ from decimal import Decimal
 from typing import Dict, List, Optional
 
 import boto3
+from duckduckgo_search import DDGS
 
 from .bollinger_bands import BollingerBandAnalyzer
 from .llm_tool_definitions import get_tool_config
@@ -362,6 +363,50 @@ class LLMPortfolioAnalyzer:
                 tickers = self.watchlist_dao.get_tickers_in_watch_list(watchlist_id)
                 return {"tickers": tickers}
 
+            # Web Search Tools
+            elif tool_name == "web_search":
+                query = tool_input["query"]
+                max_results = tool_input.get("max_results", 5)
+
+                # Limit max_results to 10
+                if max_results > 10:
+                    max_results = 10
+
+                try:
+                    # Use DuckDuckGo search
+                    with DDGS() as ddgs:
+                        results = list(ddgs.text(query, max_results=max_results))
+
+                    if results:
+                        # Format results for better readability
+                        formatted_results = []
+                        for i, result in enumerate(results, 1):
+                            formatted_results.append({
+                                "position": i,
+                                "title": result.get("title", ""),
+                                "snippet": result.get("body", ""),
+                                "url": result.get("href", "")
+                            })
+
+                        return {
+                            "query": query,
+                            "results_count": len(formatted_results),
+                            "results": formatted_results
+                        }
+                    else:
+                        return {
+                            "query": query,
+                            "results_count": 0,
+                            "results": [],
+                            "message": "No results found for this query"
+                        }
+                except Exception as search_error:
+                    self.logger.error(f"DuckDuckGo search error: {search_error}")
+                    return {
+                        "error": f"Search failed: {str(search_error)}",
+                        "query": query
+                    }
+
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
 
@@ -413,6 +458,7 @@ Available tool categories:
 - News sentiment: Recent news analysis with sentiment scores
 - Write operations: Log transactions, manage cash, add/remove tickers
 - Watchlists: Manage and analyze watchlist securities
+- Web search: Search DuckDuckGo for current market news, earnings reports, company information, and financial topics
 """
 
         return [{"text": base_prompt}]
@@ -424,6 +470,97 @@ Available tool categories:
             if "text" in content_block:
                 text_parts.append(content_block["text"])
         return "\n".join(text_parts)
+
+    def _validate_conversation_history(self, history: List[Dict]) -> List[Dict]:
+        """
+        Validate conversation history and remove incomplete tool exchanges.
+
+        AWS Bedrock Converse API requires that every assistant message with tool_use blocks
+        must be immediately followed by a user message with matching tool_result blocks.
+
+        This method detects incomplete tool exchanges (e.g., when conversation was saved
+        mid-execution) and truncates the history to maintain a valid state.
+
+        Args:
+            history: Raw conversation history
+
+        Returns:
+            Validated conversation history with incomplete exchanges removed
+        """
+        if not history:
+            return history
+
+        validated = []
+        i = 0
+
+        while i < len(history):
+            message = history[i]
+
+            # Add current message to validated list
+            validated.append(message)
+
+            # Check if this is an assistant message with tool_use
+            if message.get("role") == "assistant":
+                tool_use_blocks = []
+                for content_block in message.get("content", []):
+                    if "toolUse" in content_block:
+                        tool_use_blocks.append(content_block["toolUse"]["toolUseId"])
+
+                # If assistant requested tools, verify the next message has matching results
+                if tool_use_blocks:
+                    if i + 1 >= len(history):
+                        # No next message - incomplete exchange, truncate here
+                        self.logger.warning(
+                            f"Incomplete tool exchange detected: assistant requested {len(tool_use_blocks)} "
+                            f"tools but conversation ended. Truncating history."
+                        )
+                        validated.pop()  # Remove the incomplete assistant message
+                        break
+
+                    next_message = history[i + 1]
+
+                    # Next message must be from user with tool results
+                    if next_message.get("role") != "user":
+                        self.logger.warning(
+                            f"Invalid conversation structure: assistant tool_use not followed by user message. "
+                            f"Truncating history at message {i}."
+                        )
+                        validated.pop()  # Remove the incomplete assistant message
+                        break
+
+                    # Count tool results in next message
+                    tool_result_blocks = []
+                    for content_block in next_message.get("content", []):
+                        if "toolResult" in content_block:
+                            tool_result_blocks.append(content_block["toolResult"]["toolUseId"])
+
+                    # Verify counts match
+                    if len(tool_result_blocks) != len(tool_use_blocks):
+                        self.logger.warning(
+                            f"Tool use/result mismatch: expected {len(tool_use_blocks)} results, "
+                            f"found {len(tool_result_blocks)}. Truncating history at message {i}."
+                        )
+                        validated.pop()  # Remove the incomplete assistant message
+                        break
+
+                    # Verify all tool IDs match
+                    if set(tool_result_blocks) != set(tool_use_blocks):
+                        self.logger.warning(
+                            f"Tool ID mismatch: tool results don't match tool requests. "
+                            f"Truncating history at message {i}."
+                        )
+                        validated.pop()  # Remove the incomplete assistant message
+                        break
+
+            i += 1
+
+        if len(validated) < len(history):
+            self.logger.info(
+                f"Conversation history validated: removed {len(history) - len(validated)} "
+                f"incomplete messages (kept {len(validated)} valid messages)"
+            )
+
+        return validated
 
     def chat(
         self,
@@ -539,9 +676,19 @@ Available tool categories:
             return f"I encountered an error: {str(e)}"
         finally:
             # Auto-save conversation to database after each interaction
+            # Only save if conversation is in a valid state (no incomplete tool exchanges)
             if self.auto_save and portfolio_id and len(self.conversation_history) > 0:
                 try:
-                    self.save_conversation_to_db(portfolio_id)
+                    # Validate before saving to ensure we don't persist incomplete tool exchanges
+                    validated_history = self._validate_conversation_history(self.conversation_history)
+                    if len(validated_history) < len(self.conversation_history):
+                        self.logger.warning(
+                            "Skipping auto-save: conversation has incomplete tool exchanges. "
+                            "Conversation will be saved once tool execution completes."
+                        )
+                        # Don't save incomplete state
+                    else:
+                        self.save_conversation_to_db(portfolio_id)
                 except Exception as save_error:
                     self.logger.error(f"Error auto-saving conversation: {save_error}")
 
@@ -590,11 +737,28 @@ Available tool categories:
         session_data = self.conversation_dao.load_active_conversation(portfolio_id)
 
         if session_data:
-            self.conversation_history = session_data['conversation_data']
+            # Validate and clean conversation history
+            raw_history = session_data['conversation_data']
+            validated_history = self._validate_conversation_history(raw_history)
+
+            # If validation removed messages, update the database
+            if len(validated_history) < len(raw_history):
+                self.logger.info(
+                    f"Updating database with validated conversation history "
+                    f"({len(validated_history)} messages instead of {len(raw_history)})"
+                )
+                self.conversation_dao.save_conversation(
+                    portfolio_id=portfolio_id,
+                    conversation_data=validated_history,
+                    session_name=session_data.get('session_name'),
+                    set_as_active=True
+                )
+
+            self.conversation_history = validated_history
             self.current_session_id = session_data['id']
             self.logger.info(
                 f"Loaded conversation session {self.current_session_id} "
-                f"with {session_data['exchange_count']} exchanges"
+                f"with {len(validated_history)} messages"
             )
             return True
         else:
@@ -612,9 +776,22 @@ Available tool categories:
         return self.conversation_history.copy()
 
     def set_conversation_history(self, history: List[Dict]):
-        """Set conversation history (useful for continuing previous conversations)."""
-        self.conversation_history = history
-        self.logger.info(f"Conversation history set with {len(history)} messages")
+        """
+        Set conversation history (useful for continuing previous conversations).
+
+        Args:
+            history: Conversation history to set (will be validated)
+        """
+        validated_history = self._validate_conversation_history(history)
+        self.conversation_history = validated_history
+
+        if len(validated_history) < len(history):
+            self.logger.warning(
+                f"Conversation history contained incomplete tool exchanges. "
+                f"Set {len(validated_history)} messages instead of {len(history)}"
+            )
+        else:
+            self.logger.info(f"Conversation history set with {len(validated_history)} messages")
 
     def get_conversation_stats(self) -> Dict:
         """
