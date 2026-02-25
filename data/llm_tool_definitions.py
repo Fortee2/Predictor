@@ -205,24 +205,6 @@ def get_tool_config():
             # News & Fundamental Tools
             {
                 "toolSpec": {
-                    "name": "web_search",
-                    "description": "Perform a web search to find current information about stocks, companies, market events, or economic data. Use this when you need real-time information that is not available in the database.",
-                    "inputSchema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {
-                                "query": {
-                                    "type": "string",
-                                    "description": "The search query (e.g., 'Tesla Q3 earnings release date', 'current inflation rate US')"
-                                }
-                            },
-                            "required": ["query"]
-                        }
-                    }
-                }
-            },
-            {
-                "toolSpec": {
                     "name": "get_news_sentiment",
                     "description": "Get news sentiment analysis for a stock ticker using FinBERT.",
                     "inputSchema": {

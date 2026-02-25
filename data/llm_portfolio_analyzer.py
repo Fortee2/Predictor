@@ -77,7 +77,11 @@ class LLMPortfolioAnalyzer:
         self.stoch_calc = StochasticOscillator(pool=self.db_pool)
         self.options_calc = OptionsData(pool=self.db_pool)
         self.trend_analyzer = TrendAnalyzer(pool=self.db_pool)
-
+        self.shared_metrics = SharedAnalysisMetrics(
+            self.rsi_calc, self.ma_calc, self.bb_calc, self.macd_calc,
+            self.fundamental_dao, self.news_analyzer, self.options_calc,
+            self.trend_analyzer, self.stoch_calc
+        )
         # Initialize Bedrock client
         self.bedrock_client = boto3.client(
             service_name="bedrock-runtime",
@@ -232,14 +236,7 @@ class LLMPortfolioAnalyzer:
                 ticker_id = tool_input["ticker_id"]
                 symbol = tool_input.get("symbol")
 
-                from .shared_analysis_metrics import SharedAnalysisMetrics
-                metrics = SharedAnalysisMetrics(
-                    self.rsi_calc, self.ma_calc, self.bb_calc, self.macd_calc,
-                    self.fundamental_dao, self.news_analyzer, self.options_calc,
-                    self.trend_analyzer, self.stoch_calc
-                )
-
-                analysis = metrics.get_comprehensive_analysis(
+                analysis = self.shared_metrics.get_comprehensive_analysis(
                     ticker_id=ticker_id,
                     symbol=symbol
                 )
@@ -601,7 +598,7 @@ Available tool categories:
             # Clear history for consistent, context-free analysis
             if reset_context:
                 self.reset_conversation()
-            
+
             # Add portfolio context to user message if provided
             if portfolio_id is not None:
                 portfolio = self.portfolio_dao.read_portfolio(portfolio_id)
@@ -707,8 +704,8 @@ Available tool categories:
                     self.logger.error(f"Error auto-saving conversation: {save_error}")
 
     def save_conversation_to_db(
-        self, 
-        portfolio_id: int, 
+        self,
+        portfolio_id: int,
         session_name: Optional[str] = None
     ) -> Optional[int]:
         """

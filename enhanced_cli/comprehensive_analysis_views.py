@@ -60,55 +60,35 @@ class ComprehensiveAnalysisCommand(Command):
         portfolio_name = portfolio["name"]
         ui.console.print(ui.section_header(f"Comprehensive Analysis: {portfolio_name}"))
 
-        # Ask if user wants to update S&P 500 data first
-        if ui.confirm_action("Update S&P 500 benchmark data before analysis?"):
-            with ui.progress("Updating S&P 500 data...") as progress:
-                progress.add_task("", total=None)
-                try:
-                    analyzer = MultiTimeframeAnalyzer(self.pool)
-                    analyzer.update_sp500_data()
-                    ui.status_message("S&P 500 data updated successfully", "success")
-                except Exception as e:
-                    ui.status_message(f"Warning: Could not update S&P 500 data: {e}", "warning")
-
-        # Perform comprehensive analysis
-        with ui.progress("Performing comprehensive multi-timeframe analysis...") as progress:
-            task = progress.add_task("Analyzing portfolio performance...", total=100)
-
+        # Load the most recent comprehensive analysis metrics
+        with ui.progress("Loading comprehensive analysis metrics...") as progress:
+            progress.add_task("Fetching metrics...", total=None)
             try:
-                # Initialize analyzer
                 analyzer = MultiTimeframeAnalyzer(self.pool)
-                progress.update(task, advance=20)
-
-                # Analyze portfolio across all timeframes
-                ui.console.print("Calculating performance metrics across multiple timeframes...")
-                portfolio_metrics = analyzer.analyze_portfolio_timeframes(portfolio_id)
-                progress.update(task, advance=40)
+                # We fetch for today's date, as calculations are now tied to data updates
+                analysis_date = date.today()
+                portfolio_metrics = analyzer.get_portfolio_metrics(portfolio_id, analysis_date)
 
                 if not portfolio_metrics:
-                    ui.status_message("No performance data available for analysis", "warning")
+                    ui.status_message(
+                        f"No metrics found for {analysis_date}. Please update market data first.",
+                        "warning"
+                    )
+                    ui.console.print("[dim]You can update data by running 'data' -> 'Update Market Data'.[/dim]")
+                    ui.wait_for_user()
                     return
 
-                # Save metrics to database
-                ui.console.print("Saving performance metrics...")
-                analyzer.save_portfolio_metrics(portfolio_id, portfolio_metrics)
-                progress.update(task, advance=20)
-
-                # Get individual holdings analysis (if we implement this later)
-                holdings_metrics = self._get_holdings_analysis(analyzer, portfolio_id)
-                progress.update(task, advance=10)
-
-                # Get market events performance (placeholder for now)
-                market_events_performance = self._get_market_events_analysis(analyzer, portfolio_id)
-                progress.update(task, advance=10)
+                # Placeholders for future implementations
+                holdings_metrics = {}
+                market_events_performance = {}
 
             except Exception as e:
-                ui.status_message(f"Error during analysis: {e}", "error")
+                ui.status_message(f"Error loading analysis metrics: {e}", "error")
                 return
 
         # Display comprehensive results
         ui.console.print("\n")
-        ui.status_message("Analysis complete! Displaying results...", "success")
+        ui.status_message("Displaying latest comprehensive analysis...", "success")
 
         try:
             formatter = ComprehensivePerformanceFormatter()

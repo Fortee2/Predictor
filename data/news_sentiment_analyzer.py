@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 class NewsSentimentAnalyzer:
     def __init__(self, pool: DatabaseConnectionPool):
         self.sentiment_dao = NewsSentimentDAO(pool=pool)
+        self.nlp = None
 
-        # Initialize FinBERT model
-        print("Loading FinBERT model...")
-        self.nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True)
-        print("FinBERT model loaded")
+    def _ensure_model_loaded(self):
+        """Lazy load the FinBERT model only when needed"""
+        if self.nlp is None:
+            print("Loading FinBERT model...")
+            self.nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True)
+            print("FinBERT model loaded")
 
     def analyze_sentiment(self, text):
         """
@@ -25,6 +28,7 @@ class NewsSentimentAnalyzer:
         Returns score between -1 and 1, and confidence
         """
         try:
+            self._ensure_model_loaded()
             result = self.nlp(text)[0]
 
             # Convert FinBERT output to score and confidence

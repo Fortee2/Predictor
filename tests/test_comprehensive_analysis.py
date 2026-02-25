@@ -25,16 +25,21 @@ from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 class TestMultiTimeframeAnalyzer(unittest.TestCase):
     """Test cases for MultiTimeframeAnalyzer calculations."""
 
-    def setUp(self):
+    @patch('data.multi_timeframe_analyzer.DatabaseConnectionPool')
+    def setUp(self, mock_pool_class):
         """Set up test fixtures."""
         # Mock database connection pool to avoid actual DB calls
-        self.mock_pool = Mock()
+        self.mock_pool = mock_pool_class.return_value
         self.mock_connection = Mock()
         self.mock_pool.get_connection.return_value = self.mock_connection
-        self.mock_pool.get_connection_context.return_value.__enter__.return_value = self.mock_connection
-        self.mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Correctly mock the context manager
+        mock_context = Mock()
+        mock_context.__enter__.return_value = self.mock_connection
+        mock_context.__exit__.return_value = None
+        self.mock_pool.get_connection_context.return_value = mock_context
 
-        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
+        # Create analyzer with mocked pool
         self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
 
         # Sample portfolio value data for testing
@@ -225,8 +230,12 @@ class TestMultiTimeframeAnalyzer(unittest.TestCase):
         mock_connection.cursor.return_value = mock_cursor
 
         mock_pool = Mock()
-        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        
+        # Correctly mock the context manager
+        mock_context = Mock()
+        mock_context.__enter__.return_value = mock_connection
+        mock_context.__exit__.return_value = None
+        mock_pool.get_connection_context.return_value = mock_context
 
         # Mock database results
         mock_cursor.fetchall.return_value = [
@@ -445,17 +454,22 @@ class TestComprehensivePerformanceFormatter(unittest.TestCase):
 class TestIntegrationScenarios(unittest.TestCase):
     """Integration tests for comprehensive analysis scenarios."""
 
-    def setUp(self):
+    @patch('data.multi_timeframe_analyzer.DatabaseConnectionPool')
+    def setUp(self, mock_pool_class):
         """Set up test fixtures."""
         # Mock database connection pool
-        mock_pool = Mock()
-        mock_connection = Mock()
-        mock_pool.get_connection.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        self.mock_pool = mock_pool_class.return_value
+        self.mock_connection = Mock()
+        self.mock_pool.get_connection.return_value = self.mock_connection
+        
+        # Correctly mock the context manager
+        mock_context = Mock()
+        mock_context.__enter__.return_value = self.mock_connection
+        mock_context.__exit__.return_value = None
+        self.mock_pool.get_connection_context.return_value = mock_context
 
-        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
-        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
+        # Create analyzer with mocked pool
+        self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
         self.formatter = ComprehensivePerformanceFormatter()
 
     def test_bull_market_scenario(self):

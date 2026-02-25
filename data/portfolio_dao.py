@@ -18,6 +18,13 @@ class PortfolioDAO(BaseDAO):
         self.transactions_dao = PortfolioTransactionsDAO(pool)
         self.ticker_dao = TickerDao(pool)
 
+    def clear_cache(self):
+        """Clears the LRU cache for methods that cache portfolio data."""
+        self.read_portfolio.cache_clear()
+        self.get_security_id.cache_clear()
+        self.get_cash_balance.cache_clear()
+        logger.debug("PortfolioDAO caches cleared.")
+
     def create_portfolio(self, name, description, initial_cash=0.0):
         try:
             with self.get_connection() as connection:
@@ -27,11 +34,13 @@ class PortfolioDAO(BaseDAO):
                 cursor.execute(query, values)
                 portfolio_id = cursor.lastrowid
                 print(f"Created new portfolio with ID {portfolio_id}")
+                self.clear_cache()  # Clear cache after creating portfolio
                 return portfolio_id
         except mysql.connector.Error as e:
             logger.error("Error creating portfolio: %s", e)
             return None
 
+    @lru_cache(maxsize=32)
     def get_cash_balance(self, portfolio_id, as_of_date=None):
         """
         Get the cash balance for a portfolio, optionally as of a specific date.
@@ -290,6 +299,7 @@ class PortfolioDAO(BaseDAO):
                 cursor.execute(query, values)
                 connection.commit()
                 print(f"Updated portfolio {portfolio_id}")
+                self.read_portfolio.cache_clear() # Clear cache after updating portfolio
         except mysql.connector.Error as e:
             logger.error("Error updating portfolio: %s", e)
 
@@ -302,6 +312,7 @@ class PortfolioDAO(BaseDAO):
                 cursor.execute(query, values)
                 connection.commit()
                 print(f"Deleted portfolio {portfolio_id}")
+                self.clear_cache()  # Clear cache after deleting portfolio
         except mysql.connector.Error as e:
             logger.error("Error deleting portfolio: %s", e)
 
@@ -345,6 +356,7 @@ class PortfolioDAO(BaseDAO):
 
                 connection.commit()
                 print(f"Added {added_count} tickers to portfolio {portfolio_id}")
+                self.clear_cache()  # Clear cache after adding tickers
         except mysql.connector.Error as e:
             logger.error("Error adding tickers to portfolio: %s", e)
             connection.rollback()
@@ -375,6 +387,7 @@ class PortfolioDAO(BaseDAO):
 
                 connection.commit()
                 print(f"Removed {removed_count} tickers from portfolio {portfolio_id}")
+                self.clear_cache()  # Clear cache after removing tickers
         except mysql.connector.Error as e:
             logger.error("Error removing tickers from portfolio: %s", e)
             connection.rollback()
@@ -501,6 +514,7 @@ class PortfolioDAO(BaseDAO):
         print(
             f"Logged {transaction_type} transaction for portfolio {portfolio_id} and security {security_id} on {transaction_date}"
         )
+        self.clear_cache() # Clear cache after any transaction
 
     # Cash history management methods
     def log_cash_transaction(
@@ -532,8 +546,8 @@ class PortfolioDAO(BaseDAO):
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
-                # Get the current balance
-                current_balance = self.get_cash_balance(portfolio_id)
+                # Get the current balance (from DB, not cache)
+                current_balance = self.get_cash_balance.__wrapped__(self, portfolio_id)
 
                 # Calculate the new balance
                 new_balance = current_balance + amount
@@ -558,12 +572,13 @@ class PortfolioDAO(BaseDAO):
                 self.update_cash_balance(portfolio_id, new_balance)
 
                 connection.commit()
+                self.clear_cache() # Clear cache after cash transaction
                 return new_balance
 
         except mysql.connector.Error as e:
             logger.error("Error logging cash transaction: %s", e)
             connection.rollback()
-            return self.get_cash_balance(portfolio_id)
+            return self.get_cash_balance.__wrapped__(self, portfolio_id)
 
     def get_cash_transaction_history(self, portfolio_id):
         """

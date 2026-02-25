@@ -24,17 +24,22 @@ from data.multi_timeframe_analyzer import MultiTimeframeAnalyzer
 class TestEdgeCasesMultiTimeframeAnalyzer(unittest.TestCase):
     """Test edge cases for MultiTimeframeAnalyzer."""
 
-    def setUp(self):
+    @patch('data.multi_timeframe_analyzer.DatabaseConnectionPool')
+    def setUp(self, mock_pool_class):
         """Set up test fixtures."""
         # Mock database connection pool
-        mock_pool = Mock()
-        mock_connection = Mock()
-        mock_pool.get_connection.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        self.mock_pool = mock_pool_class.return_value
+        self.mock_connection = Mock()
+        self.mock_pool.get_connection.return_value = self.mock_connection
+        
+        # Correctly mock the context manager
+        mock_context = Mock()
+        mock_context.__enter__.return_value = self.mock_connection
+        mock_context.__exit__.return_value = None
+        self.mock_pool.get_connection_context.return_value = mock_context
 
-        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
-        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
+        # Create analyzer with mocked pool
+        self.analyzer = MultiTimeframeAnalyzer(pool=self.mock_pool)
 
     def test_calculate_performance_metrics_with_nan_values(self):
         """Test performance metrics calculation with NaN values in returns."""
@@ -314,17 +319,22 @@ class TestEdgeCasesFormatter(unittest.TestCase):
 class TestDataValidationAndSanitization(unittest.TestCase):
     """Test data validation and sanitization in calculations."""
 
-    def setUp(self):
+    @patch('data.multi_timeframe_analyzer.DatabaseConnectionPool')
+    def setUp(self, mock_pool_class):
         """Set up test fixtures."""
         # Mock database connection pool
-        mock_pool = Mock()
-        mock_connection = Mock()
-        mock_pool.get_connection.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__enter__.return_value = mock_connection
-        mock_pool.get_connection_context.return_value.__exit__.return_value = None
+        self.mock_pool = mock_pool_class.return_value
+        self.mock_connection = Mock()
+        self.mock_pool.get_connection.return_value = self.mock_connection
+        
+        # Correctly mock the context manager
+        mock_context = Mock()
+        mock_context.__enter__.return_value = self.mock_connection
+        mock_context.__exit__.return_value = None
+        self.mock_pool.get_connection_context.return_value = mock_context
 
-        # Create analyzer with mocked pool - MultiTimeframeAnalyzer only takes pool parameter
-        self.analyzer = MultiTimeframeAnalyzer(pool=mock_pool)
+        # Create analyzer with mocked pool
+
 
     def test_returns_calculation_with_mixed_data_types(self):
         """Test returns calculation with mixed data types."""

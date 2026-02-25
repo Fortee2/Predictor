@@ -69,10 +69,9 @@ class SharedAnalysisMetrics:
             Dictionary containing RSI analysis results
         """
         try:
-            self.rsi_calc.calculateRSI(ticker_id)
             rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)
 
-            if not rsi_result.empty:
+            if not rsi_result.empty and not rsi_result["rsi"].isna().all():
                 latest_rsi = rsi_result.iloc[-1]
                 rsi_value = latest_rsi["rsi"]
                 rsi_date = rsi_result.index[-1]
@@ -86,6 +85,22 @@ class SharedAnalysisMetrics:
                     "display_text": f"RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status}",
                 }
             else:
+                # If no data, try to calculate it
+                self.rsi_calc.calculateRSI(ticker_id)
+                rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)
+                if not rsi_result.empty and not rsi_result["rsi"].isna().all():
+                    latest_rsi = rsi_result.iloc[-1]
+                    rsi_value = latest_rsi["rsi"]
+                    rsi_date = rsi_result.index[-1]
+                    rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
+
+                    return {
+                        "success": True,
+                        "value": rsi_value,
+                        "date": rsi_date,
+                        "status": rsi_status,
+                        "display_text": f"RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status}",
+                    }
                 return {"success": False, "error": "No RSI data available"}
         except Exception as e:
             return {"success": False, "error": f"Unable to calculate RSI: {str(e)}"}
@@ -102,7 +117,7 @@ class SharedAnalysisMetrics:
             Dictionary containing moving average analysis results
         """
         try:
-            ma_data = self.moving_avg.update_moving_averages(ticker_id, period)
+            ma_data = self.moving_avg.retrieve_moving_averages(ticker_id, period)
 
             if not ma_data.empty:
                 latest_ma = ma_data.iloc[-1]
@@ -224,7 +239,7 @@ class SharedAnalysisMetrics:
             Dictionary containing MACD analysis results
         """
         try:
-            macd_data = self.macd_analyzer.calculate_macd(ticker_id)
+            macd_data = self.macd_analyzer.load_macd_from_db(ticker_id)
 
             if (macd_data is not None) and (not macd_data.empty):
                 latest_macd = macd_data.iloc[-1]
@@ -264,6 +279,45 @@ class SharedAnalysisMetrics:
                     "display_text": f"MACD ({macd_date.strftime('%Y-%m-%d')}): {current_signal} ({signal_strength})",
                 }
             else:
+                # If no data, try to calculate it
+                macd_data = self.macd_analyzer.calculate_macd(ticker_id)
+                if (macd_data is not None) and (not macd_data.empty):
+                    latest_macd = macd_data.iloc[-1]
+                    macd_date = macd_data.index[-1]
+
+                    # Determine current MACD signal
+                    if latest_macd["macd"] > latest_macd["signal_line"]:
+                        current_signal = "BUY"
+                        signal_strength = "Strong" if latest_macd["histogram"] > 0.1 else "Weak"
+                    else:
+                        current_signal = "SELL"
+                        signal_strength = "Strong" if latest_macd["histogram"] < -0.1 else "Weak"
+
+                    # Determine trend direction based on histogram
+                    if latest_macd["histogram"] > 0:
+                        trend_direction = (
+                            "Strengthening"
+                            if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
+                            else "Weakening"
+                        )
+                    else:
+                        trend_direction = (
+                            "Strengthening"
+                            if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
+                            else "Weakening"
+                        )
+
+                    return {
+                        "success": True,
+                        "macd_line": latest_macd["macd"],
+                        "signal_line": latest_macd["signal_line"],
+                        "histogram": latest_macd["histogram"],
+                        "date": macd_date,
+                        "current_signal": current_signal,
+                        "signal_strength": signal_strength,
+                        "trend_direction": trend_direction,
+                        "display_text": f"MACD ({macd_date.strftime('%Y-%m-%d')}): {current_signal} ({signal_strength})",
+                    }
                 return {"success": False, "error": "No MACD data available"}
         except Exception as e:
             return {"success": False, "error": f"Unable to calculate MACD: {str(e)}"}
@@ -315,9 +369,21 @@ class SharedAnalysisMetrics:
             Dictionary containing news sentiment analysis results
         """
         try:
-            sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id, symbol)
+            # Use get_sentiment_summary, which is more efficient
+            sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id)
 
-            if sentiment_data and sentiment_data["status"] != "No sentiment data available":
+            if sentiment_data and sentiment_data.get("status") != "No sentiment data available":
+                return {
+                    "success": True,
+                    "status": sentiment_data["status"],
+                    "average_sentiment": sentiment_data["average_sentiment"],
+                    "article_count": sentiment_data["article_count"],
+                    "display_text": f"News Sentiment: {sentiment_data['status']} (Avg: {sentiment_data['average_sentiment']:.2f}, Articles: {sentiment_data['article_count']})",
+                }
+
+            # Fallback to fetch_and_analyze if summary is not available
+            sentiment_data = self.news_analyzer.fetch_and_analyze_news(ticker_id, symbol)
+            if sentiment_data and sentiment_data.get("status") != "No sentiment data available":
                 return {
                     "success": True,
                     "status": sentiment_data["status"],
@@ -333,9 +399,10 @@ class SharedAnalysisMetrics:
                 "error": f"Unable to analyze news sentiment: {str(e)}",
             }
 
+
     def analyze_stochastic(self, ticker_id: int, k_period: int = 14, d_period: int = 3) -> Dict[str, Any]:
         """
-        Analyze Stochastic Oscillator for a given ticker - following existing analysis patterns.
+        Analyze Stochastic Oscillator for a given ticker.
 
         Args:
             ticker_id: The ticker ID to analyze
@@ -530,7 +597,7 @@ class SharedAnalysisMetrics:
                 "error": f"Unable to analyze options data: {str(e)}",
             }
 
-    def get_comprehensive_analysis(
+    def Could (
         self,
         ticker_id: int,
         symbol: str,
