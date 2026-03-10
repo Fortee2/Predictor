@@ -205,6 +205,63 @@ class TickerDao(BaseDAO):
             logger.error("Error updating activity for ticker %s: %s", ticker_id, err)
             raise
 
+    def batch_update_activity(self, activity_data):
+        """
+        Batch update or insert activity data.
+        
+        Args:
+            activity_data (list): List of tuples (ticker_id, activity_date, open, close, volume, high, low)
+        """
+        if not activity_data:
+            return
+
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                try:
+                    # Prepare data with rsi_state
+                    processed_data = []
+                    for row in activity_data:
+                        ticker_id, activity_date, open_val, close_val, volume, high, low = row
+                        
+                        rsi_state = ""
+                        if open_val > close_val:
+                            rsi_state = "down"
+                        elif close_val > open_val:
+                            rsi_state = "up"
+                            
+                        processed_data.append((
+                            int(ticker_id),
+                            str(activity_date),
+                            float(open_val),
+                            float(close_val),
+                            float(volume),
+                            rsi_state,
+                            float(high),
+                            float(low)
+                        ))
+
+                    query = """
+                        INSERT INTO investing.activity 
+                        (ticker_id, activity_date, open, close, volume, updown, high, low) 
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                        ON DUPLICATE KEY UPDATE 
+                        open = VALUES(open),
+                        close = VALUES(close),
+                        volume = VALUES(volume),
+                        updown = VALUES(updown),
+                        high = VALUES(high),
+                        low = VALUES(low)
+                    """
+                    
+                    cursor.executemany(query, processed_data)
+                    connection.commit()
+                finally:
+                    cursor.close()
+        except mysql.connector.Error as err:
+            logger.error("Error batch updating activity: %s", err)
+            raise
+
     def retrieve_ticker_activity(self, ticker_id):
         try:
             with self.get_connection() as connection:

@@ -1,4 +1,5 @@
 import logging
+import threading
 from datetime import datetime
 
 import yfinance as yf
@@ -14,13 +15,18 @@ class NewsSentimentAnalyzer:
     def __init__(self, pool: DatabaseConnectionPool):
         self.sentiment_dao = NewsSentimentDAO(pool=pool)
         self.nlp = None
+        self._model_lock = threading.Lock()
 
     def _ensure_model_loaded(self):
         """Lazy load the FinBERT model only when needed"""
         if self.nlp is None:
-            print("Loading FinBERT model...")
-            self.nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert", return_all_scores=True)
-            print("FinBERT model loaded")
+            with self._model_lock:
+                # Double-check pattern
+                if self.nlp is None:
+                    print("Loading FinBERT model...")
+                    # Update deprecated parameter return_all_scores to top_k=None
+                    self.nlp = pipeline("sentiment-analysis", model="ProsusAI/finbert", top_k=None)
+                    print("FinBERT model loaded")
 
     def analyze_sentiment(self, text):
         """

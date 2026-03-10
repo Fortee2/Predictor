@@ -1,15 +1,15 @@
 import logging
-from contextlib import contextmanager
 
 import mysql.connector
 import pandas as pd
 
+from .base_dao import BaseDAO
 from .utility import DatabaseConnectionPool
 
 logger = logging.getLogger(__name__)
 
 
-class MACD:
+class MACD(BaseDAO):
     def __init__(self, pool: DatabaseConnectionPool):
         """
         Initialize DAO with a shared database connection pool.
@@ -17,26 +17,7 @@ class MACD:
         Args:
             pool: DatabaseConnectionPool instance shared across all DAOs
         """
-        self.pool = pool
-        self.current_connection = None
-
-    @contextmanager
-    def get_connection(self):
-        """Context manager for database connections."""
-        connection = None
-        try:
-            if self.current_connection is not None and self.current_connection.is_connected():
-                connection = self.current_connection
-                yield connection
-            else:
-                connection = self.pool.get_connection()
-                self.current_connection = connection
-                yield connection
-        except mysql.connector.Error as e:
-            logger.error("Database connection error: %s", str(e))
-            raise
-        finally:
-            pass
+        super().__init__(pool)
 
     def calculate_ema(self, data, period):
         """Calculate Exponential Moving Average"""
@@ -65,74 +46,75 @@ class MACD:
                 latest_macd_result = cursor.fetchone()
                 latest_macd_date = latest_macd_result[0] if latest_macd_result else None
 
-                # 3. If dates match, data is fresh - skip calculation
-                if latest_price_date and latest_macd_date and latest_macd_date >= latest_price_date:
-                    cursor.close()
-                    return self.load_macd_from_db(ticker_id)
+                # 3. Check if calculation is needed
+                needs_calculation = not (latest_price_date and latest_macd_date and latest_macd_date >= latest_price_date)
 
-                # Get price data for the last year
-                cursor.execute(
-                    """
-                    SELECT activity_date, close 
-                    FROM investing.activity 
-                    WHERE ticker_id = %s 
-                    AND activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
-                    ORDER BY activity_date ASC
-                """,
-                    (ticker_id,),
-                )
-
-                df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "close"])
-                if df.empty:
-                    cursor.close()
-                    return None
-
-                df = df.set_index("activity_date")
-
-                # Calculate EMAs
-                ema12 = self.calculate_ema(df["close"], 12)
-                ema26 = self.calculate_ema(df["close"], 26)
-
-                # Calculate MACD line
-                macd_line = ema12 - ema26
-
-                # Calculate Signal line (9-day EMA of MACD line)
-                signal_line = self.calculate_ema(macd_line, 9)
-
-                # Store results in database
-                insert_data = []
-                for date, macd_value, signal_value in zip(macd_line.index, macd_line, signal_line):
-                    # Convert date to date object if it's a datetime
-                    store_date = date.date() if hasattr(date, "date") else date
-                    
-                    # Calculate histogram
-                    histogram = float(macd_value) - float(signal_value)
-                    
-                    insert_data.append((
-                        ticker_id, 
-                        store_date, 
-                        float(macd_value), 
-                        float(signal_value),
-                        histogram
-                    ))
-
-                if insert_data:
-                    cursor.executemany(
+                if needs_calculation:
+                    # Get price data for the last year
+                    cursor.execute(
                         """
-                        INSERT INTO investing.macd_indicators (ticker_id, activity_date, macd, `signal`, histogram)
-                        VALUES (%s, %s, %s, %s, %s)
-                        ON DUPLICATE KEY UPDATE 
-                            macd = VALUES(macd),
-                            `signal` = VALUES(`signal`),
-                            histogram = VALUES(histogram)
-                        """,
-                        insert_data
+                        SELECT activity_date, close 
+                        FROM investing.activity 
+                        WHERE ticker_id = %s 
+                        AND activity_date >= DATE_SUB(CURDATE(), INTERVAL 1 YEAR)
+                        ORDER BY activity_date ASC
+                    """,
+                        (ticker_id,),
                     )
 
-                connection.commit()
+                    df = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "close"])
+                    if df.empty:
+                        cursor.close()
+                        return None
+
+                    df = df.set_index("activity_date")
+
+                    # Calculate EMAs
+                    ema12 = self.calculate_ema(df["close"], 12)
+                    ema26 = self.calculate_ema(df["close"], 26)
+
+                    # Calculate MACD line
+                    macd_line = ema12 - ema26
+
+                    # Calculate Signal line (9-day EMA of MACD line)
+                    signal_line = self.calculate_ema(macd_line, 9)
+
+                    # Store results in database
+                    insert_data = []
+                    for date, macd_value, signal_value in zip(macd_line.index, macd_line, signal_line):
+                        # Convert date to date object if it's a datetime
+                        store_date = date.date() if hasattr(date, "date") else date
+                        
+                        # Calculate histogram
+                        histogram = float(macd_value) - float(signal_value)
+                        
+                        insert_data.append((
+                            ticker_id, 
+                            store_date, 
+                            float(macd_value), 
+                            float(signal_value),
+                            histogram
+                        ))
+
+                    if insert_data:
+                        cursor.executemany(
+                            """
+                            INSERT INTO investing.macd_indicators (ticker_id, activity_date, macd, `signal`, histogram)
+                            VALUES (%s, %s, %s, %s, %s)
+                            ON DUPLICATE KEY UPDATE 
+                                macd = VALUES(macd),
+                                `signal` = VALUES(`signal`),
+                                histogram = VALUES(histogram)
+                            """,
+                            insert_data
+                        )
+
+                    connection.commit()
+                
                 cursor.close()
 
-                return self.load_macd_from_db(ticker_id)
+            # Load data after connection is released
+            return self.load_macd_from_db(ticker_id)
         except mysql.connector.Error as e:
             logger.error("Error calculating MACD for ticker %s: %s", ticker_id, e)
             return None

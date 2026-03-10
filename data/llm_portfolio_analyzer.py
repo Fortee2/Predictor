@@ -6,12 +6,13 @@ It creates vector indices of portfolio data and enables natural language queries
 """
 
 import logging
+import weakref
 from datetime import datetime, timedelta, date
 from decimal import Decimal
 from typing import Dict, List, Optional
 
 import boto3
-from duckduckgo_search import DDGS
+from ddgs import DDGS
 
 from .bollinger_bands import BollingerBandAnalyzer
 from .llm_tool_definitions import get_tool_config
@@ -98,6 +99,10 @@ class LLMPortfolioAnalyzer:
 
     def _serialize_result(self, obj):
         """Recursively serialize result objects to JSON-compatible format."""
+        # Handle weak references - return None or string representation to avoid serialization errors
+        if isinstance(obj, (weakref.ReferenceType, weakref.ProxyType, weakref.CallableProxyType)):
+            return f"<WeakRef: {str(obj)}>"
+
         if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         elif isinstance(obj, Decimal):
@@ -108,6 +113,18 @@ class LLMPortfolioAnalyzer:
             return [self._serialize_result(item) for item in obj]
         elif hasattr(obj, '__dict__'):
             return self._serialize_result(obj.__dict__)
+        
+        # Handle numpy types if present (common source of serialization issues)
+        if hasattr(obj, 'item'):
+            try:
+                return obj.item()
+            except:
+                pass
+                
+        # Last resort: if it's not a basic type, convert to string
+        if not isinstance(obj, (str, int, float, bool, type(None))):
+            return str(obj)
+            
         return obj
 
     def _format_tool_result(self, tool_use_id: str, tool_result: Dict) -> Dict:
@@ -578,7 +595,8 @@ Available tool categories:
         user_message: str,
         portfolio_id: Optional[int] = None,
         max_turns: int = 10,
-        reset_context: bool = True
+        reset_context: bool = True,
+        status_callback: Optional[callable] = None
     ) -> str:
         """
         Chat with the LLM using tool calling for portfolio analysis.
@@ -590,6 +608,8 @@ Available tool categories:
             reset_context: If True, clears conversation history before this request.
                           This ensures consistent, context-free analysis for each query.
                           Set to False only when explicitly continuing a conversation.
+            status_callback: Optional callback function to report status updates.
+                            Should accept a string message.
 
         Returns:
             The assistant's final response as a string
@@ -620,6 +640,9 @@ Available tool categories:
             while turn_count < max_turns:
                 turn_count += 1
 
+                if status_callback:
+                    status_callback(f"Thinking (Turn {turn_count})...")
+
                 # Call Bedrock Converse API
                 response = self.bedrock_client.converse(
                     modelId=self.model_name,
@@ -648,22 +671,30 @@ Available tool categories:
                 elif stop_reason == "tool_use":
                     # Execute all requested tools
                     tool_results = []
+                    
+                    # Count total tools to execute
+                    tool_uses = [b["toolUse"] for b in output_message["content"] if "toolUse" in b]
+                    total_tools = len(tool_uses)
 
-                    for content_block in output_message["content"]:
-                        if "toolUse" in content_block:
-                            tool_use = content_block["toolUse"]
-                            tool_name = tool_use["name"]
-                            tool_input = tool_use["input"]
-                            tool_use_id = tool_use["toolUseId"]
+                    for idx, tool_use in enumerate(tool_uses, 1):
+                        tool_name = tool_use["name"]
+                        tool_input = tool_use["input"]
+                        tool_use_id = tool_use["toolUseId"]
 
-                            self.logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
+                        self.logger.info(f"Executing tool: {tool_name} with input: {tool_input}")
+                        
+                        if status_callback:
+                            status_callback(f"Executing tool {idx}/{total_tools}: {tool_name}...")
 
-                            # Execute tool
-                            result = self._execute_tool(tool_name, tool_input)
+                        # Execute tool
+                        result = self._execute_tool(tool_name, tool_input)
 
-                            # Format result
-                            formatted_result = self._format_tool_result(tool_use_id, result)
-                            tool_results.append({"toolResult": formatted_result})
+                        # Format result
+                        formatted_result = self._format_tool_result(tool_use_id, result)
+                        tool_results.append({"toolResult": formatted_result})
+                    
+                    if status_callback:
+                        status_callback("Analyzing tool results...")
 
                     # Add tool results to conversation
                     self.conversation_history.append({

@@ -162,8 +162,8 @@ class StochasticOscillator(BaseDAO):
 
                 cursor.close()
 
-                # Return the updated stochastic data - reusing existing return pattern
-                return self.load_stochastic_from_db(ticker_id, k_period, d_period)
+            # Return the updated stochastic data - reusing existing return pattern
+            return self.load_stochastic_from_db(ticker_id, k_period, d_period)
 
         except mysql.connector.Error as e:
             logger.error("Database error calculating stochastic: %s", str(e))
@@ -324,46 +324,46 @@ class StochasticOscillator(BaseDAO):
                 price_data = pd.DataFrame(cursor.fetchall(), columns=["activity_date", "close"])
                 cursor.close()
 
-                if price_data.empty:
-                    return {"success": False, "error": "No price data available"}
+            if price_data.empty:
+                return {"success": False, "error": "No price data available"}
 
-                price_data = price_data.set_index("activity_date")
-                price_data = price_data.sort_index()
+            price_data = price_data.set_index("activity_date")
+            price_data = price_data.sort_index()
 
-                # Get stochastic data for same period
-                stoch_data = self.load_stochastic_from_db(ticker_id, k_period, d_period)
+            # Get stochastic data for same period
+            stoch_data = self.load_stochastic_from_db(ticker_id, k_period, d_period)
 
-                if stoch_data.empty:
-                    return {"success": False, "error": "No stochastic data available"}
+            if stoch_data.empty:
+                return {"success": False, "error": "No stochastic data available"}
 
-                # Merge data - reusing existing data merge patterns
-                combined = price_data.join(stoch_data, how="inner")
+            # Merge data - reusing existing data merge patterns
+            combined = price_data.join(stoch_data, how="inner")
 
-                if len(combined) < 10:  # Need sufficient data for divergence analysis
-                    return {
-                        "success": False,
-                        "error": "Insufficient data for divergence analysis",
-                    }
-
-                # Simple divergence detection - can be enhanced later
-                recent_data = combined.tail(10)
-
-                price_trend = "UP" if recent_data["close"].iloc[-1] > recent_data["close"].iloc[0] else "DOWN"
-                stoch_trend = "UP" if recent_data["stoch_k"].iloc[-1] > recent_data["stoch_k"].iloc[0] else "DOWN"
-
-                divergence = None
-                if price_trend == "UP" and stoch_trend == "DOWN":
-                    divergence = "BEARISH_DIVERGENCE"
-                elif price_trend == "DOWN" and stoch_trend == "UP":
-                    divergence = "BULLISH_DIVERGENCE"
-
+            if len(combined) < 10:  # Need sufficient data for divergence analysis
                 return {
-                    "success": True,
-                    "divergence": divergence,
-                    "price_trend": price_trend,
-                    "stoch_trend": stoch_trend,
-                    "display_text": f"Divergence Analysis: {divergence if divergence else 'No divergence detected'}",
+                    "success": False,
+                    "error": "Insufficient data for divergence analysis",
                 }
+
+            # Simple divergence detection - can be enhanced later
+            recent_data = combined.tail(10)
+
+            price_trend = "UP" if recent_data["close"].iloc[-1] > recent_data["close"].iloc[0] else "DOWN"
+            stoch_trend = "UP" if recent_data["stoch_k"].iloc[-1] > recent_data["stoch_k"].iloc[0] else "DOWN"
+
+            divergence = None
+            if price_trend == "UP" and stoch_trend == "DOWN":
+                divergence = "BEARISH_DIVERGENCE"
+            elif price_trend == "DOWN" and stoch_trend == "UP":
+                divergence = "BULLISH_DIVERGENCE"
+
+            return {
+                "success": True,
+                "divergence": divergence,
+                "price_trend": price_trend,
+                "stoch_trend": stoch_trend,
+                "display_text": f"Divergence Analysis: {divergence if divergence else 'No divergence detected'}",
+            }
 
         except Exception as e:
             logger.error("Error analyzing divergence: %s", str(e))

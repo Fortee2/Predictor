@@ -8,7 +8,10 @@ the DRY (Don't Repeat Yourself) principle.
 
 import datetime
 import decimal
+import logging
 from typing import Any, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 class SharedAnalysisMetrics:
@@ -69,39 +72,64 @@ class SharedAnalysisMetrics:
             Dictionary containing RSI analysis results
         """
         try:
-            rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)
+            # Try to get data efficiently using ticker_dao if available
+            rsi_value = None
+            rsi_date = None
+            
+            if self.ticker_dao:
+                try:
+                    # Fetch only the last few records
+                    rsi_df = self.ticker_dao.retrieve_last_rsi(ticker_id)
+                    if not rsi_df.empty:
+                        # retrieve_last_rsi returns data sorted DESC, so first row is latest
+                        latest = rsi_df.iloc[0]
+                        rsi_value = float(latest["rsi"])
+                        rsi_date = latest["activity_date"]
+                        # Ensure date is datetime/date object
+                        if isinstance(rsi_date, str):
+                            try:
+                                rsi_date = datetime.datetime.strptime(rsi_date, "%Y-%m-%d").date()
+                            except ValueError:
+                                # If strict format fails, try to parse broadly or just keep as string
+                                try:
+                                    # Fallback to simple string truncation if it contains time
+                                    if " " in rsi_date:
+                                        rsi_date = datetime.datetime.strptime(rsi_date.split(" ")[0], "%Y-%m-%d").date()
+                                except:
+                                    pass
+                except Exception as e:
+                    logger.warning(f"Error retrieving RSI from ticker_dao: {e}")
+            
+            # Fallback to rsi_calc if ticker_dao failed or returned no data
+            if rsi_value is None:
+                # Use a date-based criteria instead of ID 1 to avoid fetching full history
+                # Fetch last 365 days which is more than enough to verify RSI existence
+                start_date = datetime.datetime.now() - datetime.timedelta(days=365)
+                rsi_result = self.rsi_calc.retrievePrices(start_date.date(), ticker_id)
 
-            if not rsi_result.empty and not rsi_result["rsi"].isna().all():
-                latest_rsi = rsi_result.iloc[-1]
-                rsi_value = latest_rsi["rsi"]
-                rsi_date = rsi_result.index[-1]
+                if not rsi_result.empty and not rsi_result["rsi"].isna().all():
+                    latest_rsi = rsi_result.iloc[-1]
+                    rsi_value = latest_rsi["rsi"]
+                    rsi_date = rsi_result.index[-1]
+
+            if rsi_value is not None:
                 rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
+
+                # Format date safely
+                date_str = str(rsi_date)
+                if hasattr(rsi_date, 'strftime'):
+                    date_str = rsi_date.strftime('%Y-%m-%d')
 
                 return {
                     "success": True,
                     "value": rsi_value,
                     "date": rsi_date,
                     "status": rsi_status,
-                    "display_text": f"RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status}",
+                    "display_text": f"RSI ({date_str}): {rsi_value:.2f} - {rsi_status}",
                 }
             else:
-                # If no data, try to calculate it
-                self.rsi_calc.calculateRSI(ticker_id)
-                rsi_result = self.rsi_calc.retrievePrices(1, ticker_id)
-                if not rsi_result.empty and not rsi_result["rsi"].isna().all():
-                    latest_rsi = rsi_result.iloc[-1]
-                    rsi_value = latest_rsi["rsi"]
-                    rsi_date = rsi_result.index[-1]
-                    rsi_status = "Overbought" if rsi_value > 70 else "Oversold" if rsi_value < 30 else "Neutral"
-
-                    return {
-                        "success": True,
-                        "value": rsi_value,
-                        "date": rsi_date,
-                        "status": rsi_status,
-                        "display_text": f"RSI ({rsi_date.strftime('%Y-%m-%d')}): {rsi_value:.2f} - {rsi_status}",
-                    }
                 return {"success": False, "error": "No RSI data available"}
+
         except Exception as e:
             return {"success": False, "error": f"Unable to calculate RSI: {str(e)}"}
 
@@ -117,7 +145,7 @@ class SharedAnalysisMetrics:
             Dictionary containing moving average analysis results
         """
         try:
-            ma_data = self.moving_avg.retrieve_moving_averages(ticker_id, period)
+            ma_data = self.moving_avg.loadAveragesFromDB(ticker_id, period)
 
             if not ma_data.empty:
                 latest_ma = ma_data.iloc[-1]
@@ -279,45 +307,6 @@ class SharedAnalysisMetrics:
                     "display_text": f"MACD ({macd_date.strftime('%Y-%m-%d')}): {current_signal} ({signal_strength})",
                 }
             else:
-                # If no data, try to calculate it
-                macd_data = self.macd_analyzer.calculate_macd(ticker_id)
-                if (macd_data is not None) and (not macd_data.empty):
-                    latest_macd = macd_data.iloc[-1]
-                    macd_date = macd_data.index[-1]
-
-                    # Determine current MACD signal
-                    if latest_macd["macd"] > latest_macd["signal_line"]:
-                        current_signal = "BUY"
-                        signal_strength = "Strong" if latest_macd["histogram"] > 0.1 else "Weak"
-                    else:
-                        current_signal = "SELL"
-                        signal_strength = "Strong" if latest_macd["histogram"] < -0.1 else "Weak"
-
-                    # Determine trend direction based on histogram
-                    if latest_macd["histogram"] > 0:
-                        trend_direction = (
-                            "Strengthening"
-                            if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
-                            else "Weakening"
-                        )
-                    else:
-                        trend_direction = (
-                            "Strengthening"
-                            if len(macd_data) > 1 and latest_macd["histogram"] > macd_data.iloc[-2]["histogram"]
-                            else "Weakening"
-                        )
-
-                    return {
-                        "success": True,
-                        "macd_line": latest_macd["macd"],
-                        "signal_line": latest_macd["signal_line"],
-                        "histogram": latest_macd["histogram"],
-                        "date": macd_date,
-                        "current_signal": current_signal,
-                        "signal_strength": signal_strength,
-                        "trend_direction": trend_direction,
-                        "display_text": f"MACD ({macd_date.strftime('%Y-%m-%d')}): {current_signal} ({signal_strength})",
-                    }
                 return {"success": False, "error": "No MACD data available"}
         except Exception as e:
             return {"success": False, "error": f"Unable to calculate MACD: {str(e)}"}
@@ -381,24 +370,12 @@ class SharedAnalysisMetrics:
                     "display_text": f"News Sentiment: {sentiment_data['status']} (Avg: {sentiment_data['average_sentiment']:.2f}, Articles: {sentiment_data['article_count']})",
                 }
 
-            # Fallback to fetch_and_analyze if summary is not available
-            sentiment_data = self.news_analyzer.fetch_and_analyze_news(ticker_id, symbol)
-            if sentiment_data and sentiment_data.get("status") != "No sentiment data available":
-                return {
-                    "success": True,
-                    "status": sentiment_data["status"],
-                    "average_sentiment": sentiment_data["average_sentiment"],
-                    "article_count": sentiment_data["article_count"],
-                    "display_text": f"News Sentiment: {sentiment_data['status']} (Avg: {sentiment_data['average_sentiment']:.2f}, Articles: {sentiment_data['article_count']})",
-                }
-            else:
                 return {"success": False, "error": "No sentiment data available"}
         except Exception as e:
             return {
                 "success": False,
                 "error": f"Unable to analyze news sentiment: {str(e)}",
             }
-
 
     def analyze_stochastic(self, ticker_id: int, k_period: int = 14, d_period: int = 3) -> Dict[str, Any]:
         """
@@ -597,7 +574,7 @@ class SharedAnalysisMetrics:
                 "error": f"Unable to analyze options data: {str(e)}",
             }
 
-    def Could (
+    def get_comprehensive_analysis(
         self,
         ticker_id: int,
         symbol: str,
@@ -620,28 +597,57 @@ class SharedAnalysisMetrics:
         Returns:
             Dictionary containing all analysis results
         """
-        analysis = {
-            "ticker_id": ticker_id,
-            "symbol": symbol,
-            "rsi": self.analyze_rsi(ticker_id),
-            "moving_average": self.analyze_moving_average(ticker_id, ma_period),
-            "bollinger_bands": self.analyze_bollinger_bands(ticker_id),
-            "macd": self.analyze_macd(ticker_id),
-            "fundamental": self.analyze_fundamental_data(ticker_id),
-            "news_sentiment": self.analyze_news_sentiment(ticker_id, symbol),
-        }
+        logger.info(f"Starting comprehensive analysis for {symbol} (ID: {ticker_id})")
+        
+        try:
+            logger.info("Analyzing RSI...")
+            rsi_result = self.analyze_rsi(ticker_id)
+            
+            logger.info("Analyzing Moving Average...")
+            ma_result = self.analyze_moving_average(ticker_id, ma_period)
+            
+            logger.info("Analyzing Bollinger Bands...")
+            bb_result = self.analyze_bollinger_bands(ticker_id)
+            
+            logger.info("Analyzing MACD...")
+            macd_result = self.analyze_macd(ticker_id)
+            
+            logger.info("Analyzing Fundamental Data...")
+            fund_result = self.analyze_fundamental_data(ticker_id)
+            
+            logger.info("Analyzing News Sentiment...")
+            news_result = self.analyze_news_sentiment(ticker_id, symbol)
+            
+            analysis = {
+                "ticker_id": ticker_id,
+                "symbol": symbol,
+                "rsi": rsi_result,
+                "moving_average": ma_result,
+                "bollinger_bands": bb_result,
+                "macd": macd_result,
+                "fundamental": fund_result,
+                "news_sentiment": news_result,
+            }
 
-        # Add portfolio position metrics if position data is provided
-        if position_data:
-            analysis["portfolio_metrics"] = self.analyze_portfolio_position_metrics(ticker_id, symbol, position_data)
+            # Add portfolio position metrics if position data is provided
+            if position_data:
+                logger.info("Analyzing Portfolio Metrics...")
+                analysis["portfolio_metrics"] = self.analyze_portfolio_position_metrics(ticker_id, symbol, position_data)
 
-        if include_options:
-            analysis["options"] = self.analyze_options_data(symbol)
+            if include_options:
+                logger.info("Analyzing Options...")
+                analysis["options"] = self.analyze_options_data(symbol)
 
-        if include_stochastic and self.stochastic_analyzer is not None:
-            analysis["stochastic"] = self.analyze_stochastic(ticker_id)
-
-        return analysis
+            if include_stochastic and self.stochastic_analyzer is not None:
+                logger.info("Analyzing Stochastic...")
+                analysis["stochastic"] = self.analyze_stochastic(ticker_id)
+                
+            logger.info("Comprehensive analysis completed.")
+            return analysis
+            
+        except Exception as e:
+            logger.error(f"Error in get_comprehensive_analysis: {str(e)}")
+            raise
 
     def format_analysis_output(self, analysis: Dict[str, Any], shares_info: str = "", notes: str = None) -> str:
         """

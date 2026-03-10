@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("moving_averages")
 
-# Ensure no handlers are outputting to console
+# Ensure no console output
 for handler in logger.handlers[:]:
     if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
         logger.removeHandler(handler)
@@ -154,8 +154,8 @@ class moving_averages(BaseDAO):
 
                 cursor.close()
 
-                # Return the updated moving averages from the database
-                return self.loadAveragesFromDB(ticker_id, period)
+            # Return the updated moving averages from the database
+            return self.loadAveragesFromDB(ticker_id, period)
         except mysql.connector.Error as e:
             logger.error("Database error updating moving averages: %s", str(e))
             raise

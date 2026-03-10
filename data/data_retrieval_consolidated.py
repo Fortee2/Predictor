@@ -1,3 +1,4 @@
+import concurrent.futures
 import random
 import time
 from datetime import date, datetime, timedelta
@@ -40,11 +41,11 @@ class DataRetrieval(BaseDAO):
         self.stochastic_analyzer = StochasticOscillator(pool=self.pool)
 
         # Enhanced configurations for rate limiting
-        self.requests_per_batch = 1  # Process only one ticker at a time
-        self.batch_pause_time = 150  #pause between tickers
-        self.error_pause_time = 600  # 10-minute pause after errors
+        self.requests_per_batch = 10  # Process multiple tickers in a batch
+        self.batch_pause_time = 2  # Short pause between batches
+        self.error_pause_time = 60  # 1-minute pause after errors
         self.max_retries = 3  # Number of times to retry a failed request
-        self.jitter_max = 60  # Larger random jitter to avoid pattern detection
+        self.jitter_max = 5  # Small random jitter
 
         # Add an initial random delay before the first request
         initial_delay = random.randint(5, 30)
@@ -434,37 +435,35 @@ class DataRetrieval(BaseDAO):
 
                 # Process the historical data
                 try:
-                    # Break up large data processing into smaller chunks
-                    chunk_size = 50  # Process 50 days at a time
-                    for i in range(0, len(hist), chunk_size):
-                        chunk = hist.iloc[i : i + chunk_size]
-                        for j in range(len(chunk)):
-                            try:
-                                idx = chunk.index[j]
-                                self.dao.update_activity(
+                    # Prepare batch data
+                    activity_records = []
+                    
+                    for idx, row in hist.iterrows():
+                        try:
+                            activity_records.append((
+                                ticker_id,
+                                idx,
+                                float(row["Open"]),
+                                float(row["Close"]),
+                                float(row["Volume"]),
+                                float(row["High"]),
+                                float(row["Low"])
+                            ))
+
+                            # Check if the stock paid dividends on this date
+                            if row["Dividends"] > 0:
+                                self.log_dividend_transactions(
                                     ticker_id,
                                     idx,
-                                    float(chunk.loc[idx, "Open"]),
-                                    float(chunk.loc[idx, "Close"]),
-                                    float(chunk.loc[idx, "Volume"]),
-                                    float(chunk.loc[idx, "High"]),
-                                    float(chunk.loc[idx, "Low"]),
+                                    float(row["Dividends"]),
                                 )
-
-                                # Check if the stock paid dividends on this date
-                                if chunk.loc[idx, "Dividends"] > 0:
-                                    self.log_dividend_transactions(
-                                        ticker_id,
-                                        idx,
-                                        float(chunk.loc[idx, "Dividends"]),
-                                    )
-                            except Exception as e:
-                                print(f"Error updating activity for {symbol} on {idx}: {str(e)}")
-                                continue
-
-                        # Add a small pause between chunks to avoid overwhelming the database
-                        if i + chunk_size < len(hist):
-                            time.sleep(1)
+                        except Exception as e:
+                            print(f"Error preparing activity record for {symbol} on {idx}: {str(e)}")
+                            continue
+                            
+                    # Batch insert/update
+                    if activity_records:
+                        self.dao.batch_update_activity(activity_records)
 
                     # Successfully processed all data
                     return True
@@ -514,19 +513,100 @@ class DataRetrieval(BaseDAO):
 
         return False
 
+    def process_ticker(self, ticker_info, trading_day_date):
+        """
+        Process a single ticker update.
+        
+        Args:
+            ticker_info (tuple): (ticker_id, symbol, last_update)
+            trading_day_date (date): The last trading day date
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        ticker_id, symbol, last_update = ticker_info
+        
+        try:
+            if self._already_updated_today(last_update, trading_day_date):
+                print(f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})")
+                return True
+
+            print(f"\nProcessing {symbol} (ID: {ticker_id})")
+
+            # Add a small random delay to avoid synchronized API hits
+            time.sleep(random.uniform(0.5, 2.0))
+
+            success = True
+
+            try:
+                if not self.update_symbol_data(symbol):
+                    success = False
+                else:
+                    print(f"Updated ticker data for {symbol}")
+            except Exception as e:
+                print(f"Error updating ticker data for {symbol}: {str(e)}")
+                success = False
+
+            try:
+                if not self.update_ticker_history(symbol, ticker_id):
+                    success = False
+                else:
+                    print(f"Updated ticker history for {symbol}")
+            except Exception as e:
+                print(f"Error updating ticker history for {symbol}: {str(e)}")
+                success = False
+
+            # Recalculate indicators even if data update failed, as we might have partial data
+            # or just need to refresh indicators
+            
+            try:
+                self.rsi.calculateRSI(ticker_id)
+                print(f"Updated RSI for {symbol}")
+            except Exception as e:
+                print(f"Error calculating RSI for {symbol}: {str(e)}")
+                success = False
+
+            # Calculate MACD
+            try:
+                self.macd_analyzer.calculate_macd(ticker_id)
+                print(f"Updated MACD for {symbol}")
+            except Exception as e:
+                print(f"Error calculating MACD for {symbol}: {str(e)}")
+                success = False
+
+            # Calculate Moving Averages (multiple periods)
+            try:
+                for period in [20, 50, 200]:  # Calculate common MA periods
+                    self.moving_avg.update_moving_averages(ticker_id, period)
+                print(f"Updated Moving Averages for {symbol}")
+            except Exception as e:
+                print(f"Error calculating Moving Averages for {symbol}: {str(e)}")
+                success = False
+
+            # Calculate Stochastic Oscillator
+            try:
+                self.stochastic_analyzer.calculate_stochastic(ticker_id)
+                print(f"Updated Stochastic Oscillator for {symbol}")
+            except Exception as e:
+                print(f"Error calculating Stochastic for {symbol}: {str(e)}")
+                success = False
+
+            return success
+
+        except Exception as e:
+            print(f"Error processing ticker_id {ticker_id}: {str(e)}")
+            return False
+
     def update_stock_activity(self, update_watch_list=True):
-        """Update stock activity for all tickers in portfolios with rate limiting"""
+        """Update stock activity for all tickers in portfolios with parallel processing"""
         try:
             trading_day = self._find_last_trading_day()
             # Get all tickers from all portfolios
-            # We don't filter by open positions here because we want to update data for
-            # all securities tracked in portfolios, regardless of current share count or portfolio ID.
-            # This fixes an issue where securities in portfolios other than ID 1 were being skipped.
             raw_portfolio_tickers = self.portfolio_dao.get_all_tickers_in_portfolios()
-            # Normalize to 3-tuples (id, symbol, last_update) to match watchlist format and avoid unpacking errors
+            # Normalize to 3-tuples (id, symbol, last_update)
             portfolio_tickers = [(t[0], t[1], t[2]) for t in raw_portfolio_tickers]
 
-            # Also include tickers that have open positions but might be missing from portfolio_securities table due to data inconsistencies
+            # Also include tickers that have open positions but might be missing from portfolio_securities table
             try:
                 portfolios = self.portfolio_dao.get_portfolio_list()
                 existing_ticker_ids = {t[0] for t in portfolio_tickers}
@@ -535,10 +615,7 @@ class DataRetrieval(BaseDAO):
                     positions = self.portfolio_transactions_dao.get_current_positions(portfolio['id'])
                     for ticker_id, position_data in positions.items():
                         if ticker_id not in existing_ticker_ids:
-                            # Add to update list: (ticker_id, symbol, last_update)
-                            # We pass None for last_update to force update
                             symbol = position_data['symbol']
-                            # We only need 3 elements (id, symbol, last_update)
                             new_entry = (ticker_id, symbol, None)
                             portfolio_tickers.append(new_entry)
                             existing_ticker_ids.add(ticker_id)
@@ -556,102 +633,30 @@ class DataRetrieval(BaseDAO):
                 print("No tickers found in portfolios")
                 return
 
-            print("Found tickers:", portfolio_tickers)
-            count = 0
-            error_count = 0
-            max_consecutive_errors = 3
-
-            for ticker_id, symbol, last_update in portfolio_tickers:
-                try:
-                    if self._already_updated_today(last_update, trading_day.date()):
-                        print(f"Skipping {symbol} (ID: {ticker_id}) - already updated ({last_update})")
-                        continue
-
-                    print(f"\nProcessing {symbol} (ID: {ticker_id})")
-
-                    # Add a small random delay between requests to avoid pattern detection
-                    if count > 0:
-                        jitter = random.randint(1, 5)
-                        time.sleep(jitter)
-
-                    success = True
-
+            print(f"Found {len(portfolio_tickers)} tickers to process")
+            
+            # Use ThreadPoolExecutor for parallel processing
+            # Limit max_workers to avoid overwhelming the database connection pool or API
+            max_workers = min(10, len(portfolio_tickers))
+            
+            print(f"Starting parallel update with {max_workers} workers...")
+            
+            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                # Create a partial function or lambda to pass the trading day
+                futures = {
+                    executor.submit(self.process_ticker, ticker_info, trading_day.date()): ticker_info 
+                    for ticker_info in portfolio_tickers
+                }
+                
+                for future in concurrent.futures.as_completed(futures):
+                    ticker_info = futures[future]
+                    symbol = ticker_info[1]
                     try:
-                        if not self.update_symbol_data(symbol):
-                            success = False
-                        else:
-                            print(f"Updated ticker data for {symbol}")
-                    except Exception as e:
-                        print(f"Error updating ticker data for {symbol}: {str(e)}")
-                        success = False
-
-                    try:
-                        if not self.update_ticker_history(symbol, ticker_id):
-                            success = False
-                        else:
-                            print(f"Updated ticker history for {symbol}")
-                    except Exception as e:
-                        print(f"Error updating ticker history for {symbol}: {str(e)}")
-                        success = False
-
-                    try:
-                        self.rsi.calculateRSI(ticker_id)
-                        print(f"Updated RSI for {symbol}")
-                    except Exception as e:
-                        print(f"Error calculating RSI for {symbol}: {str(e)}")
-                        success = False
-
-                    # Calculate MACD
-                    try:
-                        self.macd_analyzer.calculate_macd(ticker_id)
-                        print(f"Updated MACD for {symbol}")
-                    except Exception as e:
-                        print(f"Error calculating MACD for {symbol}: {str(e)}")
-                        success = False
-
-                    # Calculate Moving Averages (multiple periods)
-                    try:
-                        for period in [20, 50, 200]:  # Calculate common MA periods
-                            self.moving_avg.update_moving_averages(ticker_id, period)
-                        print(f"Updated Moving Averages for {symbol}")
-                    except Exception as e:
-                        print(f"Error calculating Moving Averages for {symbol}: {str(e)}")
-                        success = False
-
-                    # Calculate Stochastic Oscillator
-                    try:
-                        self.stochastic_analyzer.calculate_stochastic(ticker_id)
-                        print(f"Updated Stochastic Oscillator for {symbol}")
-                    except Exception as e:
-                        print(f"Error calculating Stochastic for {symbol}: {str(e)}")
-                        success = False
-
-                    # Note: Bollinger Bands are calculated on-the-fly during analysis
-                    # as they depend on the period parameter specified at analysis time
-
-                    # Handle success or error cases
-                    if success:
-                        # If successful, increment counter and reset error count
-                        count += 1
-                        error_count = 0
-                        # Apply standard rate limiting
-                        count = self._apply_rate_limiting(count)
-                    else:
-                        # If failed, increment error count
-                        error_count += 1
-                        # Take extended break if too many consecutive errors
-                        if error_count >= max_consecutive_errors:
-                            print(f"Too many consecutive errors ({error_count}). Taking a longer break...")
-                            time.sleep(self.error_pause_time * 2)
-                            error_count = 0
-                        # Apply error-based rate limiting
-                        count = self._apply_rate_limiting(count, is_error=True)
-
-                except Exception as e:
-                    print(f"Error processing ticker_id {ticker_id}: {str(e)}")
-                    error_count += 1
-                    count = self._apply_rate_limiting(count, is_error=True)
-                    continue
+                        success = future.result()
+                        status = "Success" if success else "Failed"
+                        print(f"Completed {symbol}: {status}")
+                    except Exception as exc:
+                        print(f"Generated an exception for {symbol}: {exc}")
 
         except Exception as e:
             print(f"Error in update_stock_activity: {str(e)}")

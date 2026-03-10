@@ -36,10 +36,11 @@ class TrendAnalyzer(BaseDAO):
         Returns:
             dict: A dictionary containing trend direction, strength, and angle
         """
+        result = []
+        
+        # First attempt to retrieve MA values
         with self.get_connection() as connection:
             cursor = connection.cursor()
-
-            # Retrieve MA values for the last {lookback_days} days
             cursor.execute(
                 """
                 SELECT activity_date, value 
@@ -51,16 +52,17 @@ class TrendAnalyzer(BaseDAO):
             """,
                 (ticker_id, period, lookback_days),
             )
-
             result = cursor.fetchall()
+            cursor.close()
 
-            # Handle case where not enough MA data is available - try to generate it
-            if len(result) < 2:
-                cursor.close()
-                # Try to generate missing moving averages from activity data
-                if self._generate_missing_moving_averages(ticker_id, period):
-                    # Retry the query after generating MAs
-                    cursor = self.current_connection.cursor()
+        # Handle case where not enough MA data is available - try to generate it
+        if len(result) < 2:
+            # Try to generate missing moving averages from activity data
+            # This uses its own connection context
+            if self._generate_missing_moving_averages(ticker_id, period):
+                # Retry the query after generating MAs
+                with self.get_connection() as connection:
+                    cursor = connection.cursor()
                     cursor.execute(
                         """
                         SELECT activity_date, value 
@@ -75,26 +77,15 @@ class TrendAnalyzer(BaseDAO):
                     result = cursor.fetchall()
                     cursor.close()
 
-                    # If still insufficient data after generation attempt
-                    if len(result) < 2:
-                        return {
-                            "direction": TrendDirection.UNKNOWN.value,
-                            "strength": TrendStrength.UNKNOWN.value,
-                            "angle": None,
-                            "percent_change": None,
-                            "values": [],
-                        }
-                else:
-                    # Could not generate MAs, return unknown
-                    return {
-                        "direction": TrendDirection.UNKNOWN.value,
-                        "strength": TrendStrength.UNKNOWN.value,
-                        "angle": None,
-                        "percent_change": None,
-                        "values": [],
-                    }
-            else:
-                cursor.close()
+        # If still insufficient data after generation attempt
+        if len(result) < 2:
+            return {
+                "direction": TrendDirection.UNKNOWN.value,
+                "strength": TrendStrength.UNKNOWN.value,
+                "angle": None,
+                "percent_change": None,
+                "values": [],
+            }
 
             # Convert to dataframe and sort by date
             df = pd.DataFrame(result, columns=["date", "value"])
@@ -313,7 +304,7 @@ class TrendAnalyzer(BaseDAO):
                     rows_inserted += cursor.rowcount
 
                 # Commit the changes
-                self.current_connection.commit()
+                connection.commit()
                 cursor.close()
 
                 return rows_inserted > 0

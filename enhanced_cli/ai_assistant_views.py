@@ -267,14 +267,19 @@ def ai_chat_interface(console: Console, portfolio_id: int):
             else:
                 status_msg = f"[bold green]🤖 Continuing advisory session (query {query_count})...[/bold green]"
 
-            with console.status(status_msg):
+            with console.status(status_msg) as status:
                 try:
+                    # Callback to update status from within LLM analyzer
+                    def update_status(msg):
+                        status.update(f"[bold green]🤖 {msg}[/bold green]")
+
                     # Use chat() directly with reset_context=False to maintain conversation
                     # Only reset on first query to start fresh session
                     response = analyzer.chat(
                         user_question,
                         portfolio_id=portfolio_id,
-                        reset_context=first_query  # True on first query, False after
+                        reset_context=first_query,  # True on first query, False after
+                        status_callback=update_status
                     )
                     first_query = False
                 except Exception as e:

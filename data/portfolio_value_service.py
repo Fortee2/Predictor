@@ -102,7 +102,7 @@ class PortfolioValueService:
                 avg_price = float(position["avg_price"])
 
                 # Get current price for this ticker
-                current_price = self._get_ticker_price(ticker_id, symbol, calculation_date)
+                current_price = self._get_ticker_price(ticker_id, symbol, calculation_date, use_current_prices)
 
                 if current_price is not None:
                     position_value = shares * current_price
@@ -270,7 +270,9 @@ class PortfolioValueService:
                 buy_queue[0] = (buy_shares - shares_to_sell, buy_price)
                 shares_to_sell = 0
 
-    def _get_ticker_price(self, ticker_id: int, symbol: str, calculation_date: date) -> Optional[float]:
+    def _get_ticker_price(
+        self, ticker_id: int, symbol: str, calculation_date: date, use_current_prices: bool = False
+    ) -> Optional[float]:
         """
         Get ticker price for a specific date.
 
@@ -284,11 +286,21 @@ class PortfolioValueService:
             with self.get_connection() as connection:
                 cursor = connection.cursor()
 
-                # Try to get historical price from database
+                # 1. If use_current=True, get latest price from ticker table
+                if use_current_prices:
+                    try:
+                        cursor.execute("SELECT close FROM tickers WHERE id = %s", (ticker_id,))
+                        result = cursor.fetchone()
+                        if result and result[0] is not None:
+                            return float(result[0])
+                    except mysql.connector.Error:
+                        pass
+
+                # 2. Get historical price from database (activity table)
                 try:
                     hist_query = """
                         SELECT close
-                        FROM investing.activity
+                        FROM activity
                         WHERE ticker_id = %s AND activity_date <= %s
                         ORDER BY activity_date DESC
                         LIMIT 1
@@ -298,7 +310,7 @@ class PortfolioValueService:
                     if result and result[0]:
                         return float(result[0])
                 except mysql.connector.Error:
-                    # investing.activity table might not exist
+                    # activity table might not exist or schema issue
                     pass
 
                 # Try yfinance for historical data
