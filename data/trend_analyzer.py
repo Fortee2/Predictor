@@ -43,10 +43,10 @@ class TrendAnalyzer(BaseDAO):
             cursor = connection.cursor()
             cursor.execute(
                 """
-                SELECT activity_date, value 
-                FROM investing.averages
-                WHERE ticker_id = %s 
-                AND average_type = %s
+                SELECT activity_date, value
+                FROM investing.simple_moving_averages
+                WHERE ticker_id = %s
+                AND period = %s
                 ORDER BY activity_date DESC
                 LIMIT %s
             """,
@@ -87,66 +87,66 @@ class TrendAnalyzer(BaseDAO):
                 "values": [],
             }
 
-            # Convert to dataframe and sort by date
-            df = pd.DataFrame(result, columns=["date", "value"])
-            df = df.sort_values("date")
+        # Convert to dataframe and sort by date
+        df = pd.DataFrame(result, columns=["date", "value"])
+        df = df.sort_values("date")
 
-            # Calculate the slope (direction and strength)
-            latest_value = float(df.iloc[-1]["value"])
-            previous_value = float(df.iloc[-2]["value"])
+        # Calculate the slope (direction and strength)
+        latest_value = float(df.iloc[-1]["value"])
+        previous_value = float(df.iloc[-2]["value"])
 
-            # Calculate the percentage change rate
-            # Additional checks for division by zero or very small values
-            try:
-                if abs(previous_value) < 0.0001:
-                    percent_change = 0
-                else:
-                    percent_change = (latest_value - previous_value) / previous_value * 100
-            except (ZeroDivisionError, decimal.DivisionUndefined):
+        # Calculate the percentage change rate
+        # Additional checks for division by zero or very small values
+        try:
+            if abs(previous_value) < 0.0001:
                 percent_change = 0
-
-            # Calculate angle of the trend
-            if len(df) >= 3:
-                # Fit a line to the data points
-                x = np.arange(len(df))
-                # Ensure all values are converted to float for numpy operations
-                y = np.array([float(val) for val in df["value"].values])
-                z = np.polyfit(x, y, 1)
-                slope = float(z[0])
-
-                # Calculate the angle in degrees
-                angle = float(np.degrees(np.arctan(slope)))
             else:
-                angle = None
+                percent_change = (latest_value - previous_value) / previous_value * 100
+        except (ZeroDivisionError, decimal.DivisionUndefined):
+            percent_change = 0
 
-            # Determine direction
-            if latest_value > previous_value:
-                direction = TrendDirection.UP.value
-            elif latest_value < previous_value:
-                direction = TrendDirection.DOWN.value
-            else:
-                direction = TrendDirection.FLAT.value
+        # Calculate angle of the trend
+        if len(df) >= 3:
+            # Fit a line to the data points
+            x = np.arange(len(df))
+            # Ensure all values are converted to float for numpy operations
+            y = np.array([float(val) for val in df["value"].values])
+            z = np.polyfit(x, y, 1)
+            slope = float(z[0])
 
-            # Determine strength based on percentage change
-            abs_percent_change = abs(percent_change)
+            # Calculate the angle in degrees
+            angle = float(np.degrees(np.arctan(slope)))
+        else:
+            angle = None
 
-            if abs_percent_change > 1.0:
-                strength = TrendStrength.STRONG.value
-            elif abs_percent_change > 0.5:
-                strength = TrendStrength.MODERATE.value
-            else:
-                strength = TrendStrength.WEAK.value
+        # Determine direction
+        if latest_value > previous_value:
+            direction = TrendDirection.UP.value
+        elif latest_value < previous_value:
+            direction = TrendDirection.DOWN.value
+        else:
+            direction = TrendDirection.FLAT.value
 
-            # Convert the MA values to a list for return
-            values = df["value"].tolist()
+        # Determine strength based on percentage change
+        abs_percent_change = abs(percent_change)
 
-            return {
-                "direction": direction,
-                "strength": strength,
-                "angle": angle,
-                "percent_change": percent_change,
-                "values": values,
-            }
+        if abs_percent_change > 1.0:
+            strength = TrendStrength.STRONG.value
+        elif abs_percent_change > 0.5:
+            strength = TrendStrength.MODERATE.value
+        else:
+            strength = TrendStrength.WEAK.value
+
+        # Convert the MA values to a list for return
+        values = df["value"].tolist()
+
+        return {
+            "direction": direction,
+            "strength": strength,
+            "angle": angle,
+            "percent_change": percent_change,
+            "values": values,
+        }
 
     def analyze_price_vs_ma(self, ticker_id, ma_period=20):
         """
@@ -178,8 +178,8 @@ class TrendAnalyzer(BaseDAO):
             # Get latest MA
             cursor.execute(
                 """
-                SELECT value FROM investing.averages
-                WHERE ticker_id = %s AND average_type = %s
+                SELECT value FROM investing.simple_moving_averages
+                WHERE ticker_id = %s AND period = %s
                 ORDER BY activity_date DESC
                 LIMIT 1
             """,
@@ -295,7 +295,7 @@ class TrendAnalyzer(BaseDAO):
                 for index, row in df_with_ma.iterrows():
                     cursor.execute(
                         """
-                        INSERT INTO investing.averages (ticker_id, activity_date, average_type, value)
+                        INSERT INTO investing.simple_moving_averages (ticker_id, activity_date, period, value)
                         VALUES (%s, %s, %s, %s)
                         ON DUPLICATE KEY UPDATE value = VALUES(value)
                     """,

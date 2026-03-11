@@ -1,7 +1,5 @@
 import logging
 from datetime import date, datetime
-from decimal import Decimal
-
 import numpy as np
 import pandas as pd
 
@@ -40,7 +38,9 @@ class rsi_calculations(BaseDAO):
 
     def retrievePrices(self, start_criteria, ticker_id):
         """
-        Retrieves price data and RSI calculations for a given ticker ID.
+        Retrieves price data for a given ticker ID.
+        Seed RSI values for incremental updates are fetched separately
+        via _fetch_last_rsi_values, so no LEFT JOIN is needed here.
 
         Parameters:
         - start_criteria (int or datetime/date): The starting point (ID or Date) for fetching records.
@@ -54,52 +54,38 @@ class rsi_calculations(BaseDAO):
                 cursor = connection.cursor()
 
                 if isinstance(start_criteria, int):
-                    # Legacy behavior using ID
                     sql = """
-                    SELECT a.close, a.activity_date, avg_loss, avg_gain, rs, rsi
-                    FROM investing.activity a
-                    LEFT JOIN investing.rsi r ON a.ticker_id = r.ticker_id AND a.activity_date = r.activity_date
-                    WHERE a.id >= %s AND a.ticker_id = %s
-                    ORDER BY a.activity_date;
+                    SELECT close, activity_date
+                    FROM investing.activity
+                    WHERE id >= %s AND ticker_id = %s
+                    ORDER BY activity_date;
                     """
                     cursor.execute(sql, (int(start_criteria), int(ticker_id)))
                 elif isinstance(start_criteria, (date, datetime)):
-                    # New behavior using Date
                     sql = """
-                    SELECT a.close, a.activity_date, avg_loss, avg_gain, rs, rsi
-                    FROM investing.activity a
-                    LEFT JOIN investing.rsi r ON a.ticker_id = r.ticker_id AND a.activity_date = r.activity_date
-                    WHERE a.activity_date >= %s AND a.ticker_id = %s
-                    ORDER BY a.activity_date;
+                    SELECT close, activity_date
+                    FROM investing.activity
+                    WHERE activity_date >= %s AND ticker_id = %s
+                    ORDER BY activity_date;
                     """
                     cursor.execute(sql, (start_criteria, int(ticker_id)))
                 else:
-                    # Retrieve all if None or other type
                     sql = """
-                    SELECT a.close, a.activity_date, avg_loss, avg_gain, rs, rsi
-                    FROM investing.activity a
-                    LEFT JOIN investing.rsi r ON a.ticker_id = r.ticker_id AND a.activity_date = r.activity_date
-                    WHERE a.ticker_id = %s
-                    ORDER BY a.activity_date;
+                    SELECT close, activity_date
+                    FROM investing.activity
+                    WHERE ticker_id = %s
+                    ORDER BY activity_date;
                     """
                     cursor.execute(sql, (int(ticker_id),))
 
                 df = pd.DataFrame(
                     cursor.fetchall(),
-                    columns=[
-                        "close",
-                        "activity_date",
-                        "avg_loss",
-                        "avg_gain",
-                        "rs",
-                        "rsi",
-                    ],
+                    columns=["close", "activity_date"],
                 )
                 df["activity_date"] = pd.to_datetime(df["activity_date"])
                 df = df.set_index("activity_date")
         except Exception as e:
             logger.error("An error occurred: %s", e)
-            # Depending on your use case, you might want to re-raise the exception or return an empty DataFrame
             return pd.DataFrame()
 
         return df
@@ -157,99 +143,127 @@ class rsi_calculations(BaseDAO):
             logger.error(f"Error saving RSI batch: {e}")
             raise
 
+    def _fetch_last_rsi_values(self, ticker_id):
+        """Fetch the most recent RSI values directly from the rsi table."""
+        try:
+            with self.get_connection() as connection:
+                cursor = connection.cursor()
+                cursor.execute(
+                    """SELECT avg_gain, avg_loss, rs, rsi
+                    FROM investing.rsi
+                    WHERE ticker_id = %s
+                    ORDER BY activity_date DESC LIMIT 1""",
+                    (int(ticker_id),),
+                )
+                row = cursor.fetchone()
+                cursor.close()
+                if row:
+                    return {
+                        "avg_gain": float(row[0]),
+                        "avg_loss": float(row[1]),
+                        "rs": float(row[2]),
+                        "rsi": float(row[3]),
+                    }
+        except Exception as e:
+            logger.error("Error fetching last RSI values for ticker %s: %s", ticker_id, e)
+        return None
+
     def calculateWeightedAverages(self, ticker_id):
         # Check to see if this job has run before
         last_date = self.averagesLastCalculated(ticker_id)
+        print(f"  Last RSI date: {last_date}")
 
         # retrieve price information so we can calculate
         # If last_date is None, this will retrieve all history (as None is handled in retrievePrices)
+        print(f"  Fetching price data...")
         df_avg = self.retrievePrices(last_date, ticker_id)
 
-        # Add in columns we need to calculate steps with
-        df_rs = df_avg.assign(gain=0, loss=0, rs=0).astype({"gain": "float64", "loss": "float64", "rs": "float64"})
+        if df_avg.empty:
+            print("  No price data found.")
+            return
 
-        # We are using index based access so we need to find column positions
-        gain_idx = int(df_rs.columns.get_loc("gain"))  # type: ignore[arg-type]
-        loss_idx = int(df_rs.columns.get_loc("loss"))  # type: ignore[arg-type]
-        avgGain_idx = int(df_rs.columns.get_loc("avg_gain"))  # type: ignore[arg-type]
-        avgLoss_idx = int(df_rs.columns.get_loc("avg_loss"))  # type: ignore[arg-type]
-        rs_idx = int(df_rs.columns.get_loc("rs"))  # type: ignore[arg-type] - relative strength
-        rsi_idx = int(df_rs.columns.get_loc("rsi"))  # type: ignore[arg-type] - relative strength index (Converts RS to a value between 0 and 100)
-        close_idx = int(df_rs.columns.get_loc("close"))
+        array_len = len(df_avg)
+        print(f"  Retrieved {array_len} rows (dates: {df_avg.index[0]} to {df_avg.index[-1]})")
 
-        # this is our loop length
-        array_len = len(df_rs)
+        # Extract to numpy arrays to avoid slow pandas iloc in the loop
+        close = np.array([float(v) for v in df_avg["close"].values])
+        dates = df_avg.index.tolist()
+
+        # Working arrays
+        gain = np.zeros(array_len)
+        loss = np.zeros(array_len)
+        avg_gain = np.zeros(array_len)
+        avg_loss = np.zeros(array_len)
+        rs = np.zeros(array_len)
+        rsi_arr = np.zeros(array_len)
+
         batch_data = []
         BATCH_SIZE = 1000
 
-        for rsi in range(array_len):
-            idx = df_rs.index[rsi] # needed for record creation
-            
-            if last_date is not None and rsi == 0:
-                continue  # We have historical data and the first row is going to have our seed values we just need to jump ahead one to start processing
+        # Calculate gain/loss for all rows at once
+        for i in range(1, array_len):
+            diff = close[i] - close[i - 1]
+            if diff > 0:
+                gain[i] = diff
+            else:
+                loss[i] = abs(diff)
 
-            # set our values
-            if rsi > 0:
-                # Use iloc for safer access, avoiding potential duplicate index issues
-                current_price = float(df_rs.iloc[rsi, close_idx])
-                prev_price = float(df_rs.iloc[rsi - 1, close_idx])
+        # Determine where to start producing RSI records
+        if last_date is not None:
+            # Resuming: fetch seed values directly from RSI table
+            seed_vals = self._fetch_last_rsi_values(ticker_id)
+            if seed_vals is None:
+                logger.warning("No seed RSI values found for ticker %s, cannot resume", ticker_id)
+                return
 
-                if current_price > prev_price:
-                    # stock is up
-                    df_rs.iloc[rsi, gain_idx] = float(current_price - prev_price)
-                else:
-                    # stock is down
-                    df_rs.iloc[rsi, loss_idx] = np.abs(float(current_price - prev_price))
+            avg_gain[0] = seed_vals["avg_gain"]
+            avg_loss[0] = seed_vals["avg_loss"]
 
-            # This group has no history so we need to accumulate some averages
-            if rsi < 13 and last_date is None:
+            # Calculate from row 1 onward
+            start = 1
+        else:
+            # Fresh calculation: need 14 rows to seed
+            if array_len < 14:
+                return
+
+            avg_gain[13] = round(float(np.mean(gain[0:13])), 2)
+            avg_loss[13] = round(float(np.mean(loss[0:13])), 2)
+
+            start = 13
+
+        # Weighted average calculation (the RSI formula)
+        for i in range(start, array_len):
+            if i > start:
+                avg_gain[i] = round((avg_gain[i - 1] * 13 + gain[i]) / 14, 2)
+                avg_loss[i] = round((avg_loss[i - 1] * 13 + loss[i]) / 14, 2)
+            elif i == start and last_date is None:
+                # Row 13 seed — already set above
+                pass
+            else:
+                # Row 1 when resuming — use seed from row 0
+                avg_gain[i] = round((avg_gain[i - 1] * 13 + gain[i]) / 14, 2)
+                avg_loss[i] = round((avg_loss[i - 1] * 13 + loss[i]) / 14, 2)
+
+            # RS calculation
+            if avg_loss[i] < 0.0001:
+                rs[i] = 100.0
+            else:
+                rs[i] = avg_gain[i] / avg_loss[i]
+
+            # RSI from RS
+            rsi_arr[i] = round(100 - (100 / (rs[i] + 1)), 0)
+
+            # Skip row 0 (seed row) when resuming — don't re-save it
+            if last_date is not None and i == 0:
                 continue
 
-            if rsi == 13 and last_date is None:  # We only want to hit here if no history has been calculated
-                df_rs.iloc[13, avgGain_idx] = round(float(np.mean(df_rs.iloc[0:13, gain_idx].to_numpy())), 2)
-                df_rs.iloc[13, avgLoss_idx] = round(float(np.mean(df_rs.iloc[0:13, loss_idx].to_numpy())), 2)
-            elif rsi > 13 or last_date is not None:  # Only want to hit here if we have done seed calculation or we have past history
-                # Safety check for None values to avoid crashes
-                val_prev_gain = df_rs.iloc[rsi - 1, avgGain_idx]
-                if pd.isna(val_prev_gain):
-                    # Fallback logic could go here, but for now we skip to avoid crash
-                    # Ideally we should re-seed if we find a gap, but that's complex
-                    continue
-
-                prev_avg_gain = float(val_prev_gain)  # type: ignore
-                curr_gain = float(df_rs.iloc[rsi, gain_idx])
-                df_rs.iloc[rsi, avgGain_idx] = round((prev_avg_gain * 13 + curr_gain) / 14, 2)
-
-                prev_avg_loss = float(df_rs.iloc[rsi - 1, avgLoss_idx])  # type: ignore
-                curr_loss = float(df_rs.iloc[rsi, loss_idx])
-                df_rs.iloc[rsi, avgLoss_idx] = round((prev_avg_loss * 13 + curr_loss) / 14, 2)
-
-            # Handle division by zero for RS calculation
-            avg_loss_val = float(df_rs.iloc[rsi, avgLoss_idx])  # type: ignore
-            avg_gain_val = float(df_rs.iloc[rsi, avgGain_idx])  # type: ignore
-
-            try:
-                if avg_loss_val == 0 or avg_loss_val < 0.0001:
-                    # If average loss is zero or very small, set RS to a large value (100 is common in finance)
-                    df_rs.iloc[rsi, rs_idx] = 100.0
-                else:
-                    df_rs.iloc[rsi, rs_idx] = avg_gain_val / avg_loss_val
-            except ZeroDivisionError:
-                # Handle any other division errors
-                df_rs.iloc[rsi, rs_idx] = 100.0
-
-            # Calculate RSI from RS
-            rs_val = float(df_rs.iloc[rsi, rs_idx])  # type: ignore
-            df_rs.iloc[rsi, rsi_idx] = round(100 - (100 / (rs_val + 1)), 0)  # convert to an index
-
-            # Accumulate data for batch insert
             record = (
-                idx,
+                dates[i],
                 int(ticker_id),
-                float(df_rs.iloc[rsi, avgGain_idx]),
-                float(df_rs.iloc[rsi, avgLoss_idx]),
-                float(df_rs.iloc[rsi, rs_idx]),
-                float(df_rs.iloc[rsi, rsi_idx]),
+                float(avg_gain[i]),
+                float(avg_loss[i]),
+                float(rs[i]),
+                float(rsi_arr[i]),
             )
             batch_data.append(record)
 
@@ -260,3 +274,6 @@ class rsi_calculations(BaseDAO):
         # Save any remaining records
         if batch_data:
             self.save_rsi_batch(batch_data)
+
+        total_saved = sum(1 for i in range(start, array_len) if not (last_date is not None and i == 0))
+        print(f"  RSI calculation complete. {total_saved} records saved.")
