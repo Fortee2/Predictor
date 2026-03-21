@@ -252,6 +252,8 @@ class PortfolioCLI:
                     if ticker_id in current_positions:
                         position = current_positions[ticker_id]
                         shares = position["shares"]
+                        if shares == 0:
+                            continue
                         shares_info = f" ({shares} shares)"
 
                         # Prepare position data for portfolio metrics

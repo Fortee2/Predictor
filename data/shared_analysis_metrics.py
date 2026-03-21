@@ -346,7 +346,8 @@ class SharedAnalysisMetrics:
                 "error": f"Unable to retrieve fundamental data: {str(e)}",
             }
 
-    def analyze_news_sentiment(self, ticker_id: int, symbol: str) -> Dict[str, Any]:
+    def analyze_news_sentiment(self, ticker_id: int, symbol: str) -> None | dict[str, bool | str | Any] | dict[
+        str, bool | str]:
         """
         Analyze news sentiment for a given ticker.
 
@@ -359,7 +360,7 @@ class SharedAnalysisMetrics:
         """
         try:
             # Use get_sentiment_summary, which is more efficient
-            sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id)
+            sentiment_data = self.news_analyzer.get_sentiment_summary(ticker_id, symbol)
 
             if sentiment_data and sentiment_data.get("status") != "No sentiment data available":
                 return {
